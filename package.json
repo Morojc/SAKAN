@@ -9,7 +9,10 @@
     "lint": "next lint",
     "email": "email dev",
     "lint:ts": "tsc --noEmit",
-    "stripe:listen": "stripe listen --forward-to localhost:3000/api/webhook/stripe"
+    "stripe:listen": "stripe listen --forward-to localhost:3000/api/webhook/stripe",
+    "stripe:listen:ngrok": "stripe listen --forward-to https://unspiral-crusily-katerine.ngrok-free.dev/api/webhook/stripe",
+    "stripe:listen:4242": "stripe listen --forward-to localhost:4242/webhook",
+    "stripe:trigger": "stripe trigger checkout.session.completed"
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.7.4",

@@ -8,6 +8,9 @@ import config from "@/config"
 
 const authConfig = {
 	secret: process.env.AUTH_SECRET,
+	// trustHost allows NextAuth to trust the host header (useful for ngrok, reverse proxies)
+	// This prevents issues with https://localhost:3000 when the protocol is incorrectly detected
+	trustHost: true,
 	providers: [
 		GoogleProvider({
 			allowDangerousEmailAccountLinking: true,
