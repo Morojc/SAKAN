@@ -1,0 +1,345 @@
+Certainly! Here is a **comprehensive, holistic, and actionable feature/task breakdown** for the **MyResidency** SaaS platform, tailored to your requirements and the provided Next.js SaaS starter template. This breakdown is for the **Web Admin Dashboard (Syndic)**, focusing on the **core layout and foundational UI first**, then all major modules, with each task delivering a clear user story, user flow, UI details, and required state/data points.
+
+---
+
+# MyResidency Web Admin Dashboard (Syndic) — Feature/Task Breakdown
+
+---
+
+## 1. Implement Core App Layout & Navigation (app/app/page.tsx)
+
+**User Story:**  
+As a Syndic (Admin), I want a cohesive dashboard layout with intuitive navigation, so I can easily access all management features.
+
+**User Flow:**
+- Upon login, the Syndic lands on the dashboard home.
+- A sidebar provides access to: Dashboard, Residents, Payments, Expenses, Incidents, Announcements, Polls, Access Control, Settings.
+- The header (already present) is styled to match the app’s look.
+
+**UI Details:**
+- Use shadcn/ui’s `Sheet` or `NavigationMenu` for sidebar.
+- Sidebar: vertical, collapsible on mobile, icons (Lucide), text labels.
+- Main content area: responsive, with padding, bg-background.
+- Header: update to match sidebar (bg-primary, text-primary-foreground, add Syndic avatar/profile menu).
+- Use Tailwind’s variable-based colors.
+
+**State/Data Points:**
+- Current navigation section (for highlighting).
+- User session (from auth).
+- No data fetching yet; use static menu items.
+
+---
+
+## 2. Dashboard Home: Financial & Operational Overview
+
+**User Story:**  
+As a Syndic, I want a dashboard overview showing key financial and operational stats, so I can quickly assess the state of the residence.
+
+**User Flow:**
+- On dashboard load, see cards for: Total Residents, Cash on Hand, Bank Balance, Outstanding Fees, Open Incidents, Recent Announcements.
+
+**UI Details:**
+- Use shadcn/ui `Card` for each stat.
+- Use Lucide icons for visual cues.
+- Responsive grid (2 columns on mobile, 3+ on desktop).
+- “View details” links to respective modules.
+
+**State/Data Points:**
+- Fetch summary stats: residents count, cash/bank balances, outstanding fees, open incidents, recent announcements.
+- Use Supabase for data (stub/mock for now).
+
+---
+
+## 3. Residents Management Module
+
+**User Story:**  
+As a Syndic, I want to view, search, and manage all residents, so I can keep resident information up to date.
+
+**User Flow:**
+- Click “Residents” in sidebar.
+- See a table of residents: Name, Apartment, Email, Phone, Status (Active/Inactive), Outstanding Fees.
+- Search and filter by name/apartment.
+- Add/Edit/Delete resident (modal form).
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Input`, `Button`, `Dialog`.
+- Table with pagination.
+- “Add Resident” button opens modal with form fields.
+- Edit/Delete actions as row actions (dropdown or icon buttons).
+
+**State/Data Points:**
+- Residents list (from Supabase).
+- Search/filter state.
+- Modal open/close state.
+- Resident form data.
+
+---
+
+## 4. Payments & Hybrid Cash Payment Feature
+
+**User Story:**  
+As a Syndic, I want to record payments (including cash), generate receipts, and track balances, so I can manage finances transparently.
+
+**User Flow:**
+- Click “Payments” in sidebar.
+- See table: Resident, Amount, Method (Cash/Online), Date, Status, Receipt.
+- “Add Payment” button: select resident, enter amount, choose method (Cash/Online).
+- On cash payment: system generates PDF receipt, triggers push notification to resident.
+- “Cash on Hand” and “Bank Balance” shown at top.
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Dialog`, `Select`, `Input`, `Button`, `Badge`.
+- “Add Payment” opens modal form.
+- Receipt: “Download PDF” button (use a PDF library, e.g., pdf-lib).
+- Show balances in summary cards above table.
+
+**State/Data Points:**
+- Payments list (from Supabase).
+- Cash on Hand, Bank Balance (computed).
+- Payment form state.
+- Receipt generation state.
+- Resident selection.
+
+---
+
+## 5. Expenses Tracking Module
+
+**User Story:**  
+As a Syndic, I want to log and categorize expenses, so I can track where funds are spent.
+
+**User Flow:**
+- Click “Expenses” in sidebar.
+- See table: Date, Description, Category, Amount, Paid From (Cash/Bank), Attachment (optional).
+- “Add Expense” button: opens modal form.
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Dialog`, `Select`, `Input`, `Button`, `FileUpload`.
+- Category as dropdown (Maintenance, Utilities, Staff, etc.).
+- Attachment: upload invoice/receipt (optional).
+
+**State/Data Points:**
+- Expenses list (from Supabase).
+- Expense form state.
+- File upload state.
+
+---
+
+## 6. Monthly Fee Generation (“Appel de Fonds”)
+
+**User Story:**  
+As a Syndic, I want to generate monthly fee requests for all residents, so I can collect dues efficiently.
+
+**User Flow:**
+- Click “Generate Fees” button in Payments module.
+- Modal: select month, amount per apartment (default or custom), due date.
+- System creates fee records for all residents, sends notifications.
+
+**UI Details:**
+- Use shadcn/ui `Dialog`, `Input`, `DatePicker`, `Button`.
+- Confirmation step before generation.
+
+**State/Data Points:**
+- Fee generation form state.
+- Residents list (for custom amounts).
+- Generated fee records.
+
+---
+
+## 7. Defaulter Tracking
+
+**User Story:**  
+As a Syndic, I want to see which residents are overdue on payments, so I can follow up.
+
+**User Flow:**
+- In Payments module, filter for “Overdue” residents.
+- Table: Resident, Amount Due, Last Payment Date, Contact Info, “Send Reminder” action.
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Button`, `Badge`.
+- “Send Reminder” triggers email/push notification.
+
+**State/Data Points:**
+- Overdue residents list.
+- Reminder sending state.
+
+---
+
+## 8. Incident Ticketing (Maintenance Requests)
+
+**User Story:**  
+As a Syndic, I want to view and manage maintenance tickets submitted by residents, so I can resolve issues promptly.
+
+**User Flow:**
+- Click “Incidents” in sidebar.
+- Table: Ticket ID, Resident, Description, Status (Open/In Progress/Closed), Date, Actions.
+- View ticket details, update status, assign to staff.
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Dialog`, `Select`, `Button`.
+- Status as colored badge.
+- Ticket details modal.
+
+**State/Data Points:**
+- Tickets list (from Supabase).
+- Ticket status update state.
+- Assignment state.
+
+---
+
+## 9. Announcements Module
+
+**User Story:**  
+As a Syndic, I want to post announcements to all residents, so I can communicate important information.
+
+**User Flow:**
+- Click “Announcements” in sidebar.
+- List of announcements: Title, Date, Content, Attachments.
+- “New Announcement” button: opens modal form.
+
+**UI Details:**
+- Use shadcn/ui `Card`, `Dialog`, `Input`, `Textarea`, `FileUpload`, `Button`.
+- Announcements displayed in reverse chronological order.
+
+**State/Data Points:**
+- Announcements list.
+- Announcement form state.
+- File upload state.
+
+---
+
+## 10. Polls/Voting Module
+
+**User Story:**  
+As a Syndic, I want to create polls for residents to vote on, so I can gather consensus on key decisions.
+
+**User Flow:**
+- Click “Polls” in sidebar.
+- List of active/closed polls: Question, Options, Status, Results.
+- “Create Poll” button: opens modal form.
+
+**UI Details:**
+- Use shadcn/ui `Card`, `Dialog`, `Input`, `Textarea`, `Button`, `Progress`.
+- Poll results as progress bars.
+
+**State/Data Points:**
+- Polls list.
+- Poll creation form state.
+- Poll results.
+
+---
+
+## 11. Access Control: QR Code Generation for Visitors
+
+**User Story:**  
+As a Syndic, I want to generate QR codes for residents to invite visitors, so guards can verify entry.
+
+**User Flow:**
+- Click “Access Control” in sidebar.
+- Table: Resident, Visitor Name, QR Code, Validity, Status.
+- “Generate QR” button: select resident, enter visitor name, set validity.
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Dialog`, `Input`, `DatePicker`, `Button`.
+- QR code generated using a library (e.g., qrcode.react).
+- Download/Share QR code.
+
+**State/Data Points:**
+- QR code records.
+- QR code generation form state.
+
+---
+
+## 12. Package Delivery Logging (for Guards)
+
+**User Story:**  
+As a Syndic, I want to view logs of package deliveries recorded by guards, so I can track deliveries.
+
+**User Flow:**
+- Click “Deliveries” in sidebar.
+- Table: Date, Resident, Package Description, Guard Name, Status (Delivered/Pending).
+
+**UI Details:**
+- Use shadcn/ui `Table`, `Badge`.
+- No editing; view only.
+
+**State/Data Points:**
+- Delivery logs (from Supabase).
+
+---
+
+## 13. Settings & Profile
+
+**User Story:**  
+As a Syndic, I want to manage my profile and residence settings, so I can keep information accurate.
+
+**User Flow:**
+- Click “Settings” in sidebar.
+- Tabs: Profile, Residence Info, Bank Accounts, Notification Preferences.
+
+**UI Details:**
+- Use shadcn/ui `Tabs`, `Input`, `Button`, `Avatar`.
+- Profile form, residence info form, bank account management.
+
+**State/Data Points:**
+- Profile data.
+- Residence info.
+- Bank account details.
+- Notification preferences.
+
+---
+
+## 14. Notifications Center
+
+**User Story:**  
+As a Syndic, I want to see all system notifications (payments, incidents, votes, etc.) in one place.
+
+**User Flow:**
+- Click bell icon in header.
+- Dropdown or side panel: list of notifications, mark as read.
+
+**UI Details:**
+- Use shadcn/ui `Popover`, `List`, `Badge`.
+- Unread count badge on bell icon.
+
+**State/Data Points:**
+- Notifications list.
+- Read/unread state.
+
+---
+
+## 15. Audit Log
+
+**User Story:**  
+As a Syndic, I want to see a log of all key actions (payments, edits, etc.) for transparency.
+
+**User Flow:**
+- Click “Audit Log” in sidebar.
+- Table: Date, User, Action, Details.
+
+**UI Details:**
+- Use shadcn/ui `Table`.
+
+**State/Data Points:**
+- Audit log entries.
+
+---
+
+# Notes
+
+- **All modules must use shadcn/ui and Tailwind variable-based colors.**
+- **No placeholder components for key features (e.g., QR code, PDF receipt).**
+- **All features are responsive by default.**
+- **No fetch/network code in UI; use Supabase client for data.**
+- **Each module is a separate page/component under `app/app/`.**
+- **Header and sidebar are consistent across all pages.**
+
+---
+
+## Next Steps
+
+**Start with Task 1:**  
+Implement the core app layout and navigation in `app/app/page.tsx`, update the header style, and set up the sidebar with all main sections (even if empty for now).
+
+---
+
+Let me know if you want the breakdown for the **Resident** or **Guard** mobile/tablet apps, or a more detailed breakdown for any module!

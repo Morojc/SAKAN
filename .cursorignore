@@ -1,0 +1,6 @@
+!.env.local
+!.env.development
+!.env.production
+!.env.example
+!.env.development.example
+!.env.production.example

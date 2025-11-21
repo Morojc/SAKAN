@@ -1,0 +1,375 @@
+Certainly! Below is a **minimal, normalized database schema** and **state management interfaces** for the MyResidency Web Admin Dashboard (Syndic), covering all the modules described.  
+**Each section is clearly separated.**  
+**All schema and state are kept as simple as possible, only including what is necessary for the UI and features.**
+
+---
+
+# 1. Database Schema
+
+```sql
+-- USERS (Syndic/Admins & Residents)
+create table user (
+  id uuid primary key default next_auth.uid(),
+  name text not null,
+  email text not null unique,
+  phone text,
+  role text not null, -- 'syndic' | 'resident' | 'guard'
+  apartment text,     -- only for residents
+  status text not null default 'active', -- 'active' | 'inactive'
+  created_at timestamp with time zone default now()
+);
+
+-- RESIDENCE (Building/Complex Info)
+create table residence (
+  id identity primary key,
+  name text not null,
+  address text not null,
+  bank_account text,
+  syndic_id uuid not null references user(id)
+);
+
+-- PAYMENTS (All payment records)
+create table payment (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  amount numeric(10,2) not null,
+  method text not null, -- 'cash' | 'online'
+  status text not null default 'completed', -- 'completed' | 'pending'
+  paid_at timestamp with time zone not null default now(),
+  receipt_url text,
+  fee_id bigint references fee(id)
+);
+
+-- FEES (Monthly or special fee requests)
+create table fee (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  amount numeric(10,2) not null,
+  due_date date not null,
+  status text not null default 'unpaid', -- 'unpaid' | 'paid' | 'overdue'
+  created_at timestamp with time zone default now()
+);
+
+-- EXPENSES (Logged by Syndic)
+create table expense (
+  id identity primary key,
+  description text not null,
+  category text not null, -- 'maintenance' | 'utilities' | 'staff' | etc.
+  amount numeric(10,2) not null,
+  paid_from text not null, -- 'cash' | 'bank'
+  attachment_url text,
+  paid_at date not null,
+  user_id uuid not null default next_auth.uid()
+);
+
+-- INCIDENTS (Maintenance tickets)
+create table incident (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  description text not null,
+  status text not null default 'open', -- 'open' | 'in_progress' | 'closed'
+  assigned_to uuid references user(id),
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- ANNOUNCEMENTS
+create table announcement (
+  id identity primary key,
+  title text not null,
+  content text not null,
+  attachment_url text,
+  created_at timestamp with time zone default now(),
+  user_id uuid not null default next_auth.uid()
+);
+
+-- POLLS
+create table poll (
+  id identity primary key,
+  question text not null,
+  status text not null default 'active', -- 'active' | 'closed'
+  created_at timestamp with time zone default now(),
+  user_id uuid not null default next_auth.uid()
+);
+
+create table poll_option (
+  id identity primary key,
+  poll_id bigint not null references poll(id),
+  text text not null
+);
+
+create table poll_vote (
+  id identity primary key,
+  poll_id bigint not null references poll(id),
+  option_id bigint not null references poll_option(id),
+  user_id uuid not null references user(id),
+  created_at timestamp with time zone default now(),
+  unique (poll_id, user_id)
+);
+
+-- ACCESS CONTROL (Visitor QR codes)
+create table access (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  visitor_name text not null,
+  qr_code_url text not null,
+  valid_from timestamp with time zone not null,
+  valid_to timestamp with time zone not null,
+  status text not null default 'active' -- 'active' | 'expired' | 'revoked'
+);
+
+-- DELIVERIES (Package logs)
+create table delivery (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  description text not null,
+  guard_name text not null,
+  status text not null default 'delivered', -- 'delivered' | 'pending'
+  delivered_at timestamp with time zone default now()
+);
+
+-- NOTIFICATIONS
+create table notification (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  type text not null, -- 'payment' | 'incident' | 'poll' | etc.
+  content text not null,
+  read boolean not null default false,
+  created_at timestamp with time zone default now()
+);
+
+-- AUDIT LOG
+create table audit (
+  id identity primary key,
+  user_id uuid not null references user(id),
+  action text not null,
+  details text,
+  created_at timestamp with time zone default now()
+);
+```
+
+---
+
+# 2. State Management Interfaces (TypeScript)
+
+```ts
+// --- User/Resident ---
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'syndic' | 'resident' | 'guard';
+  apartment?: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+// --- Residence ---
+export interface Residence {
+  id: number;
+  name: string;
+  address: string;
+  bank_account?: string;
+  syndic_id: string;
+}
+
+// --- Payment & Fee ---
+export interface Payment {
+  id: number;
+  user_id: string;
+  amount: number;
+  method: 'cash' | 'online';
+  status: 'completed' | 'pending';
+  paid_at: string;
+  receipt_url?: string;
+  fee_id?: number;
+}
+
+export interface Fee {
+  id: number;
+  user_id: string;
+  amount: number;
+  due_date: string;
+  status: 'unpaid' | 'paid' | 'overdue';
+  created_at: string;
+}
+
+// --- Expense ---
+export interface Expense {
+  id: number;
+  description: string;
+  category: string;
+  amount: number;
+  paid_from: 'cash' | 'bank';
+  attachment_url?: string;
+  paid_at: string;
+  user_id: string;
+}
+
+// --- Incident ---
+export interface Incident {
+  id: number;
+  user_id: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'closed';
+  assigned_to?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Announcement ---
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  attachment_url?: string;
+  created_at: string;
+  user_id: string;
+}
+
+// --- Polls ---
+export interface Poll {
+  id: number;
+  question: string;
+  status: 'active' | 'closed';
+  created_at: string;
+  user_id: string;
+  options: PollOption[];
+  votes: PollVote[];
+}
+
+export interface PollOption {
+  id: number;
+  poll_id: number;
+  text: string;
+}
+
+export interface PollVote {
+  id: number;
+  poll_id: number;
+  option_id: number;
+  user_id: string;
+  created_at: string;
+}
+
+// --- Access Control (QR) ---
+export interface Access {
+  id: number;
+  user_id: string;
+  visitor_name: string;
+  qr_code_url: string;
+  valid_from: string;
+  valid_to: string;
+  status: 'active' | 'expired' | 'revoked';
+}
+
+// --- Delivery ---
+export interface Delivery {
+  id: number;
+  user_id: string;
+  description: string;
+  guard_name: string;
+  status: 'delivered' | 'pending';
+  delivered_at: string;
+}
+
+// --- Notification ---
+export interface Notification {
+  id: number;
+  user_id: string;
+  type: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+}
+
+// --- Audit Log ---
+export interface Audit {
+  id: number;
+  user_id: string;
+  action: string;
+  details?: string;
+  created_at: string;
+}
+
+// --- Example State Slices ---
+
+// Residents
+interface ResidentState {
+  residents: User[];
+  search: string;
+  filter: { status?: string; apartment?: string };
+  setResidents: (residents: User[]) => void;
+  setSearch: (search: string) => void;
+  setFilter: (filter: ResidentState['filter']) => void;
+}
+
+// Payments
+interface PaymentState {
+  payments: Payment[];
+  cashOnHand: number;
+  bankBalance: number;
+  addPayment: (payment: Payment) => void;
+  setPayments: (payments: Payment[]) => void;
+}
+
+// Expenses
+interface ExpenseState {
+  expenses: Expense[];
+  addExpense: (expense: Expense) => void;
+  setExpenses: (expenses: Expense[]) => void;
+}
+
+// Incidents
+interface IncidentState {
+  incidents: Incident[];
+  setIncidents: (incidents: Incident[]) => void;
+  updateIncident: (id: number, updates: Partial<Incident>) => void;
+}
+
+// Announcements
+interface AnnouncementState {
+  announcements: Announcement[];
+  setAnnouncements: (announcements: Announcement[]) => void;
+  addAnnouncement: (announcement: Announcement) => void;
+}
+
+// Polls
+interface PollState {
+  polls: Poll[];
+  setPolls: (polls: Poll[]) => void;
+  vote: (pollId: number, optionId: number) => void;
+}
+
+// Access Control
+interface AccessState {
+  accesses: Access[];
+  setAccesses: (accesses: Access[]) => void;
+  addAccess: (access: Access) => void;
+}
+
+// Deliveries
+interface DeliveryState {
+  deliveries: Delivery[];
+  setDeliveries: (deliveries: Delivery[]) => void;
+}
+
+// Notifications
+interface NotificationState {
+  notifications: Notification[];
+  setNotifications: (notifications: Notification[]) => void;
+  markAsRead: (id: number) => void;
+}
+
+// Audit Log
+interface AuditState {
+  audits: Audit[];
+  setAudits: (audits: Audit[]) => void;
+}
+```
+
+---
+
+**This schema and state design is minimal, normalized, and ready for scalable SaaS development.**  
+Let me know if you want a breakdown for a specific module, or more detailed state/actions for any feature!
