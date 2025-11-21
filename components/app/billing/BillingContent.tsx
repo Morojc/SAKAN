@@ -91,14 +91,28 @@ export default function BillingContent() {
 		async function fetchProfileData() {
 			try {
 				const response = await fetch('/api/profile');
-				if (!response.ok) {
-					throw new Error('Failed to fetch profile data');
+				
+				// Handle 401 (unauthorized) - user is not authenticated
+				if (response.status === 401) {
+					// User is not authenticated, redirect to sign in silently
+					setLoading(false);
+					window.location.href = '/api/auth/signin';
+					return;
 				}
+				
+				if (!response.ok) {
+					const errorData = await response.json().catch(() => ({}));
+					throw new Error(errorData.error || 'Failed to fetch profile data');
+				}
+				
 				const data = await response.json();
 				setProfileData(data);
 			} catch (err) {
-				console.error('Error fetching profile data:', err);
-				setError('Failed to load profile data. Please try again later.');
+				// Don't show error for network issues during redirect
+				if (err instanceof Error && err.message !== 'Failed to fetch') {
+					console.error('Error fetching profile data:', err);
+					setError('Failed to load profile data. Please try again later.');
+				}
 			} finally {
 				setLoading(false);
 			}

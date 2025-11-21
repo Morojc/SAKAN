@@ -31,6 +31,57 @@ const authConfig = {
 		schema: 'dbasakan',
 	}),
 	callbacks: {
+		async signIn({ user, account, profile }) {
+			// After user is created/authenticated, ensure profile exists in dbasakan.profiles
+			if (user?.id) {
+				try {
+					// Create a client specifically configured for dbasakan schema
+					const { createClient } = await import('@supabase/supabase-js');
+					const dbasakanClient = createClient(
+						process.env.NEXT_PUBLIC_SUPABASE_URL!,
+						process.env.SUPABASE_SECRET_KEY!,
+						{
+							db: { schema: 'dbasakan' },
+							auth: { persistSession: false },
+						}
+					);
+					
+					// Check if profile already exists
+					const { data: existingProfile, error: checkError } = await dbasakanClient
+						.from('profiles')
+						.select('id')
+						.eq('id', user.id)
+						.maybeSingle();
+					
+					// Create profile if it doesn't exist
+					if (!existingProfile) {
+						const fullName = user.name || user.email?.split('@')[0] || 'User';
+						
+						const { error: insertError } = await dbasakanClient
+							.from('profiles')
+							.insert({
+								id: user.id,
+								full_name: fullName,
+								role: 'resident', // default role
+								// residence_id can be null initially - user will be assigned later
+							});
+						
+						if (insertError) {
+							console.error('[NextAuth] Error creating profile:', insertError);
+							// Don't block sign-in if profile creation fails
+							// The database trigger will handle it as fallback
+						} else {
+							console.log('[NextAuth] Profile created for user:', user.id);
+						}
+					}
+				} catch (error) {
+					console.error('[NextAuth] Error in signIn callback:', error);
+					// Don't block sign-in - allow user to proceed
+					// The database trigger will handle profile creation as fallback
+				}
+			}
+			return true; // Allow sign-in to proceed
+		},
 		async session({ session, user }) {
 			const signingSecret = process.env.SUPABASE_JWT_SECRET
 

@@ -8,8 +8,9 @@ export default function UserMenu() {
 	const { data: session } = useSession();
 	const user = session?.user;
 
-	const handleSignOut = () => {
-		signOut();
+	const handleSignOut = async () => {
+		// Sign out and redirect to home page
+		await signOut({ callbackUrl: '/', redirect: true });
 	};
 
 	if (!user) return null;

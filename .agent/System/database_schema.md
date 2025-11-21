@@ -62,18 +62,18 @@ Stores building/residence information.
 | `address` | `text` | NOT NULL | Street address |
 | `city` | `text` | NOT NULL | City |
 | `bank_account_rib` | `text` | | Bank account RIB (IBAN) |
-| `syndic_user_id` | `uuid` | FK → `auth.users(id)` | Main admin/syndic |
+| `syndic_user_id` | `text` | FK → `dbasakan.users(id)` | Main admin/syndic |
 
 **Relationships**:
 - One-to-many with `profiles` (residents)
 - One-to-many with `fees`, `payments`, `expenses`, `incidents`, `announcements`, `polls`, `access_logs`, `deliveries`
 
 ### `dbasakan.profiles`
-Extended user profiles linking to Supabase Auth.
+Extended user profiles linking to NextAuth Users.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| `id` | `uuid` | PK, FK → `auth.users(id)` | User ID (matches auth.users) |
+| `id` | `text` | PK, FK → `dbasakan.users(id)` | User ID (matches dbasakan.users) |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |
 | `residence_id` | `bigint` | FK → `residences(id)`, ON DELETE SET NULL | Associated residence |
 | `full_name` | `text` | NOT NULL | User's full name |
@@ -81,10 +81,10 @@ Extended user profiles linking to Supabase Auth.
 | `phone_number` | `text` | | Contact phone |
 | `role` | `user_role` | NOT NULL, Default: 'resident' | User role enum |
 
-**Comment**: Extended user data linking to Supabase Auth. Stores name, role, and apartment info.
+**Comment**: Extended user data linking to NextAuth users. Stores name, role, and apartment info.
 
 **Relationships**:
-- One-to-one with `auth.users` (Supabase Auth)
+- One-to-one with `dbasakan.users` (NextAuth)
 - Many-to-one with `residences`
 - One-to-many with `fees`, `payments` (as user_id)
 - Referenced by `payments.verified_by`, `expenses.created_by`, `incidents.user_id`, `incidents.assigned_to`, etc.
@@ -96,7 +96,7 @@ Monthly/periodic fees (Appels de fonds) for residents.
 |--------|------|-------------|-------------|
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
-| `user_id` | `uuid` | FK → `profiles(id)`, NOT NULL | Resident who owes the fee |
+| `user_id` | `text` | FK → `profiles(id)`, NOT NULL | Resident who owes the fee |
 | `title` | `text` | NOT NULL | Fee title (e.g., "Frais de Mars 2024") |
 | `amount` | `numeric(10,2)` | NOT NULL | Fee amount |
 | `due_date` | `date` | NOT NULL | Payment due date |
@@ -115,14 +115,14 @@ Payment records for fees and charges.
 |--------|------|-------------|-------------|
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
-| `user_id` | `uuid` | FK → `profiles(id)`, NOT NULL | Resident who made payment |
+| `user_id` | `text` | FK → `profiles(id)`, NOT NULL | Resident who made payment |
 | `fee_id` | `bigint` | FK → `fees(id)` | Optional link to specific fee |
 | `amount` | `numeric(10,2)` | NOT NULL | Payment amount |
 | `method` | `payment_method` | NOT NULL | Payment method enum |
 | `status` | `payment_status` | NOT NULL, Default: 'pending' | Payment status |
 | `proof_url` | `text` | | Receipt/image URL |
 | `paid_at` | `timestamptz` | Default: now() | Payment timestamp |
-| `verified_by` | `uuid` | FK → `profiles(id)` | Syndic who verified (for cash) |
+| `verified_by` | `text` | FK → `profiles(id)` | Syndic who verified (for cash) |
 
 **Relationships**:
 - Many-to-one with `residences`
@@ -142,7 +142,7 @@ Building maintenance and operational expenses (Dépenses).
 | `amount` | `numeric(10,2)` | NOT NULL | Expense amount |
 | `attachment_url` | `text` | | Invoice/image URL |
 | `expense_date` | `date` | NOT NULL | Date of expense |
-| `created_by` | `uuid` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
+| `created_by` | `text` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |
 
 **Relationships**:
@@ -156,12 +156,12 @@ Maintenance requests and incident reports.
 |--------|------|-------------|-------------|
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
-| `user_id` | `uuid` | FK → `profiles(id)`, NOT NULL | Reporter |
+| `user_id` | `text` | FK → `profiles(id)`, NOT NULL | Reporter |
 | `title` | `text` | NOT NULL | Incident title |
 | `description` | `text` | NOT NULL | Detailed description |
 | `photo_url` | `text` | | Photo evidence URL |
 | `status` | `incident_status` | NOT NULL, Default: 'open' | Status enum |
-| `assigned_to` | `uuid` | FK → `profiles(id)` | Assigned technician/guard |
+| `assigned_to` | `text` | FK → `profiles(id)` | Assigned technician/guard |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |
 | `updated_at` | `timestamptz` | Default: now() | Last update timestamp |
 
@@ -180,7 +180,7 @@ Building-wide announcements and notices.
 | `title` | `text` | NOT NULL | Announcement title |
 | `content` | `text` | NOT NULL | Announcement content |
 | `attachment_url` | `text` | | Attachment URL |
-| `created_by` | `uuid` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
+| `created_by` | `text` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |
 
 **Relationships**:
@@ -196,7 +196,7 @@ Resident voting polls.
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
 | `question` | `text` | NOT NULL | Poll question |
 | `is_active` | `boolean` | Default: true | Whether poll is active |
-| `created_by` | `uuid` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
+| `created_by` | `text` | FK → `profiles(id)`, Default: auth.uid() | Creator (syndic) |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |
 
 **Relationships**:
@@ -226,7 +226,7 @@ Individual votes on poll options.
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `poll_id` | `bigint` | FK → `polls(id)`, NOT NULL, ON DELETE CASCADE | Poll being voted on |
 | `option_id` | `bigint` | FK → `poll_options(id)`, NOT NULL, ON DELETE CASCADE | Selected option |
-| `user_id` | `uuid` | FK → `profiles(id)`, NOT NULL | Voter |
+| `user_id` | `text` | FK → `profiles(id)`, NOT NULL | Voter |
 | `created_at` | `timestamptz` | Default: now() | Vote timestamp |
 
 **Unique Constraint**: `(poll_id, user_id)` - One vote per user per poll
@@ -243,13 +243,13 @@ QR code-based visitor access logs.
 |--------|------|-------------|-------------|
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
-| `generated_by` | `uuid` | FK → `profiles(id)`, NOT NULL | Resident who generated QR |
+| `generated_by` | `text` | FK → `profiles(id)`, NOT NULL | Resident who generated QR |
 | `visitor_name` | `text` | NOT NULL | Visitor's name |
 | `qr_code_data` | `text` | NOT NULL | QR code secret hash |
 | `valid_from` | `timestamptz` | NOT NULL | QR validity start |
 | `valid_to` | `timestamptz` | NOT NULL | QR validity end |
 | `scanned_at` | `timestamptz` | | When QR was scanned (null until used) |
-| `scanned_by` | `uuid` | FK → `profiles(id)` | Guard who scanned |
+| `scanned_by` | `text` | FK → `profiles(id)` | Guard who scanned |
 
 **Relationships**:
 - Many-to-one with `residences`
@@ -263,8 +263,8 @@ Package and delivery tracking.
 |--------|------|-------------|-------------|
 | `id` | `bigint` | PK, Identity | Auto-generated ID |
 | `residence_id` | `bigint` | FK → `residences(id)`, NOT NULL | Associated residence |
-| `recipient_id` | `uuid` | FK → `profiles(id)`, NOT NULL | Recipient resident |
-| `logged_by` | `uuid` | FK → `profiles(id)`, NOT NULL | Guard who logged |
+| `recipient_id` | `text` | FK → `profiles(id)`, NOT NULL | Recipient resident |
+| `logged_by` | `text` | FK → `profiles(id)`, NOT NULL | Guard who logged |
 | `description` | `text` | NOT NULL | Delivery description |
 | `picked_up_at` | `timestamptz` | | When picked up (null until collected) |
 | `created_at` | `timestamptz` | Default: now() | Creation timestamp |

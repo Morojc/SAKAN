@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseClient, createSupabaseAdminClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/utils/supabase/server';
 import { auth } from "@/lib/auth";
 import { stripe } from '@/utils/stripe';
 import config from '@/config';
@@ -19,15 +19,15 @@ function getPlanNameFromPriceId(priceId: string): { name: string; interval: stri
 
 export async function GET() {
 	try {
-		const supabase = await getSupabaseClient();
 		const session = await auth();
-
 		const userId = session?.user?.id;
-		if (!userId) {
+
+		if (!userId || !session?.supabaseAccessToken) {
 			return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
 		}
 
-		// Use admin client for accessing all tables
+		// Use admin client for accessing all tables (bypasses RLS)
+		// Note: We don't need getSupabaseClient here since we're using admin client
 		const adminSupabase = createSupabaseAdminClient();
 		
 		// Get user data from NextAuth users table
@@ -99,7 +99,11 @@ export async function GET() {
 			planInterval,
 			priceData
 		});
-	} catch (error) {
+	} catch (error: any) {
+		// Handle authentication errors specifically
+		if (error.message === 'User not authenticated' || error.message === 'NEXT_REDIRECT') {
+			return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
+		}
 		console.error('Error in profile API route:', error);
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 	}

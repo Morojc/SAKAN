@@ -49,7 +49,7 @@ Follow these guidelines from `.cursor/rules/create_supabase_table.mdc`:
 CREATE TABLE IF NOT EXISTS dbasakan.notifications (
   id bigint generated always as identity primary key,
   residence_id bigint references dbasakan.residences(id) not null,
-  user_id uuid references dbasakan.profiles(id) not null,
+  user_id text references dbasakan.profiles(id) not null,
   title text not null,
   content text not null,
   type text not null, -- 'announcement', 'payment', 'incident'
@@ -66,17 +66,17 @@ ALTER TABLE dbasakan.notifications ENABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE dbasakan.notifications TO anon, authenticated, service_role;
 GRANT ALL ON SEQUENCE dbasakan.notifications_id_seq TO anon, authenticated, service_role;
 
--- Add RLS policies
+-- Add RLS policies (Using next_auth.uid() instead of auth.uid())
 CREATE POLICY "Users can view own notifications" ON dbasakan.notifications
   FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (next_auth.uid() = user_id);
 
 CREATE POLICY "Syndics can view all residence notifications" ON dbasakan.notifications
   FOR SELECT
   USING (
     exists (
       select 1 from dbasakan.profiles
-      where id = auth.uid() 
+      where id = next_auth.uid() 
       and role = 'syndic' 
       and residence_id = notifications.residence_id
     )
@@ -158,11 +158,11 @@ CREATE TABLE notifications (...)
 ```
 
 ### 3. Foreign Key Constraints
-Always add foreign key constraints with appropriate `ON DELETE` behavior:
+Always add foreign key constraints with appropriate `ON DELETE` behavior. Note that `user_id` references are `text` in this architecture (NextAuth), not `uuid`.
 
 ```sql
 -- Cascade delete
-user_id uuid references dbasakan.profiles(id) on delete cascade
+user_id text references dbasakan.profiles(id) on delete cascade
 
 -- Set null
 residence_id bigint references dbasakan.residences(id) on delete set null
@@ -172,7 +172,7 @@ fee_id bigint references dbasakan.fees(id)
 ```
 
 ### 4. RLS Policies
-Always enable RLS and create appropriate policies:
+Always enable RLS and create appropriate policies. **CRITICAL**: Use `next_auth.uid()` instead of `auth.uid()` to get the current user ID.
 
 ```sql
 ALTER TABLE dbasakan.notifications ENABLE ROW LEVEL SECURITY;
@@ -180,8 +180,8 @@ ALTER TABLE dbasakan.notifications ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "policy_name" ON dbasakan.notifications
   FOR SELECT  -- or INSERT, UPDATE, DELETE, or ALL
   TO authenticated  -- or anon, service_role
-  USING (condition);  -- for SELECT/UPDATE/DELETE
-  WITH CHECK (condition);  -- for INSERT/UPDATE
+  USING ( user_id = next_auth.uid() );  -- for SELECT/UPDATE/DELETE
+  -- WITH CHECK ( ... );  -- for INSERT/UPDATE
 ```
 
 ### 5. Permissions

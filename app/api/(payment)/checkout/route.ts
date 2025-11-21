@@ -43,7 +43,16 @@ export async function POST(request: Request) {
 			throw priceError;
 		}
 		
-		const supabase = await getSupabaseClient();
+		// Get authenticated Supabase client (throws error if not authenticated)
+		let supabase;
+		try {
+			supabase = await getSupabaseClient({ throwOnUnauthenticated: true });
+		} catch (error: any) {
+			if (error.message === 'User not authenticated') {
+				return NextResponse.json({ message: 'User not authenticated' }, { status: 401 });
+			}
+			throw error;
+		}
 
 		const { data: subscriptionData, error: _subscriptionError } = await supabase
 			.from('stripe_customers')
