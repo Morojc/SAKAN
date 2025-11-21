@@ -841,7 +841,7 @@ export async function POST(request: NextRequest) {
 
 				case 'invoice.paid': {
 					// Customer just paid an invoice (for instance, a recurring payment for a subscription)
-					// ✅ Grant access to the product
+					// ✅ Grant access to the product - Payment confirmed, set subscription to active
 					const invoice: Stripe.Invoice = event.data.object;
 					const priceId = invoice.lines.data[0]?.price?.id;
 					const customerId = typeof invoice.customer === 'string' 
@@ -852,6 +852,7 @@ export async function POST(request: NextRequest) {
 						: invoice.subscription?.id;
 					const amountPaid = invoice.amount_paid;
 					const currency = invoice.currency;
+					const invoiceStatus = invoice.status;
 
 					console.log('[Webhook] invoice.paid:', {
 						invoiceId: invoice.id,
@@ -860,12 +861,34 @@ export async function POST(request: NextRequest) {
 						priceId,
 						amountPaid: amountPaid / 100,
 						currency,
+						invoiceStatus,
 						paidAt: new Date(invoice.status_transitions.paid_at! * 1000).toISOString()
 					});
+
+					// Validate that invoice is actually paid
+					if (invoiceStatus !== 'paid') {
+						console.warn('[Webhook] invoice.paid received but invoice.status is not "paid":', {
+							invoiceId: invoice.id,
+							invoiceStatus,
+							note: 'Skipping subscription update'
+						});
+						break;
+					}
 
 					// Update subscription if this is a recurring payment
 					if (subscriptionId) {
 						try {
+							// Get current subscription status from database before update
+							// Note: Using type assertion as database types may not include all new columns
+							const { data: currentSubscription } = await (supabaseAdmin
+								.from('stripe_customers')
+								.select('subscription_status, plan_active')
+								.eq('subscription_id', subscriptionId)
+								.maybeSingle() as any);
+
+							const previousStatus = (currentSubscription as any)?.subscription_status || 'unknown';
+							const previousPlanActive = (currentSubscription as any)?.plan_active || false;
+
 							const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 							
 							// Get subscription details
@@ -895,11 +918,14 @@ export async function POST(request: NextRequest) {
 								planExpires = calculatePlanExpiresFromInterval(interval);
 							}
 							
+							// Payment confirmed via invoice.paid - explicitly set subscription to active
+							// This ensures the user's payment status is properly reflected regardless of
+							// previous subscription status (incomplete, past_due, etc.)
 							const { error } = await supabaseAdmin
 								.from('stripe_customers')
 								.update({ 
-									subscription_status: subscription.status || null,
-									plan_active: subscription.status === 'active' || subscription.status === 'trialing',
+									subscription_status: 'active', // Explicitly set to active when payment is confirmed
+									plan_active: true, // Payment confirmed, subscription is active
 									plan_expires: planExpires,
 									plan_name: planName,
 									price_id: subPriceId || null,
@@ -910,13 +936,38 @@ export async function POST(request: NextRequest) {
 								.eq('subscription_id', subscriptionId);
 
 							if (error) {
-								console.error('[Webhook] Error updating subscription after invoice.paid:', error);
+								console.error('[Webhook] Error updating subscription after invoice.paid:', {
+									error: error.message,
+									code: error.code,
+									subscriptionId,
+									invoiceId: invoice.id
+								});
 							} else {
-								console.log('[Webhook] Successfully updated subscription after invoice payment');
+								console.log('[Webhook] ✅ Payment confirmed via invoice.paid, subscription set to active:', {
+									subscriptionId,
+									invoiceId: invoice.id,
+									amountPaid: amountPaid / 100,
+									currency,
+									previousStatus,
+									newStatus: 'active',
+									previousPlanActive,
+									newPlanActive: true,
+									planName,
+									planExpires: planExpires ? new Date(planExpires).toISOString() : null,
+									note: previousStatus !== 'active' 
+										? `Subscription activated from ${previousStatus} state` 
+										: 'Subscription already active, payment confirmed'
+								});
 							}
 						} catch (err) {
-							console.error('[Webhook] Error retrieving subscription for invoice.paid:', err);
+							console.error('[Webhook] Error retrieving subscription for invoice.paid:', {
+								error: err instanceof Error ? err.message : String(err),
+								subscriptionId,
+								invoiceId: invoice.id
+							});
 						}
+					} else {
+						console.log('[Webhook] invoice.paid received but no subscription_id - this is a one-time payment, not a subscription');
 					}
 					break;
 				}
