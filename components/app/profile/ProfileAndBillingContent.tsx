@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import PortalButton from '@/components/stripe/PortalButton';
 import CheckoutButton from "@/components/CheckoutButton";
+import { PlanChangeButton } from '@/components/stripe/PlanChangeButton';
 import DeleteAccountButton from '@/components/app/profile/DeleteAccountButton';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
 
 // Helper function to get plan badge style
 function getPlanBadgeStyle(planName: string): { bgColor: string; textColor: string; borderColor: string } {
@@ -157,7 +159,10 @@ export default function ProfileAndBillingContent() {
 		return <div>No profile data available</div>;
 	}
 
-	const { userData, subscriptionData, planName, planInterval, priceData } = profileData;
+	const { userData, subscriptionData, planName, planInterval, priceData} = profileData;
+
+	// Debug logging
+	console.log('[ProfileAndBillingContent] Subscription data:', subscriptionData);
 
 	return (
 		<motion.div 
@@ -166,6 +171,21 @@ export default function ProfileAndBillingContent() {
 			animate="visible"
 			variants={staggerContainer}
 		>
+			{/* Canceled Subscription Alert */}
+			{subscriptionData?.cancel_at_period_end && 
+			 subscriptionData?.plan_expires && 
+			 (subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined) && (
+				<motion.div variants={fadeIn}>
+					<CanceledSubscriptionAlert
+						planName={planName}
+						planInterval={planInterval}
+						daysRemaining={subscriptionData.days_remaining}
+						accessUntil={new Date(subscriptionData.plan_expires)}
+						canceledAt={subscriptionData.canceled_at ? new Date(subscriptionData.canceled_at) : null}
+					/>
+				</motion.div>
+			)}
+
 			{/* User Information */}
 			<motion.div 
 				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
@@ -231,7 +251,7 @@ export default function ProfileAndBillingContent() {
 								const style = getPlanBadgeStyle(planName);
 								const intervalStyle = getIntervalBadgeStyle(planName);
 								return (
-									<div className="flex items-center gap-3 mt-2">
+									<div className="flex items-center gap-3 mt-2 flex-wrap">
 										<span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold border-2 ${style.bgColor} ${style.textColor} ${style.borderColor}`}>
 											{planName}
 											{planName.toLowerCase() === 'pro' && (
@@ -243,6 +263,14 @@ export default function ProfileAndBillingContent() {
 										<span className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold border ${intervalStyle.bgColor} ${intervalStyle.textColor} ${intervalStyle.borderColor}`}>
 											{planInterval === 'year' ? 'Yearly' : 'Monthly'} Plan
 										</span>
+										{subscriptionData?.cancel_at_period_end && (
+											<span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border bg-amber-100 text-amber-800 border-amber-200">
+												<svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+												Ending Soon
+											</span>
+										)}
 									</div>
 								);
 							})()}
@@ -254,11 +282,28 @@ export default function ProfileAndBillingContent() {
 									<div className="mt-2">
 										{subscriptionData.plan_active ? (
 											<div className="flex items-center gap-2">
-												<span className="relative flex h-3 w-3">
-													<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-													<span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-												</span>
-												<span className="font-medium text-green-700">Active</span>
+												{subscriptionData.cancel_at_period_end ? (
+													<>
+														<span className="relative flex h-3 w-3">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+														</span>
+														<span className="font-medium text-amber-700 flex items-center gap-1.5">
+															<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+															</svg>
+															Active (Scheduled for Cancellation)
+														</span>
+													</>
+												) : (
+													<>
+														<span className="relative flex h-3 w-3">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+														</span>
+														<span className="font-medium text-green-700">Active</span>
+													</>
+												)}
 											</div>
 										) : (
 											<div className="flex items-center gap-2">
@@ -272,7 +317,9 @@ export default function ProfileAndBillingContent() {
 								</div>
 								{subscriptionData.plan_expires && (
 									<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-										<label className="text-sm font-medium text-gray-500">Plan Expires</label>
+										<label className="text-sm font-medium text-gray-500">
+											{subscriptionData.cancel_at_period_end ? 'Access Until' : 'Next Billing Date'}
+										</label>
 										<div className="mt-2">
 											<div className="flex items-center gap-2">
 												<svg className="w-5 h-5 text-[#5059FE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,6 +338,11 @@ export default function ProfileAndBillingContent() {
 													}).replace(/^(\d):/, '0$1:')}
 												</time>
 											</div>
+											{subscriptionData.days_remaining !== null && subscriptionData.days_remaining !== undefined && !subscriptionData.cancel_at_period_end && (
+												<p className="text-xs text-gray-500 mt-1 ml-7">
+													{subscriptionData.days_remaining} {subscriptionData.days_remaining === 1 ? 'day' : 'days'} remaining
+												</p>
+											)}
 										</div>
 									</div>
 								)}
@@ -464,14 +516,65 @@ export default function ProfileAndBillingContent() {
 										</div>
 										
 										<div className="mb-6">
-											{isFree ? (
+											{isCurrentPlan ? (
 												<button 
-													className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors duration-200"
+													className="w-full py-3 px-4 bg-green-100 hover:bg-green-200 text-green-800 font-medium rounded-lg transition-colors duration-200"
 													disabled
 												>
 													Current Plan
 												</button>
+											) : isFree ? (
+												<button 
+													className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors duration-200"
+													disabled
+												>
+													Free Plan
+												</button>
+											) : subscriptionData ? (
+												// User has subscription - show upgrade/downgrade button
+												(() => {
+													const currentPlanType = planName?.toLowerCase() || '';
+													const targetPlanType = plan.type.toLowerCase();
+													
+													// Determine if this is an upgrade or downgrade
+													const planHierarchy: { [key: string]: number } = {
+														'free': 0,
+														'basic': 1,
+														'pro': 2,
+													};
+													
+													const currentTier = planHierarchy[currentPlanType] ?? 0;
+													const targetTier = planHierarchy[targetPlanType] ?? 0;
+													
+													const changeType = targetTier > currentTier ? 'upgrade' : 
+																	   targetTier < currentTier ? 'downgrade' : 'same';
+													
+													return (
+														<div className="relative">
+															<div className="absolute -inset-0.5 bg-gradient-to-r from-[#5059FE] to-[#7D65F6] rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-200"></div>
+															<PlanChangeButton
+																currentPlanName={planName}
+																newPlanName={plan.name}
+																priceId={currentPriceId}
+																changeType={changeType}
+																isCurrentPlan={false}
+																className={`relative w-full py-3 px-4 ${
+																	isHighlighted 
+																		? 'bg-gradient-to-r from-[#5059FE] to-[#7D65F6] hover:from-[#4048ed] hover:to-[#6A55E1] text-white' 
+																		: isPro 
+																			? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white' 
+																			: 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-200'
+																} font-medium rounded-lg transition-all duration-200`}
+																onSuccess={() => {
+																	// Refresh page data
+																	window.location.reload();
+																}}
+															/>
+														</div>
+													);
+												})()
 											) : (
+												// No subscription - show checkout button for new subscription
 												<div className="relative">
 													<div className="absolute -inset-0.5 bg-gradient-to-r from-[#5059FE] to-[#7D65F6] rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-200"></div>
 													<CheckoutButton 

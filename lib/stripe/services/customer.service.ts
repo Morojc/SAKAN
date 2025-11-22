@@ -15,24 +15,52 @@ import { createSupabaseAdminClient } from '@/utils/supabase/server';
 export async function getStripeCustomerIdFromDB(userId: string): Promise<string | null> {
 	try {
 		console.log('[Stripe Customer Service] Getting Stripe customer ID from DB for user:', userId);
-
+		
 		const supabase = createSupabaseAdminClient();
+		
+		// Use .limit(1) instead of .single() to handle duplicate entries gracefully
+		// Order by updated_at or created_at to get the most recent entry
 		const { data, error } = await supabase
 			.from('stripe_customers')
-			.select('stripe_customer_id')
+			.select('stripe_customer_id, created_at')
 			.eq('user_id', userId)
-			.single();
+			.order('created_at', { ascending: false })
+			.limit(1);
 
-		console.log('[Stripe Customer Service] Data:', data);
-		if (error || !data) {
+		console.log('[Stripe Customer Service] Query result:', { 
+			data, 
+			error, 
+			hasData: !!data,
+			rowCount: data?.length 
+		});
+		
+		if (error) {
+			console.error('[Stripe Customer Service] Database error:', {
+				code: error.code,
+				message: error.message,
+				details: error.details,
+				hint: error.hint
+			});
+			return null;
+		}
+		
+		if (!data || data.length === 0) {
 			console.log('[Stripe Customer Service] No Stripe customer found in DB for user:', userId);
 			return null;
 		}
 
-		console.log('[Stripe Customer Service] Found Stripe customer ID:', data.stripe_customer_id);
-		return data.stripe_customer_id;
+		// Get the first (most recent) entry
+		const stripeCustomerId = data[0].stripe_customer_id;
+		
+		// Log warning if duplicates exist
+		if (data.length > 1) {
+			console.warn(`[Stripe Customer Service] ⚠️ Found multiple entries for user ${userId}. Using most recent.`);
+		}
+
+		console.log('[Stripe Customer Service] Found Stripe customer ID:', stripeCustomerId);
+		return stripeCustomerId;
 	} catch (error: any) {
-		console.error('[Stripe Customer Service] Error getting customer ID from DB:', error);
+		console.error('[Stripe Customer Service] Exception getting customer ID from DB:', error);
 		return null;
 	}
 }

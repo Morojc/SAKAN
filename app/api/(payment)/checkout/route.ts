@@ -54,15 +54,22 @@ export async function POST(request: Request) {
 			throw error;
 		}
 
-		const { data: subscriptionData, error: _subscriptionError } = await supabase
+		// Check if user has an active subscription
+		// If they do, we'll handle plan change through subscription update instead
+		const { data: subscriptionData } = await supabase
 			.from('stripe_customers')
 			.select('*')
 			.eq('user_id', userId)
 			.eq('plan_active', true)
-			.single();
+			.limit(1);
 
-		if (subscriptionData) {
-			return NextResponse.json({ message: 'User already subscribed' }, { status: 400 });
+		if (subscriptionData && subscriptionData.length > 0) {
+			// User already has subscription - redirect to use subscription update API instead
+			return NextResponse.json({ 
+				message: 'User already subscribed. Please use the subscription update endpoint to change plans.',
+				error: 'already_subscribed',
+				hasSubscription: true
+			}, { status: 400 });
 		}
 
 		// Get origin from request header, or use environment variable for ngrok, or fallback to localhost

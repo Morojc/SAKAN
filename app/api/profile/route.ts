@@ -71,6 +71,15 @@ export async function GET() {
 					plan_expires: subscriptionDetails.currentPeriodEnd
 						? subscriptionDetails.currentPeriodEnd.getTime()
 						: null,
+					// Cancellation details
+					cancel_at: subscriptionDetails.cancelAt
+						? subscriptionDetails.cancelAt.getTime()
+						: null,
+					cancel_at_period_end: subscriptionDetails.cancelAtPeriodEnd || false,
+					canceled_at: subscriptionDetails.canceledAt
+						? subscriptionDetails.canceledAt.getTime()
+						: null,
+					days_remaining: subscriptionDetails.daysRemaining,
 				}
 			: null;
 
@@ -81,6 +90,11 @@ export async function GET() {
 		}));
 
 		console.log('[Profile API] Profile data fetched successfully');
+		console.log('[Profile API] Cancellation status:', {
+			cancel_at_period_end: subscriptionData?.cancel_at_period_end,
+			days_remaining: subscriptionData?.days_remaining,
+			plan_expires: subscriptionData?.plan_expires,
+		});
 
 		return NextResponse.json({
 			userData,
