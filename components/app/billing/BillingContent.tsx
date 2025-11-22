@@ -6,6 +6,7 @@ import CheckoutButton from "@/components/CheckoutButton";
 import { PlanChangeButton } from '@/components/stripe/PlanChangeButton';
 import { motion } from 'framer-motion';
 import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
+import { RefreshCw } from 'lucide-react';
 
 // Helper function to get plan badge style
 function getPlanBadgeStyle(planName: string): { bgColor: string; textColor: string; borderColor: string } {
@@ -123,67 +124,37 @@ export default function BillingContent() {
 		fetchProfileData();
 	}, []);
 
-	if (loading) {
-		return (
-			<div className="flex justify-center items-center py-24">
-				<div className="relative">
-					<div className="h-16 w-16 rounded-full border-t-4 border-b-4 border-[#5059FE] animate-spin"></div>
-					<div className="h-16 w-16 rounded-full border-r-4 border-l-4 border-[#5059FE]/30 animate-spin absolute top-0 left-0 animate-[spin_1.5s_linear_infinite]"></div>
-				</div>
-			</div>
-		);
+	// Extract data safely - handle undefined/null cases
+	const userData = profileData?.userData || null;
+	const subscriptionData = profileData?.subscriptionData || null;
+	const planName = profileData?.planName || 'Free';
+	const planInterval = profileData?.planInterval || 'month';
+	const priceData = profileData?.priceData;
+	
+	// Ensure priceData is always an array
+	const safePriceData = Array.isArray(priceData) ? priceData : [];
+
+	// Debug logging (only when data is available)
+	if (profileData) {
+		console.log('[BillingContent] Full profileData:', profileData);
+		console.log('[BillingContent] Subscription data:', subscriptionData);
+		console.log('[BillingContent] Price data:', priceData, 'Has priceData:', !!priceData, 'Length:', priceData?.length);
 	}
-
-	if (error) {
-		return (
-			<motion.div 
-				initial={{ opacity: 0, y: 10 }}
-				animate={{ opacity: 1, y: 0 }}
-				className="bg-red-50 border-l-4 border-red-500 p-5 rounded-lg shadow-md"
-				role="alert"
-			>
-				<div className="flex items-center">
-					<svg className="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<p className="font-medium text-red-800">Error</p>
-				</div>
-				<p className="mt-2 text-red-700">{error}</p>
-			</motion.div>
-		);
-	}
-
-	if (!profileData) {
-		return <div>No profile data available</div>;
-	}
-
-	const { userData, subscriptionData, planName, planInterval, priceData } = profileData;
-
-	// Debug logging for cancellation status
-	console.log('[BillingContent] Full profileData:', profileData);
-	console.log('[BillingContent] Subscription data:', subscriptionData);
-	console.log('[BillingContent] Cancellation check:', {
-		'subscriptionData exists': !!subscriptionData,
-		'cancel_at_period_end': subscriptionData?.cancel_at_period_end,
-		'cancel_at_period_end type': typeof subscriptionData?.cancel_at_period_end,
-		'days_remaining': subscriptionData?.days_remaining,
-		'days_remaining type': typeof subscriptionData?.days_remaining,
-		'plan_expires': subscriptionData?.plan_expires,
-		'plan_expires type': typeof subscriptionData?.plan_expires,
-		'condition 1 (cancel_at_period_end)': !!subscriptionData?.cancel_at_period_end,
-		'condition 2 (plan_expires)': !!subscriptionData?.plan_expires,
-		'condition 3 (days_remaining not null)': subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined,
-		'ALL CONDITIONS': subscriptionData?.cancel_at_period_end && subscriptionData?.plan_expires && (subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined),
-		'SHOULD SHOW ALERT': subscriptionData?.cancel_at_period_end && subscriptionData?.plan_expires && (subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined)
-	});
 
 	// Check if alert should show
 	const shouldShowAlert = subscriptionData?.cancel_at_period_end && 
 		subscriptionData?.plan_expires && 
 		(subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined);
 
-	console.log('[BillingContent] ALERT DECISION:', shouldShowAlert ? '✅ SHOWING ALERT' : '❌ HIDING ALERT');
+	console.log('[BillingContent] State:', {
+		loading,
+		hasError: !!error,
+		hasProfileData: !!profileData,
+		safePriceDataLength: safePriceData.length,
+		shouldShowAlert,
+	});
 
+	// Always render the full structure - "Choose Your Plan" section is always visible
 	return (
 		<motion.div 
 			className="space-y-10 pb-16"
@@ -191,9 +162,27 @@ export default function BillingContent() {
 			animate="visible"
 			variants={staggerContainer}
 		>
+			{/* Error Message - Show if there's an error */}
+			{error && (
+				<motion.div 
+					variants={fadeIn}
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					className="bg-red-50 border-l-4 border-red-500 p-5 rounded-lg shadow-md"
+					role="alert"
+				>
+					<div className="flex items-center">
+						<svg className="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+						<p className="font-medium text-red-800">Error</p>
+					</div>
+					<p className="mt-2 text-red-700">{error}</p>
+				</motion.div>
+			)}
 
-			{/* Canceled Subscription Alert */}
-			{shouldShowAlert && (
+			{/* Canceled Subscription Alert - Only show when data is available */}
+			{shouldShowAlert && subscriptionData && (
 				<motion.div variants={fadeIn}>
 					<CanceledSubscriptionAlert
 						planName={planName}
@@ -205,7 +194,8 @@ export default function BillingContent() {
 				</motion.div>
 			)}
 
-			{/* User Information */}
+			{/* User Information - Only show when not loading and data is available */}
+			{!loading && profileData && (
 			<motion.div 
 				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
@@ -247,8 +237,10 @@ export default function BillingContent() {
 					)}
 				</div>
 			</motion.div>
+			)}
 
-			{/* Current Subscription */}
+			{/* Current Subscription - Only show when not loading and data is available */}
+			{!loading && profileData && (
 			<motion.div 
 				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
@@ -378,8 +370,9 @@ export default function BillingContent() {
 					</div>
 				</div>
 			</motion.div>
+			)}
 
-			{/* Available Plans - Always Visible */}
+			{/* Available Plans - Always Visible - Shows even during loading/error states */}
 			<motion.div 
 				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
@@ -413,9 +406,27 @@ export default function BillingContent() {
 					<span className={`text-sm font-medium transition-colors duration-200 ${isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>Yearly</span>
 				</div>
 
-				{/* Pricing Cards */}
+				{/* Pricing Cards - Always visible, shows loading state when data is not available */}
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-					{priceData?.map((plan: any, index: number) => {
+					{loading ? (
+						// Show loading skeleton when loading
+						<>
+							{[1, 2, 3].map((i) => (
+								<div key={i} className="bg-[var(--background)] p-6 rounded-xl shadow-md border-2 border-[var(--border)] animate-pulse">
+									<div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+									<div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+									<div className="h-10 bg-gray-200 rounded w-2/3 mb-6"></div>
+									<div className="h-10 bg-gray-200 rounded w-full mb-6"></div>
+									<div className="space-y-3">
+										<div className="h-4 bg-gray-200 rounded"></div>
+										<div className="h-4 bg-gray-200 rounded"></div>
+										<div className="h-4 bg-gray-200 rounded"></div>
+									</div>
+								</div>
+							))}
+						</>
+					) : safePriceData.length > 0 ? (
+						safePriceData.map((plan: any, index: number) => {
 						const isFree = plan.type === 'free';
 						const isBasic = plan.type === 'basic';
 						const isPro = plan.type === 'pro';
@@ -611,7 +622,21 @@ export default function BillingContent() {
 								</div>
 							</motion.div>
 						);
-					})}
+					})
+					) : (
+						// Fallback when priceData is missing or empty
+						<div className="col-span-3 text-center py-12">
+							<div className="flex justify-center mb-4">
+								<RefreshCw className="h-8 w-8 text-gray-400 animate-spin" />
+							</div>
+							<p className="text-gray-600">
+								{loading ? 'Loading pricing plans...' : 'Pricing plans are not available at the moment.'}
+							</p>
+							<p className="text-sm text-gray-500 mt-2">
+								{loading ? 'Please wait while we fetch your plans.' : 'Please refresh the page or contact support if this issue persists.'}
+							</p>
+						</div>
+					)}
 				</div>
 			</motion.div>
 		</motion.div>

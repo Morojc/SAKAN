@@ -84,24 +84,32 @@ export async function GET() {
 			: null;
 
 		// Convert the price data object into an array with type information
-		const priceData = Object.entries(config.stripe).map(([type, data]) => ({
+		const priceData = Object.entries(config.stripe || {}).map(([type, data]) => ({
 			type,
 			...data,
 		}));
 
 		console.log('[Profile API] Profile data fetched successfully');
+		console.log('[Profile API] Price data:', {
+			hasPriceData: !!priceData,
+			priceDataLength: priceData.length,
+			priceDataTypes: priceData.map((p: any) => p.type),
+		});
 		console.log('[Profile API] Cancellation status:', {
 			cancel_at_period_end: subscriptionData?.cancel_at_period_end,
 			days_remaining: subscriptionData?.days_remaining,
 			plan_expires: subscriptionData?.plan_expires,
 		});
 
+		// Ensure priceData is always an array, even if empty
+		const safePriceData = Array.isArray(priceData) ? priceData : [];
+
 		return NextResponse.json({
 			userData,
 			subscriptionData,
 			planName: subscriptionDetails.planName,
 			planInterval: subscriptionDetails.planInterval,
-			priceData,
+			priceData: safePriceData,
 		});
 	} catch (error: any) {
 		// Handle authentication errors specifically
