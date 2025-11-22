@@ -11,37 +11,37 @@ import { Providers } from "@/components/providers";
 export const metadata: Metadata = config.metadata;
 
 export default function RootLayout({
-	children,
+  children,
 }: Readonly<{
-	children: React.ReactNode;
+  children: React.ReactNode;
 }>) {
-	return (
-		<html lang="en">
+  return (
+    <html lang="en">
 			<body className="antialiased min-h-screen flex flex-col">
 				<Providers>
-					<Toaster position="top-center" />
-					<main className="flex-grow">
-						{children}
-					</main>
-					<FooterWrapper />
+          <Toaster position="top-center" />
+          <main className="flex-grow">
+            {children}
+          </main>
+          <FooterWrapper />
 				</Providers>
-			</body>
-			{/* Google Tag Manager */}
-			{process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
-				<GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID} />
-			)}
-			
-			{/* OpenPanel Analytics */}
-			{process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID && (
-				<OpenPanelComponent
-					clientId={process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID}
-					trackScreenViews={true}
-					// trackAttributes={true}
-					// trackOutgoingLinks={true}
-					// If you have a user id, you can pass it here to identify the user
-					// profileId={'123'}
-				/>
-			)}
-		</html>
-	);
+        </body>
+      {/* Google Tag Manager */}
+      {process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID && (
+        <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID} />
+      )}
+      
+      {/* OpenPanel Analytics */}
+      {process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID && (
+        <OpenPanelComponent
+          clientId={process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID}
+          trackScreenViews={true}
+          // trackAttributes={true}
+          // trackOutgoingLinks={true}
+          // If you have a user id, you can pass it here to identify the user
+          // profileId={'123'}
+        />
+      )}
+    </html>
+  );
 }

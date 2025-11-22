@@ -91,7 +91,7 @@ export function Sidebar() {
                 const active = isActive(item.href);
                 
                 return (
-                  <Link
+        <Link
                     key={item.href}
                     href={item.href}
                     className="block relative group"
@@ -113,7 +113,7 @@ export function Sidebar() {
                       </span>
                       {active && <ChevronRight size={16} className="text-gray-400" />}
                     </span>
-                  </Link>
+        </Link>
                 );
               })}
             </div>

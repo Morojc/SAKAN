@@ -26,14 +26,14 @@ export function Header() {
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100">
         <div className="flex items-center justify-between px-6 py-4">
           {/* Left: Logo & Mobile Menu */}
-          <div className="flex items-center gap-4">
-            <button 
+        <div className="flex items-center gap-4">
+          <button 
               className="lg:hidden p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-all duration-200" 
               aria-label="Toggle sidebar"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
+          </button>
             <Link href="/app" className="flex items-center gap-2.5 group">
               <div className="bg-gray-900 p-2 rounded-xl group-hover:scale-105 transition-transform duration-200">
                 <Building2 className="h-5 w-5 text-white" />
@@ -58,8 +58,8 @@ export function Header() {
                   <span className="text-xs">⌘</span>K
                 </kbd>
               </div>
-            </div>
-          </div>
+        </div>
+      </div>
 
           {/* Right: Action Buttons and User Menu */}
           <div className="flex items-center gap-2 sm:gap-4">

@@ -42,12 +42,12 @@ export default async function AppLayout({
 			
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col overflow-hidden">
-				<Header />
+			<Header />
 				<main className="flex-1 overflow-y-auto bg-gray-50">
 					<OnboardingGuard onboardingCompleted={onboardingCompleted}>
-						{children}
+				{children}
 					</OnboardingGuard>
-				</main>
+			</main>
 			</div>
 		</div>
 	)
