@@ -195,70 +195,90 @@ export default function BillingContent() {
 				</motion.div>
 			)}
 
-			{/* User Information - Only show when not loading and data is available */}
-			{!loading && profileData && (
+			{/* User Information - Always show, with loading state */}
 			<motion.div 
-				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
+				className="bg-white shadow-lg rounded-2xl p-8 border border-gray-100 hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
 			>
 				<div className="flex items-center mb-6">
-					<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
+					<div className="bg-gradient-to-r from-gray-900 to-gray-800 p-2.5 rounded-xl mr-4 shadow-lg">
 						<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 						</svg>
 					</div>
-					<h2 className="text-xl font-bold">Your Information</h2>
+					<h2 className="text-2xl font-bold text-gray-900">Your Information</h2>
 				</div>
 				
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-[var(--background-subtle)] p-4 rounded-lg">
-						<label className="text-sm font-medium text-gray-500">Name</label>
-						<p className="font-semibold text-lg mt-1">{userData?.name || 'Not set'}</p>
-					</div>
-
-					<div className="bg-[var(--background-subtle)] p-4 rounded-lg">
-						<label className="text-sm font-medium text-gray-500">Email</label>
-						<p className="font-semibold text-lg mt-1 break-all">{userData?.email || 'Not set'}</p>
-					</div>
-
-					{userData?.image && (
-						<div className="col-span-1 md:col-span-2 flex items-center">
-							<div className="mr-4">
-								<img
-									src={userData.image}
-									alt="User avatar"
-									className="w-20 h-20 rounded-full border-4 border-[#5059FE]/20 shadow-md"
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium text-gray-500">Profile Image</label>
-								<p className="text-sm text-gray-600 mt-1">Your profile picture</p>
-							</div>
+				{loading ? (
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100 animate-pulse">
+							<div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+							<div className="h-6 bg-gray-200 rounded w-3/4"></div>
 						</div>
-					)}
-				</div>
-			</motion.div>
-			)}
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100 animate-pulse">
+							<div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+							<div className="h-6 bg-gray-200 rounded w-3/4"></div>
+						</div>
+					</div>
+				) : (
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Name</label>
+							<p className="font-semibold text-lg text-gray-900">{userData?.name || 'Not set'}</p>
+						</div>
 
-			{/* Current Subscription - Only show when not loading and data is available */}
-			{!loading && profileData && (
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Email</label>
+							<p className="font-semibold text-lg text-gray-900 break-all">{userData?.email || 'Not set'}</p>
+						</div>
+
+						{userData?.image && (
+							<div className="col-span-1 md:col-span-2 flex items-center gap-4 bg-gray-50 p-5 rounded-xl border border-gray-100">
+								<div>
+									<img
+										src={userData.image}
+										alt="User avatar"
+										className="w-20 h-20 rounded-full border-4 border-gray-200 shadow-md"
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium text-gray-500 block mb-1">Profile Image</label>
+									<p className="text-sm text-gray-600">Your profile picture</p>
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</motion.div>
+
+			{/* Current Subscription - Always show, with loading state */}
 			<motion.div 
-				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
+				className="bg-white shadow-lg rounded-2xl p-8 border border-gray-100 hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
 			>
 				<div className="flex items-center mb-6">
-					<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
+					<div className="bg-gradient-to-r from-gray-900 to-gray-800 p-2.5 rounded-xl mr-4 shadow-lg">
 						<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
 						</svg>
 					</div>
-					<h2 className="text-xl font-bold">Current Subscription</h2>
+					<h2 className="text-2xl font-bold text-gray-900">Current Subscription</h2>
 				</div>
 				
-				<div className="bg-[var(--background-subtle)] p-6 rounded-xl">
+				{loading ? (
+					<div className="bg-gray-50 p-6 rounded-xl border border-gray-100 animate-pulse">
+						<div className="space-y-4">
+							<div className="h-4 bg-gray-200 rounded w-32 mb-4"></div>
+							<div className="h-10 bg-gray-200 rounded w-48"></div>
+							<div className="h-4 bg-gray-200 rounded w-40"></div>
+						</div>
+					</div>
+				) : (
+				
+				<div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
 					<div className="space-y-5">
 						<div>
-							<label className="text-sm font-medium text-gray-500">Current Plan</label>
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Current Plan</label>
 							{(() => {
 								const style = getPlanBadgeStyle(planName);
 								const intervalStyle = getIntervalBadgeStyle(planName);
@@ -289,8 +309,8 @@ export default function BillingContent() {
 						</div>
 						{subscriptionData ? (
 							<>
-								<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-									<label className="text-sm font-medium text-gray-500">Subscription Status</label>
+								<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+									<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
 									<div className="mt-2">
 										{subscriptionData.plan_active ? (
 											<div className="flex items-center gap-2">
@@ -328,8 +348,8 @@ export default function BillingContent() {
 									</div>
 								</div>
 								{subscriptionData.plan_expires && (
-									<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-										<label className="text-sm font-medium text-gray-500">
+									<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+										<label className="text-sm font-medium text-gray-500 mb-2 block">
 											{subscriptionData.cancel_at_period_end ? 'Access Until' : 'Next Billing Date'}
 										</label>
 										<div className="mt-2">
@@ -363,15 +383,15 @@ export default function BillingContent() {
 								</div>
 							</>
 						) : (
-							<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-								<label className="text-sm font-medium text-gray-500">Subscription Status</label>
-								<p className="font-medium text-gray-600 mt-1">Free Plan - No active subscription</p>
+							<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+								<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
+								<p className="font-medium text-gray-600">Free Plan - No active subscription</p>
 							</div>
 						)}
 					</div>
 				</div>
+				)}
 			</motion.div>
-			)}
 
 			{/* Available Plans - Always Visible - Shows even during loading/error states */}
 			<motion.div 

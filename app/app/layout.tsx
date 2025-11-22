@@ -1,16 +1,54 @@
 import { Header } from "../../components/app/Header"
+import { Sidebar } from "../../components/app/Sidebar"
+import OnboardingGuard from "../../components/app/OnboardingGuard"
+import { auth } from "@/lib/auth"
+import { createSupabaseAdminClient } from "@/utils/supabase/server"
 
-export default function AppLayout({
+export default async function AppLayout({
 	children
 }: {
 	children: React.ReactNode
 }) {
+	// Check onboarding status
+	const session = await auth();
+	const userId = session?.user?.id;
+	let onboardingCompleted = true; // Default to true to avoid blocking if check fails
+
+	if (userId) {
+		try {
+			const supabase = createSupabaseAdminClient();
+			const { data: profile } = await supabase
+				.from('profiles')
+				.select('onboarding_completed, residence_id')
+				.eq('id', userId)
+				.single();
+
+			// Consider onboarding incomplete if:
+			// 1. onboarding_completed is false, OR
+			// 2. residence_id is null (user hasn't created a residence yet)
+			onboardingCompleted = profile?.onboarding_completed === true && profile?.residence_id !== null;
+		} catch (error) {
+			console.error('[AppLayout] Error checking onboarding status:', error);
+			// Default to true to avoid blocking users
+		}
+	}
+
 	return (
-		<div className="flex flex-col h-screen bg-[var(--background)]">
-			<Header />
-			<main className="flex-1 overflow-x-hidden overflow-y-auto bg-[var(--background)]">
-				{children}
-			</main>
+		<div className="flex h-screen bg-gray-50 overflow-hidden">
+			{/* Sidebar - Desktop Only */}
+			<aside className="hidden lg:block w-64 bg-white border-r border-gray-200 flex-shrink-0">
+				<Sidebar />
+			</aside>
+			
+			{/* Main Content Area */}
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<Header />
+				<main className="flex-1 overflow-y-auto bg-gray-50">
+					<OnboardingGuard onboardingCompleted={onboardingCompleted}>
+						{children}
+					</OnboardingGuard>
+				</main>
+			</div>
 		</div>
 	)
 }

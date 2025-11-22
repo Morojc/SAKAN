@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import OverviewCards from './OverviewCards';
+import DashboardOverview from './DashboardOverview';
 import { getDashboardStats } from '@/app/actions/dashboard';
 
 /**
@@ -18,6 +18,25 @@ export default function DashboardContent() {
 		outstandingFees: 0,
 		openIncidents: 0,
 		recentAnnouncementsCount: 0,
+		todayPayments: 0,
+		monthlyPayments: 0,
+		fillRate: 100,
+		residentsChange: 0,
+		topResidents: [] as Array<{
+			id: string;
+			full_name: string;
+			apartment_number: string | null;
+			complianceRate: number;
+			totalFees: number;
+			paidFees: number;
+		}>,
+		user: {
+			name: 'Syndic',
+			email: '',
+			image: null,
+			role: 'syndic',
+		},
+		residence: null,
 	});
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -49,20 +68,6 @@ export default function DashboardContent() {
 		fetchStats();
 	}, []);
 
-	if (loading) {
-		return (
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-				{[...Array(6)].map((_, i) => (
-					<div key={i} className="bg-card rounded-lg p-6 animate-pulse">
-						<div className="h-4 bg-muted rounded w-1/2 mb-4"></div>
-						<div className="h-8 bg-muted rounded w-3/4 mb-2"></div>
-						<div className="h-3 bg-muted rounded w-full"></div>
-					</div>
-				))}
-			</div>
-		);
-	}
-
 	if (error) {
 		return (
 			<Alert variant="destructive">
@@ -73,6 +78,5 @@ export default function DashboardContent() {
 		);
 	}
 
-	return <OverviewCards stats={stats} />;
+	return <DashboardOverview stats={stats} loading={loading} />;
 }
-

@@ -65,8 +65,9 @@ const authConfig = {
 							.insert({
 								id: user.id,
 								full_name: fullName,
-								role: 'resident', // default role
-								// residence_id can be null initially - user will be assigned later
+								role: 'syndic', // default role for new signups
+								onboarding_completed: false, // user needs to complete onboarding
+								// residence_id can be null initially - user will create residence during onboarding
 							});
 						
 						if (insertError) {
