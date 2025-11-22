@@ -19,9 +19,29 @@ import {
   ChevronRight
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [subscription, setSubscription] = useState<{ days: number; plan: string } | null>(null);
+
+  useEffect(() => {
+    const fetchSub = async () => {
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok) {
+          const data = await res.json();
+          setSubscription({
+            days: data.subscriptionData?.days_remaining ?? 0,
+            plan: data.planName || 'Free'
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSub();
+  }, []);
 
   const navigationItems = [
     { 
@@ -57,7 +77,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white border-r border-gray-100 w-64 shrink-0">
+    <div className="h-full flex flex-col bg-white border-r border-gray-100 w-full shrink-0">
       {/* Navigation */}
       <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto custom-scrollbar">
         {navigationItems.map((section, idx) => (
@@ -101,23 +121,61 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User Profile Footer */}
-      <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-        <Link href="/app/profile">
-          <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all duration-200 group">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-white shadow-lg">
-                <span className="font-bold text-sm">S</span>
+      {/* Subscription Status Card */}
+      <div className="p-4 border-t border-gray-100">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 p-5 text-white shadow-xl transform hover:scale-[1.02] transition-transform duration-300">
+          {/* Background decoration */}
+          <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl"></div>
+          <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-indigo-500/20 blur-2xl"></div>
+          
+          <div className="relative z-10">
+            <div className="mb-6 flex items-start justify-between">
+              <div className="rounded-xl bg-white/10 p-2 backdrop-blur-sm border border-white/10 shadow-inner">
+                <CreditCard size={20} className="text-white" />
               </div>
-              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/70 bg-black/20 px-2 py-1 rounded-full backdrop-blur-md border border-white/5">
+                {subscription?.plan || 'Loading...'} Plan
+              </span>
             </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-bold text-gray-900">Syndic Account</div>
-              <div className="text-xs text-gray-500">Manage your building</div>
+            
+            <div className="mb-4">
+              <div className="flex items-baseline gap-1">
+                <span className="text-4xl font-bold tracking-tight text-white drop-shadow-sm">
+                  {subscription?.days ?? 0}
+                </span>
+                <span className="text-sm font-medium text-white/60">days left</span>
+              </div>
             </div>
-            <Settings size={16} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-          </button>
-        </Link>
+            
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex justify-between text-[10px] font-medium text-white/50 mb-1.5">
+                  <span>Subscription</span>
+                  <span>{Math.min(((subscription?.days || 0) / 30) * 100, 100).toFixed(0)}%</span>
+                </div>
+                {/* Progress bar */}
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/30 border border-white/5">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(((subscription?.days || 0) / 30) * 100, 100)}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className="h-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 shadow-[0_0_10px_rgba(52,211,153,0.5)]" 
+                  />
+                </div>
+              </div>
+              
+              <Link href="/app/billing">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 p-2 transition-colors border border-white/10 backdrop-blur-sm group"
+                >
+                  <ChevronRight size={16} className="text-white group-hover:translate-x-0.5 transition-transform" />
+                </motion.button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
