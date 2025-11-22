@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/utils/supabase/server';
 import { stripe } from '@/utils/stripe';
+import { getCustomerByUserId } from '@/lib/stripe/services/customer.service';
 
 export async function DELETE() {
 	try {
@@ -25,22 +26,74 @@ export async function DELETE() {
 			}
 		);
 
-		// 1. Cancel any active Stripe subscriptions
-		const { data: stripeCustomer, error: _stripeError } = await adminSupabase
-			.from('stripe_customers')
-			.select('*')
-			.eq('user_id', userId)
-			.single();
+		// 1. Cancel any active Stripe subscriptions (including canceled but still active)
+		console.log('[Account Delete] Checking for active subscriptions for user:', userId);
+		
+		try {
+			// Get customer from Stripe SDK (includes canceled but still active subscriptions)
+			const customer = await getCustomerByUserId(userId);
+			
+			if (customer) {
+				console.log('[Account Delete] Found Stripe customer:', customer.id);
+				
+				// Get all active subscriptions for this customer
+				// This includes subscriptions with cancel_at_period_end = true (scheduled for cancellation)
+				const subscriptions = await stripe.subscriptions.list({
+					customer: customer.id,
+					status: 'active', // This includes canceled but still active subscriptions
+					limit: 100, // Get all subscriptions
+				});
 
-		if (stripeCustomer?.subscription_id) {
-			try {
-				// Cancel the subscription immediately
-				await stripe.subscriptions.cancel(stripeCustomer.subscription_id);
-				console.log(`Cancelled Stripe subscription: ${stripeCustomer.subscription_id}`);
-			} catch (stripeErr: any) {
-				console.error('Error cancelling Stripe subscription:', stripeErr);
-				// Continue with deletion even if Stripe cancellation fails
+				console.log(`[Account Delete] Found ${subscriptions.data.length} active subscription(s) to cancel`);
+
+				// Cancel all active subscriptions immediately
+				// This includes both regular active subscriptions and canceled ones (cancel_at_period_end = true)
+				for (const subscription of subscriptions.data) {
+					try {
+						if (subscription.status === 'active') {
+							// Cancel immediately (not at period end)
+							await stripe.subscriptions.cancel(subscription.id);
+							console.log(`[Account Delete] ✅ Cancelled subscription: ${subscription.id} (status: ${subscription.status}, cancel_at_period_end: ${subscription.cancel_at_period_end})`);
+						} else {
+							console.log(`[Account Delete] ⚠️ Skipping subscription ${subscription.id} - status is not active: ${subscription.status}`);
+						}
+					} catch (subscriptionError: any) {
+						console.error(`[Account Delete] ❌ Error cancelling subscription ${subscription.id}:`, subscriptionError);
+						// Continue with other subscriptions even if one fails
+					}
+				}
+
+				// Also check for any other subscription statuses that might need cancellation
+				const allSubscriptions = await stripe.subscriptions.list({
+					customer: customer.id,
+					limit: 100,
+				});
+
+				// Cancel any subscriptions that are trialing, past_due, or incomplete
+				const otherStatusSubscriptions = allSubscriptions.data.filter(
+					(sub) => ['trialing', 'past_due', 'incomplete', 'incomplete_expired'].includes(sub.status)
+				);
+
+				if (otherStatusSubscriptions.length > 0) {
+					console.log(`[Account Delete] Found ${otherStatusSubscriptions.length} subscription(s) with other statuses to cancel`);
+					
+					for (const subscription of otherStatusSubscriptions) {
+						try {
+							await stripe.subscriptions.cancel(subscription.id);
+							console.log(`[Account Delete] ✅ Cancelled subscription: ${subscription.id} (status: ${subscription.status})`);
+						} catch (subscriptionError: any) {
+							console.error(`[Account Delete] ❌ Error cancelling subscription ${subscription.id}:`, subscriptionError);
+							// Continue with other subscriptions even if one fails
+						}
+					}
+				}
+			} else {
+				console.log('[Account Delete] No Stripe customer found for user - skipping subscription cancellation');
 			}
+		} catch (subscriptionError: any) {
+			console.error('[Account Delete] Error during subscription cancellation process:', subscriptionError);
+			// Continue with account deletion even if subscription cancellation fails
+			// This ensures the account can still be deleted even if Stripe is unreachable
 		}
 
 		// 2. Delete from stripe_customers

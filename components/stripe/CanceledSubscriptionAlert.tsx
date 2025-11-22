@@ -5,7 +5,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw, Calendar, Clock, CheckCircle } from 'lucide-react';
 import { createPortalSession } from '@/app/actions/stripe';
-import { useRouter } from 'next/navigation';
 
 interface CanceledSubscriptionAlertProps {
 	planName: string;
@@ -26,7 +25,6 @@ export function CanceledSubscriptionAlert({
 }: CanceledSubscriptionAlertProps) {
 	const [isReactivating, setIsReactivating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const router = useRouter();
 
 	const handleReactivate = async () => {
 		console.log('[CanceledSubscriptionAlert] Reactivating subscription...');
@@ -172,13 +170,6 @@ export function CanceledSubscriptionAlert({
 										Reactivate Subscription
 									</>
 								)}
-							</Button>
-							<Button
-								variant="outline"
-								onClick={() => router.push('/app/billing')}
-								className="flex-1 border-current/30 hover:bg-white/50"
-							>
-								View Billing Details
 							</Button>
 						</div>
 
