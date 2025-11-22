@@ -1,9 +1,10 @@
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient, getSupabaseClient } from '@/utils/supabase/server';
 import { auth } from "@/lib/auth"
 import PortalButton from '@/components/stripe/PortalButton';
 import { stripe } from '@/utils/stripe';
 import config from '@/config';
 import RefundButton from '@/components/stripe/RefundButton';
+import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';
 
 // Helper function to get plan name from price ID
 function getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
@@ -79,50 +80,58 @@ function getIntervalBadgeStyle(planName: string): { bgColor: string; textColor: 
 }
 
 export async function BillingInfo() {
-	const supabase = await getSupabaseClient();
-	const session = await auth()
+	console.log('[BillingInfo] Rendering billing info component');
 
-	const userId = session?.user?.id
+	const session = await auth();
+	const userId = session?.user?.id;
+
 	if (!userId) {
-		return <div>User not found</div>
+		console.error('[BillingInfo] User not found');
+		return <div>User not found</div>;
 	}
 
+	// Get user data from database
+	const supabase = createSupabaseAdminClient();
 	const { data: userData, error: userError } = await supabase
 		.from('users')
 		.select('*')
 		.eq('id', userId)
 		.single();
 
-	// Get subscription data  
-	const { data: subscriptionData, error: _subscriptionError } = await supabase
-		.from('stripe_customers')
-		.select('*')
-		.eq('user_id', userId)
-		.eq('plan_active', true)
-		.single();
-
-	let planName = 'Free';
-	let planInterval = 'month';
-	if (subscriptionData?.subscription_id) {
-		const subscription = await stripe.subscriptions.retrieve(subscriptionData.subscription_id);
-		const priceId = subscription.items.data[0].price.id;
-		const planInfo = getPlanNameFromPriceId(priceId);
-		planName = planInfo.name;
-		planInterval = planInfo.interval;
-	}
-
 	if (userError) {
-		console.error('Error fetching user data:', userError);
+		console.error('[BillingInfo] Error fetching user data:', userError);
 		return <div>Error fetching user data</div>;
 	}
 
-	if (_subscriptionError) {
-		console.log('Error fetching subscription data:', _subscriptionError);
-	}
-
 	if (!userData) {
+		console.error('[BillingInfo] User data not found');
 		return <div>User data not found</div>;
 	}
+
+	// Get subscription data using Stripe SDK directly
+	console.log('[BillingInfo] Getting subscription details from Stripe SDK');
+	const subscriptionDetails = await getSubscriptionDetails(userId);
+
+	const planName = subscriptionDetails.planName;
+	const planInterval = subscriptionDetails.planInterval;
+
+	// Format subscription data for display
+	const subscriptionData = subscriptionDetails.customerId
+		? {
+				subscription_id: subscriptionDetails.subscriptionId || null,
+				stripe_customer_id: subscriptionDetails.customerId,
+				plan_active: subscriptionDetails.status === 'active',
+				plan_expires: subscriptionDetails.currentPeriodEnd
+					? subscriptionDetails.currentPeriodEnd.getTime()
+					: null,
+			}
+		: null;
+
+	console.log('[BillingInfo] Subscription details loaded:', {
+		planName,
+		planInterval,
+		hasActiveSubscription: !!subscriptionData,
+	});
 
 	return (
 		<div className="bg-[var(--background)] shadow rounded-lg p-6 space-y-8">

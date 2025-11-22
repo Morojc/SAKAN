@@ -22,11 +22,15 @@ const getSupabaseClient = async (options?: { throwOnUnauthenticated?: boolean })
 		redirect('/')
 	}
 	
-	// 如何 使用 session.supabaseAccessToken 来创建 supabase client
+	// session.supabaseAccessToken 来创建 supabase client
+	// Note: Using 'dbasakan' schema for this project
 	return createClient<Database>(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
 		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 		{
+			db: {
+				schema: 'dbasakan' as any, // Custom schema for this project
+			},
 			global: {
 				headers: {
 					Authorization: `Bearer ${session.supabaseAccessToken}`,
@@ -38,10 +42,14 @@ const getSupabaseClient = async (options?: { throwOnUnauthenticated?: boolean })
 
 function createSupabaseAdminClient() {
 	// server api - uses service_role key for admin access
+	// Note: Using 'dbasakan' schema for this project
 	return createClient<Database>(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
 		process.env.SUPABASE_SECRET_KEY!,
 		{
+			db: {
+				schema: 'dbasakan' as any, // Custom schema for this project (not in Database type)
+			},
 			auth: {
 				persistSession: false,
 			},

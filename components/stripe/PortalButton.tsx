@@ -1,48 +1,43 @@
 'use client';
 
 import { createPortalSession } from '@/app/actions/stripe';
-import { createSupabaseClient } from '@/utils/supabase/front';
 import { useSession } from 'next-auth/react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
+/**
+ * Portal Button Component
+ * Uses Stripe SDK directly via server action - no database queries
+ */
 export default function PortalButton() {
 	const { data: session } = useSession();
 	const [isLoading, setIsLoading] = useState(false);
 	const user = session?.user;
+
 	if (!user) {
-		return <div>User not found</div>
+		return <div>User not found</div>;
 	}
 
 	const handleClick = async () => {
 		try {
+			console.log('[PortalButton] Creating billing portal session');
 			setIsLoading(true);
-			if (!user) {
-				throw 'Please log in to manage your billing.';
-			}
-			if (!session?.supabaseAccessToken) {
-				throw 'Please log in to manage your billing.';
-			}
-			const supabase = await createSupabaseClient(session?.supabaseAccessToken);
 
-			if (user.id) {
-				const { data: customer, error: _fetchError } = await supabase
-					.from('stripe_customers')
-					.select('stripe_customer_id')
-					.eq('user_id', user.id)
-					.single();
-				if (customer?.stripe_customer_id) {
-					const url = await createPortalSession(customer?.stripe_customer_id);
-					window.location.href = url;
-				}
+			if (!user) {
+				throw new Error('Please log in to manage your billing.');
 			}
-		} catch (error) {
-			console.error('Failed to create billing portal session:', error);
-			toast.error(error?.toString() || 'Failed to create billing portal session');
+
+			// Create portal session - service will find customer via Stripe SDK
+			const url = await createPortalSession();
+			console.log('[PortalButton] Portal session created, redirecting');
+			window.location.href = url;
+		} catch (error: any) {
+			console.error('[PortalButton] Failed to create billing portal session:', error);
+			toast.error(error?.message || 'Failed to create billing portal session');
 		} finally {
 			setIsLoading(false);
 		}
-	}
+	};
 
 	return (
 		<div>

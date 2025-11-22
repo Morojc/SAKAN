@@ -1,41 +1,33 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/utils/supabase/server';
-import { auth } from "@/lib/auth";
-import { stripe } from '@/utils/stripe';
+import { auth } from '@/lib/auth';
+import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';
 import config from '@/config';
 
-// Helper function to get plan name from price ID
-function getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
-	for (const [planType, planData] of Object.entries(config.stripe)) {
-		if (planData.monthPriceId === priceId) {
-			return { name: planData.name, interval: 'month' };
-		}
-		if (planData.yearPriceId === priceId) {
-			return { name: planData.name, interval: 'year' };
-		}
-	}
-	return { name: 'Unknown Plan', interval: 'month' };
-}
-
+/**
+ * Profile API Route
+ * Uses Stripe SDK directly for subscription data - no database queries for Stripe info
+ */
 export async function GET() {
 	try {
+		console.log('[Profile API] Fetching profile data');
+
 		const session = await auth();
 		const userId = session?.user?.id;
 
-		if (!userId || !session?.supabaseAccessToken) {
+		if (!userId) {
+			console.error('[Profile API] User not authenticated');
 			return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
 		}
 
-		// Use admin client for accessing all tables (bypasses RLS)
-		// Note: We don't need getSupabaseClient here since we're using admin client
+		// Use admin client for accessing user data only
 		const adminSupabase = createSupabaseAdminClient();
-		
+
 		// Get user data from NextAuth users table
-		// Try dbasakan.users first, then fallback to public.users
 		let userData = null;
 		let userError = null;
-		
-		// Try querying users table - Supabase will look in accessible schemas
+
+		// Try querying users table
 		const { data: userDataResult, error: userErrorResult } = await adminSupabase
 			.from('users')
 			.select('*')
@@ -47,7 +39,7 @@ export async function GET() {
 
 		// If that fails, use session user data as fallback
 		if (userError && !userData) {
-			// Fallback to session data if database query fails
+			console.log('[Profile API] Using session data as fallback');
 			const sessionUser = session.user;
 			userData = {
 				id: sessionUser.id,
@@ -62,49 +54,47 @@ export async function GET() {
 		}
 
 		if (userError && !userData) {
-			console.error('Error fetching user data:', userError);
+			console.error('[Profile API] Error fetching user data:', userError);
 			return NextResponse.json({ error: 'Error fetching user data' }, { status: 500 });
 		}
 
-		// Get subscription data
-		const { data: subscriptionData, error: _subscriptionError } = await adminSupabase
-			.from('stripe_customers')
-			.select('*')
-			.eq('user_id', userId)
-			.eq('plan_active', true)
-			.single();
+		// Get subscription data using Stripe SDK directly
+		console.log('[Profile API] Getting subscription details from Stripe SDK');
+		const subscriptionDetails = await getSubscriptionDetails(userId);
 
-		let planName = 'Free';
-		let planInterval = 'month';
-		let subscription = null;
-
-		if (subscriptionData?.subscription_id) {
-			subscription = await stripe.subscriptions.retrieve(subscriptionData.subscription_id);
-			const priceId = subscription.items.data[0].price.id;
-			const planInfo = getPlanNameFromPriceId(priceId);
-			planName = planInfo.name;
-			planInterval = planInfo.interval;
-		}
+		// Format subscription data for backward compatibility
+		const subscriptionData = subscriptionDetails.customerId
+			? {
+					subscription_id: subscriptionDetails.subscriptionId || null,
+					stripe_customer_id: subscriptionDetails.customerId,
+					plan_active: subscriptionDetails.status === 'active',
+					plan_expires: subscriptionDetails.currentPeriodEnd
+						? subscriptionDetails.currentPeriodEnd.getTime()
+						: null,
+				}
+			: null;
 
 		// Convert the price data object into an array with type information
 		const priceData = Object.entries(config.stripe).map(([type, data]) => ({
 			type,
-			...data
+			...data,
 		}));
+
+		console.log('[Profile API] Profile data fetched successfully');
 
 		return NextResponse.json({
 			userData,
 			subscriptionData,
-			planName,
-			planInterval,
-			priceData
+			planName: subscriptionDetails.planName,
+			planInterval: subscriptionDetails.planInterval,
+			priceData,
 		});
 	} catch (error: any) {
 		// Handle authentication errors specifically
 		if (error.message === 'User not authenticated' || error.message === 'NEXT_REDIRECT') {
 			return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
 		}
-		console.error('Error in profile API route:', error);
+		console.error('[Profile API] Error in profile API route:', error);
 		return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 	}
 } 
