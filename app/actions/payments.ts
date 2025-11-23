@@ -227,12 +227,13 @@ export async function getResidents(residenceId?: bigint) {
 			targetResidenceId = profile.residence_id;
 		}
 
-		// Get all residents for the residence
+		// Get all verified residents for the residence
 		const { data: residents, error: residentsError } = await supabase
 			.from('profiles')
 			.select('id, full_name, apartment_number, role')
 			.eq('residence_id', targetResidenceId)
 			.eq('role', 'resident')
+			.eq('verified', true) // Only show verified residents
 			.order('apartment_number', { ascending: true });
 
 		if (residentsError) {

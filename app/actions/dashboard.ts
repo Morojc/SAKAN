@@ -175,14 +175,15 @@ export async function getDashboardStats() {
 			balancesResult,
 			recentPaymentsResult,
 		] = await Promise.all([
-			// Total residents
+			// Total verified residents
 			supabase
 				.from('profiles')
 				.select('id', { count: 'exact', head: true })
 				.eq('residence_id', residenceId)
-				.eq('role', 'resident'),
+				.eq('role', 'resident')
+				.eq('verified', true),
 
-			// All residents with fees for top residents calculation
+			// All verified residents with fees for top residents calculation
 			supabase
 				.from('profiles')
 				.select(`
@@ -197,6 +198,7 @@ export async function getDashboardStats() {
 				`)
 				.eq('residence_id', residenceId)
 				.eq('role', 'resident')
+				.eq('verified', true) // Only verified residents
 				.order('full_name', { ascending: true }),
 
 			// Outstanding fees

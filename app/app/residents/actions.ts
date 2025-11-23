@@ -120,16 +120,30 @@ export async function createResident(data: CreateResidentData) {
         console.log('[Residents Actions] Profile already exists, updating instead of creating');
         
         // Profile exists, update it instead of creating a new one
+        // If already verified, keep verified=true, otherwise set to false
+        const { data: currentProfile } = await adminSupabase
+          .from('profiles')
+          .select('verified')
+          .eq('id', finalUserId)
+          .maybeSingle();
+
+        const updateData: any = {
+          full_name: data.full_name,
+          phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
+          apartment_number: data.apartment_number,
+          residence_id: data.residence_id,
+          role: finalRole,
+        };
+
+        // Only update verification if not already verified
+        if (!currentProfile?.verified) {
+          updateData.verified = false;
+        }
+
         // Note: finalRole is guaranteed to be 'resident' or 'guard', never 'syndic'
         const { data: profile, error: profileError } = await adminSupabase
           .from('profiles')
-          .update({
-            full_name: data.full_name,
-            phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
-            apartment_number: data.apartment_number,
-            residence_id: data.residence_id,
-            role: finalRole,
-          })
+          .update(updateData)
           .eq('id', finalUserId)
           .select(`
             id,
@@ -156,6 +170,32 @@ export async function createResident(data: CreateResidentData) {
         }
 
         console.log('[Residents Actions] Resident profile updated successfully:', profile?.id);
+
+        // Create access code and send verification email if not already verified
+        if (!currentProfile?.verified) {
+          try {
+            const { createAccessCode } = await import('@/lib/utils/access-code');
+            const { sendResidentVerificationCodeEmail } = await import('@/lib/utils/email');
+            
+            // Create access code for resident verification
+            const accessCodeData = await createAccessCode(
+              userId, // Original user (syndic)
+              data.email, // Replacement email (new resident)
+              data.residence_id,
+              'verify_resident'
+            );
+            
+            // Send verification code email
+            await sendResidentVerificationCodeEmail({
+              to: data.email,
+              name: data.full_name,
+              code: accessCodeData.code,
+            });
+            console.log('[Residents Actions] Verification code email sent to:', data.email);
+          } catch (emailError: any) {
+            console.error('[Residents Actions] Error sending verification code email:', emailError);
+          }
+        }
         
         // Revalidate residents page
         revalidatePath('/app/residents');
@@ -163,6 +203,9 @@ export async function createResident(data: CreateResidentData) {
         return {
           success: true,
           resident: profile,
+          message: currentProfile?.verified 
+            ? 'Resident updated successfully.' 
+            : 'Resident updated successfully. A verification code has been sent to the resident.',
         };
       }
     } else {
@@ -194,6 +237,7 @@ export async function createResident(data: CreateResidentData) {
 
     // Create profile - managed entirely by code, not database triggers
     // Use admin client directly to avoid RLS infinite recursion issues
+    // Set verified=false initially - resident must verify via access code
     const { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
       .insert({
@@ -203,6 +247,7 @@ export async function createResident(data: CreateResidentData) {
         apartment_number: data.apartment_number.trim(),
         residence_id: data.residence_id,
         role: finalRole,
+        verified: false, // Not verified until they enter the access code
       })
       .select(`
         id,
@@ -212,6 +257,7 @@ export async function createResident(data: CreateResidentData) {
         role,
         created_at,
         residence_id,
+        verified,
         residences (
           id,
           name,
@@ -227,15 +273,30 @@ export async function createResident(data: CreateResidentData) {
       // or in a race condition - update it with the correct role and data
       if (profileError.code === '23505') {
         console.log('[Residents Actions] Duplicate key detected, profile already exists. Updating with correct role and data.');
+        
+        // Check if already verified
+        const { data: existingProfile } = await adminSupabase
+          .from('profiles')
+          .select('verified')
+          .eq('id', finalUserId)
+          .maybeSingle();
+
+        const updateData: any = {
+          full_name: data.full_name.trim(),
+          phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
+          apartment_number: data.apartment_number.trim(),
+          residence_id: data.residence_id,
+          role: finalRole, // Ensure role is set correctly (not 'syndic')
+        };
+
+        // Only update verification if not already verified
+        if (!existingProfile?.verified) {
+          updateData.verified = false;
+        }
+
         const { data: updatedProfile, error: updateError } = await adminSupabase
           .from('profiles')
-          .update({
-            full_name: data.full_name.trim(),
-            phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
-            apartment_number: data.apartment_number.trim(),
-            residence_id: data.residence_id,
-            role: finalRole, // Ensure role is set correctly (not 'syndic')
-          })
+          .update(updateData)
           .eq('id', finalUserId)
           .select(`
             id,
@@ -255,10 +316,40 @@ export async function createResident(data: CreateResidentData) {
         
         if (!updateError && updatedProfile) {
           console.log('[Residents Actions] Profile updated successfully with correct role:', updatedProfile.role);
+          
+          // Create access code and send verification email if not already verified
+          if (!existingProfile?.verified) {
+            try {
+              const { createAccessCode } = await import('@/lib/utils/access-code');
+              const { sendResidentVerificationCodeEmail } = await import('@/lib/utils/email');
+              
+              // Create access code for resident verification
+              const accessCodeData = await createAccessCode(
+                userId, // Original user (syndic)
+                data.email, // Replacement email (new resident)
+                data.residence_id,
+                'verify_resident'
+              );
+              
+              // Send verification code email
+              await sendResidentVerificationCodeEmail({
+                to: data.email,
+                name: data.full_name,
+                code: accessCodeData.code,
+              });
+              console.log('[Residents Actions] Verification code email sent to:', data.email);
+            } catch (emailError: any) {
+              console.error('[Residents Actions] Error sending verification code email:', emailError);
+            }
+          }
+          
           revalidatePath('/app/residents');
           return {
             success: true,
             resident: updatedProfile,
+            message: existingProfile?.verified 
+              ? 'Resident updated successfully.' 
+              : 'Resident updated successfully. A verification code has been sent to the resident.',
           };
         } else if (updateError) {
           console.error('[Residents Actions] Error updating profile:', updateError);
@@ -277,12 +368,38 @@ export async function createResident(data: CreateResidentData) {
 
     console.log('[Residents Actions] Resident created successfully:', profile?.id);
 
+    // Create access code and send verification email
+    try {
+      const { createAccessCode } = await import('@/lib/utils/access-code');
+      const { sendResidentVerificationCodeEmail } = await import('@/lib/utils/email');
+      
+      // Create access code for resident verification
+      const accessCodeData = await createAccessCode(
+        userId, // Original user (syndic)
+        data.email, // Replacement email (new resident)
+        data.residence_id,
+        'verify_resident'
+      );
+      
+      // Send verification code email
+      await sendResidentVerificationCodeEmail({
+        to: data.email,
+        name: data.full_name,
+        code: accessCodeData.code,
+      });
+      console.log('[Residents Actions] Verification code email sent to:', data.email);
+    } catch (emailError: any) {
+      console.error('[Residents Actions] Error sending verification code email:', emailError);
+      // Don't fail the entire operation if email fails - resident can request resend later
+    }
+
     // Revalidate residents page
     revalidatePath('/app/residents');
 
     return {
       success: true,
       resident: profile,
+      message: 'Resident added successfully. A verification code has been sent to the resident.',
     };
   } catch (error: any) {
     console.error('[Residents Actions] Error creating resident:', error);

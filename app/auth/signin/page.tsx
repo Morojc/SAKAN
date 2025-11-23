@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,9 @@ import { KeyRound, Loader2, AlertCircle, Mail } from 'lucide-react';
 import config from '@/config';
 
 export default function SignInPage() {
+  const searchParams = useSearchParams();
+  const verificationToken = searchParams.get('verification_token');
+  
   const [email, setEmail] = useState('');
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [isReplacementEmail, setIsReplacementEmail] = useState(false);
@@ -20,6 +24,27 @@ export default function SignInPage() {
     valid: boolean;
     message?: string;
   } | null>(null);
+
+  // Store verification token in cookie if present (via API route for HTTP-only cookie)
+  useEffect(() => {
+    if (verificationToken && typeof window !== 'undefined') {
+      console.log('[SignIn] Found verification token in URL, setting cookie:', verificationToken.substring(0, 10) + '...');
+      // Set cookie via API route to ensure it's HTTP-only and accessible to NextAuth
+      fetch('/api/residents/set-verification-cookie', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token: verificationToken }),
+        credentials: 'include', // Important: include credentials
+      }).then(async (res) => {
+        const data = await res.json();
+        console.log('[SignIn] Verification token cookie set response:', data);
+      }).catch((error) => {
+        console.error('[SignIn] Error storing verification token:', error);
+      });
+    }
+  }, [verificationToken]);
 
   // Check if email is a replacement email
   const checkReplacementEmail = async (emailValue: string) => {

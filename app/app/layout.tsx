@@ -2,6 +2,7 @@ import { Header } from "../../components/app/Header"
 import { Sidebar } from "../../components/app/Sidebar"
 import OnboardingGuard from "../../components/app/OnboardingGuard"
 import ReplacementUserRedirect from "../../components/app/ReplacementUserRedirect"
+import ResidentVerificationGuard from "../../components/app/ResidentVerificationGuard"
 import { auth } from "@/lib/auth"
 import { createSupabaseAdminClient } from "@/utils/supabase/server"
 
@@ -15,6 +16,7 @@ export default async function AppLayout({
 	const userId = session?.user?.id;
 	let onboardingCompleted = true; // Default to true to avoid blocking if check fails
 	let isReplacementUser = false;
+	let needsResidentVerification = false;
 
 	// Check if user is a replacement email
 	// This check is done here instead of middleware to avoid Edge Runtime limitations
@@ -65,7 +67,7 @@ export default async function AppLayout({
 			const supabase = createSupabaseAdminClient();
 			const { data: profile } = await supabase
 				.from('profiles')
-				.select('onboarding_completed, residence_id, role')
+				.select('onboarding_completed, residence_id, role, verified')
 				.eq('id', userId)
 				.maybeSingle();
 
@@ -78,9 +80,13 @@ export default async function AppLayout({
 			} else if (profile.role === 'syndic') {
 				// Show onboarding only if syndic has no residence assigned
 				onboardingCompleted = profile.residence_id !== null;
+				// Syndics don't need verification
+				needsResidentVerification = false;
 			} else {
 				// Non-syndics don't need onboarding
 				onboardingCompleted = true;
+				// Check if resident needs verification
+				needsResidentVerification = !profile.verified;
 			}
 		} catch (error) {
 			console.error('[AppLayout] Error checking onboarding status:', error);
@@ -102,7 +108,9 @@ export default async function AppLayout({
 				<main className="flex-1 overflow-y-auto bg-gray-50">
 					{isReplacementUser && <ReplacementUserRedirect />}
 					<OnboardingGuard onboardingCompleted={onboardingCompleted}>
-				{children}
+						<ResidentVerificationGuard needsVerification={needsResidentVerification}>
+							{children}
+						</ResidentVerificationGuard>
 					</OnboardingGuard>
 			</main>
 			</div>

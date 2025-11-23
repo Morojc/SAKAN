@@ -66,6 +66,7 @@ async function ResidentsData() {
 
     // Build query - filter by residence_id for all users (including syndics)
     // Include all profiles including syndics, but only from the user's residence
+    // Only show verified residents (verified = true)
     let profilesQuery = supabase
       .from('profiles')
       .select(`
@@ -76,18 +77,20 @@ async function ResidentsData() {
         role,
         created_at,
         residence_id,
+        verified,
         residences (
           id,
           name,
           address
         )
       `)
+      .eq('verified', true) // Only show verified residents
       .order('full_name', { ascending: true });
 
     // All users (including syndics) only see profiles from their own residence
     if (residenceId) {
       profilesQuery = profilesQuery.eq('residence_id', residenceId);
-      console.log('[ResidentsPage] Showing profiles with residence_id =', residenceId, '(including syndics)');
+      console.log('[ResidentsPage] Showing verified profiles with residence_id =', residenceId, '(including syndics)');
     } else {
       // User has no residence_id - should not reach here for syndics (handled by earlier check)
       console.log('[ResidentsPage] Warning: User has no residence_id');
