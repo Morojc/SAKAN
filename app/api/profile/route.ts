@@ -26,6 +26,7 @@ export async function GET() {
 		// Get user data from NextAuth users table
 		let userData = null;
 		let userError = null;
+        let userRole = 'resident'; // Default
 
 		// Try querying users table
 		const { data: userDataResult, error: userErrorResult } = await adminSupabase
@@ -36,6 +37,17 @@ export async function GET() {
 
 		userData = userDataResult;
 		userError = userErrorResult;
+
+        // Fetch role from profiles table
+        const { data: profileResult } = await adminSupabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+            
+        if (profileResult) {
+            userRole = profileResult.role;
+        }
 
 		// If that fails, use session user data as fallback
 		if (userError && !userData) {
@@ -106,6 +118,7 @@ export async function GET() {
 
 		return NextResponse.json({
 			userData,
+            userRole,
 			subscriptionData,
 			planName: subscriptionDetails.planName,
 			planInterval: subscriptionDetails.planInterval,

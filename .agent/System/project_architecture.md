@@ -346,12 +346,12 @@ NEXT_PUBLIC_OPENPANEL_CLIENT_ID=    # OpenPanel client ID
 
 ### Running the Project
 ```bash
-pnpm install          # Install dependencies
-pnpm dev              # Start dev server with Turbopack
-pnpm build            # Production build
-pnpm start            # Start production server
-pnpm lint             # Run ESLint
-pnpm lint:ts          # Type check
+npm install          # Install dependencies
+npm dev              # Start dev server with Turbopack
+npm build            # Production build
+npm start            # Start production server
+npm lint             # Run ESLint
+npm lint:ts          # Type check
 ```
 
 ### Database Migrations

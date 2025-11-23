@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { UserPlus, Search, Plus, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ interface ResidentsContentProps {
   initialFees: Fee[];
   currentUserId?: string;
   currentUserRole?: string;
+  currentUserResidenceId?: number | null;
 }
 
 /**
@@ -64,8 +66,11 @@ export default function ResidentsContent({
   initialFees,
   currentUserId,
   currentUserRole,
+  currentUserResidenceId,
 }: ResidentsContentProps) {
   console.log('[ResidentsContent] Component mounted with', initialResidents.length, 'residents');
+
+  const router = useRouter();
 
   // State management
   const [residents, setResidents] = useState<ResidentWithFees[]>(initialResidents);
@@ -75,6 +80,17 @@ export default function ResidentsContent({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Sync local state with server data when it refreshes
+  useEffect(() => {
+    console.log('[ResidentsContent] Syncing state with server data:', {
+      initialResidentsCount: initialResidents.length,
+      initialFeesCount: initialFees.length,
+      currentResidentsCount: residents.length,
+    });
+    setResidents(initialResidents);
+    setFees(initialFees);
+  }, [initialResidents, initialFees]);
 
   // Debug: Log state changes
   useEffect(() => {
@@ -128,9 +144,16 @@ export default function ResidentsContent({
    */
   const handleResidentAdded = (newResident: ResidentWithFees) => {
     console.log('[ResidentsContent] New resident added:', newResident);
+    // Add to local state immediately for instant UI update
     setResidents((prev) => [...prev, newResident]);
     setShowAddDialog(false);
-    toast.success('Resident added successfully');
+    toast.success('Resident added successfully! Refreshing data...');
+    
+    // Refresh server data to ensure we have the latest information
+    // This ensures fees and other related data are up to date
+    setTimeout(() => {
+      router.refresh();
+    }, 500); // Small delay to allow toast to show
   };
 
   /**
@@ -357,6 +380,8 @@ export default function ResidentsContent({
           setShowAddDialog(false);
         }}
         onSuccess={handleResidentAdded}
+        currentUserRole={currentUserRole}
+        currentUserResidenceId={currentUserResidenceId}
       />
     </div>
   );

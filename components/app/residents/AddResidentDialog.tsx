@@ -28,6 +28,8 @@ interface AddResidentDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (resident: ResidentWithFees) => void;
+  currentUserRole?: string;
+  currentUserResidenceId?: number | null;
 }
 
 /**
@@ -38,6 +40,8 @@ export default function AddResidentDialog({
   open,
   onClose,
   onSuccess,
+  currentUserRole,
+  currentUserResidenceId,
 }: AddResidentDialogProps) {
   console.log('[AddResidentDialog] Dialog render - open:', open);
 
@@ -69,8 +73,14 @@ export default function AddResidentDialog({
       fetchResidences();
       // Reset form
       resetForm();
+      
+      // Pre-fill residence if user is syndic and has a residence assigned
+      if (currentUserRole === 'syndic' && currentUserResidenceId) {
+        console.log('[AddResidentDialog] Pre-filling residence for syndic:', currentUserResidenceId);
+        setResidenceId(currentUserResidenceId.toString());
+      }
     }
-  }, [open]);
+  }, [open, currentUserRole, currentUserResidenceId]);
 
   async function fetchResidences() {
     setLoading(true);
@@ -162,7 +172,7 @@ export default function AddResidentDialog({
       const result = await createResident({
         full_name: fullName.trim(),
         email: email.trim(),
-        phone_number: phoneNumber.trim() || null,
+        phone_number: phoneNumber.trim() || undefined,
         apartment_number: apartmentNumber.trim(),
         residence_id: Number(residenceId),
         role,
@@ -185,10 +195,10 @@ export default function AddResidentDialog({
           outstandingFees: 0,
           feeCount: 0,
           unpaidFeeCount: 0,
-          residences: result.resident.residences ? {
-            id: result.resident.residences.id,
-            name: result.resident.residences.name,
-            address: result.resident.residences.address,
+          residences: result.resident.residences && Array.isArray(result.resident.residences) && result.resident.residences.length > 0 ? {
+            id: result.resident.residences[0].id,
+            name: result.resident.residences[0].name,
+            address: result.resident.residences[0].address,
           } : null,
         };
 
@@ -341,32 +351,44 @@ export default function AddResidentDialog({
               <Label htmlFor="residenceId">
                 Residence <span className="text-destructive">*</span>
               </Label>
-              <Select
-                value={residenceId}
-                onValueChange={(value: string) => {
-                  setResidenceId(value);
-                  if (errors.residenceId) {
-                    setErrors({ ...errors, residenceId: undefined });
-                  }
-                }}
-                disabled={loading}
-              >
-                <SelectTrigger
-                  id="residenceId"
-                  aria-invalid={!!errors.residenceId}
-                  aria-describedby={errors.residenceId ? 'residenceId-error' : undefined}
-                  className={errors.residenceId ? 'border-destructive' : ''}
+              {currentUserRole === 'syndic' && currentUserResidenceId ? (
+                // If user is syndic, show read-only input or disabled select
+                <div className="relative">
+                  <Input
+                    value={residences.find(r => r.id === currentUserResidenceId)?.name || 'Your Residence'}
+                    disabled
+                    className="bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200"
+                  />
+                  <input type="hidden" value={currentUserResidenceId} />
+                </div>
+              ) : (
+                <Select
+                  value={residenceId}
+                  onValueChange={(value: string) => {
+                    setResidenceId(value);
+                    if (errors.residenceId) {
+                      setErrors({ ...errors, residenceId: undefined });
+                    }
+                  }}
+                  disabled={loading}
                 >
-                  <SelectValue placeholder={loading ? 'Loading residences...' : 'Select residence'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {residences.map((residence) => (
-                    <SelectItem key={residence.id} value={residence.id.toString()}>
-                      {residence.name} - {residence.address}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    id="residenceId"
+                    aria-invalid={!!errors.residenceId}
+                    aria-describedby={errors.residenceId ? 'residenceId-error' : undefined}
+                    className={errors.residenceId ? 'border-destructive' : ''}
+                  >
+                    <SelectValue placeholder={loading ? 'Loading residences...' : 'Select residence'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {residences.map((residence) => (
+                      <SelectItem key={residence.id} value={residence.id.toString()}>
+                        {residence.name} - {residence.address}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {errors.residenceId && (
                 <p id="residenceId-error" className="text-sm text-destructive" role="alert">
                   {errors.residenceId}

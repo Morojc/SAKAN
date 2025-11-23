@@ -165,7 +165,7 @@ export default function EditResidentDialog({
         id: resident.id,
         full_name: fullName.trim(),
         email: email.trim(),
-        phone_number: phoneNumber.trim() || null,
+        phone_number: phoneNumber.trim() || undefined,
         apartment_number: apartmentNumber.trim(),
         residence_id: Number(residenceId),
         role,

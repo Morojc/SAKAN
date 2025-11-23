@@ -53,13 +53,30 @@ export default function DashboardContent() {
 				if (result.success) {
 					console.log('[DashboardContent] Stats loaded:', result.stats);
 					setStats(result.stats);
+					// If user has no residence, the onboarding guard will handle showing the wizard
+					// Don't show error, just show empty stats
+					if (!result.stats.residence && result.stats.onboardingCompleted === false) {
+						console.log('[DashboardContent] User has no residence - onboarding will be shown');
+					}
 				} else {
-					console.error('[DashboardContent] Error:', result.error);
-					setError(result.error || 'Failed to load dashboard stats');
+					// Only show error if it's a real error, not just missing profile/residence
+					if (result.error && !result.error.includes('profile') && !result.error.includes('residence')) {
+						console.error('[DashboardContent] Error:', result.error);
+						setError(result.error);
+					} else {
+						// For profile/residence errors, just use empty stats
+						console.log('[DashboardContent] Profile/residence issue - using empty stats');
+						if (result.stats) {
+							setStats(result.stats);
+						}
+					}
 				}
 			} catch (err: any) {
 				console.error('[DashboardContent] Error fetching stats:', err);
-				setError(err.message || 'Failed to load dashboard stats');
+				// Only show error for unexpected errors
+				if (!err.message?.includes('profile') && !err.message?.includes('residence')) {
+					setError(err.message || 'Failed to load dashboard stats');
+				}
 			} finally {
 				setLoading(false);
 			}

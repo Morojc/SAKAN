@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import OnboardingWizard from './onboarding/OnboardingWizard';
 
 interface OnboardingGuardProps {
@@ -11,8 +12,10 @@ interface OnboardingGuardProps {
 /**
  * Onboarding Guard Component
  * Shows onboarding wizard if user hasn't completed onboarding
+ * Displays "Configurez votre résidence en quelques étapes simples" for syndics without residence
  */
 export default function OnboardingGuard({ children, onboardingCompleted }: OnboardingGuardProps) {
+  const router = useRouter();
   const [showOnboarding, setShowOnboarding] = useState(!onboardingCompleted);
   const [mounted, setMounted] = useState(false);
 
@@ -21,6 +24,16 @@ export default function OnboardingGuard({ children, onboardingCompleted }: Onboa
     setShowOnboarding(!onboardingCompleted);
   }, [onboardingCompleted]);
 
+  const handleComplete = () => {
+    setShowOnboarding(false);
+    // Force a full page refresh to re-evaluate onboarding status
+    router.refresh();
+    // Also navigate to dashboard to ensure we're on the right page
+    setTimeout(() => {
+      router.push('/app');
+    }, 100);
+  };
+
   if (!mounted) {
     return <>{children}</>;
   }
@@ -28,9 +41,7 @@ export default function OnboardingGuard({ children, onboardingCompleted }: Onboa
   if (showOnboarding) {
     return (
       <OnboardingWizard
-        onComplete={() => {
-          setShowOnboarding(false);
-        }}
+        onComplete={handleComplete}
       />
     );
   }

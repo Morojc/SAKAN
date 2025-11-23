@@ -127,6 +127,7 @@ export default function ProfileAndBillingContent() {
 
 	// Extract data safely - handle undefined/null cases
 	const userData = profileData?.userData || null;
+    const userRole = profileData?.userRole || 'resident';
 	const subscriptionData = profileData?.subscriptionData || null;
 	const planName = profileData?.planName || 'Free';
 	const planInterval = profileData?.planInterval || 'month';
@@ -672,7 +673,7 @@ export default function ProfileAndBillingContent() {
 						<p className="text-sm text-gray-600 mt-1">Permanently delete your account and all associated data</p>
 					</div>
 				</div>
-				<DeleteAccountButton />
+				<DeleteAccountButton userRole={userRole} />
 			</motion.div>
 		</motion.div>
 	);

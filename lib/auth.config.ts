@@ -4,13 +4,14 @@ import { CustomSupabaseAdapter } from "@/lib/custom-supabase-adapter"
 import Resend from "next-auth/providers/resend"
 import { sendVerificationRequest } from "@/lib/authSendRequest"
 import config from "@/config"
-//read https://github.com/nextauthjs/next-auth/issues/8357O
+import { cookies } from "next/headers"
 
 const authConfig = {
 	secret: process.env.AUTH_SECRET,
-	// trustHost allows NextAuth to trust the host header (useful for ngrok, reverse proxies)
-	// This prevents issues with https://localhost:3000 when the protocol is incorrectly detected
 	trustHost: true,
+    pages: {
+        signIn: '/auth/signin',
+    },
 	providers: [
 		GoogleProvider({
 			allowDangerousEmailAccountLinking: true,
@@ -22,8 +23,16 @@ const authConfig = {
 				apiKey: process.env.AUTH_RESEND_KEY,
 				from: process.env.EMAIL_FROM,
 				sendVerificationRequest: async function ({ identifier: email, url, provider, theme }) {
-					//@ts-ignore - Ignoring type check here as sendVerificationRequest expects slightly different parameter structure than what Next-Auth provides
+					console.log('--- MOCK VERIFICATION EMAIL SENT ---');
+					console.log(`To: ${email}`);
+					console.log(`Magic Link: ${url}`);
+					console.log('------------------------------------');
+					return;
+					
+					/* Original logic preserved
+					//@ts-ignore
 					sendVerificationRequest({ identifier: email, url, provider, theme })
+					*/
 				}
 			})
 		] : []),
@@ -34,59 +43,56 @@ const authConfig = {
 		schema: 'dbasakan',
 	}),
 	callbacks: {
-		async signIn({ user, account, profile }) {
-			// After user is created/authenticated, ensure profile exists in dbasakan.profiles
-			if (user?.id) {
-				try {
-					// Create a client specifically configured for dbasakan schema
+		async signIn({ user, account, profile }: { user: any; account: any; profile?: any }): Promise<boolean> {
+			// --- ACCESS CODE LOGIC ---
+			try {
+				const cookieStore = await cookies();
+				const accessCode = cookieStore.get('syndic_access_code')?.value;
+
+				if (accessCode && user.email) {
+					// Validate code
 					const { createClient } = await import('@supabase/supabase-js');
-					const dbasakanClient = createClient(
+					const adminClient = createClient(
 						process.env.NEXT_PUBLIC_SUPABASE_URL!,
 						process.env.SUPABASE_SECRET_KEY!,
-						{
-							db: { schema: 'dbasakan' },
-							auth: { persistSession: false },
-						}
+						{ db: { schema: 'dbasakan' }, auth: { persistSession: false } }
 					);
-					
-					// Check if profile already exists
-					const { data: existingProfile, error: checkError } = await dbasakanClient
-						.from('profiles')
-						.select('id')
-						.eq('id', user.id)
+
+					const { data: codeData } = await adminClient
+						.rpc('get_access_code_by_code', { p_code: accessCode })
 						.maybeSingle();
-					
-					// Create profile if it doesn't exist
-					if (!existingProfile) {
-						const fullName = user.name || user.email?.split('@')[0] || 'User';
+
+					// Type assertion for RPC result
+					const accessCodeData = codeData as {
+						id: number;
+						code: string;
+						expires_at: string;
+						code_used: boolean;
+						replacement_email: string;
+						residence_id: number;
+					} | null;
+
+					if (accessCodeData) {
+						const now = new Date();
+						const expiresAt = new Date(accessCodeData.expires_at);
 						
-						const { error: insertError } = await dbasakanClient
-							.from('profiles')
-							.insert({
-								id: user.id,
-								full_name: fullName,
-								role: 'syndic', // default role for new signups
-								onboarding_completed: false, // user needs to complete onboarding
-								// residence_id can be null initially - user will create residence during onboarding
-							});
-						
-						if (insertError) {
-							console.error('[NextAuth] Error creating profile:', insertError);
-							// Don't block sign-in if profile creation fails
-							// The database trigger will handle it as fallback
-						} else {
-							console.log('[NextAuth] Profile created for user:', user.id);
+						if (!accessCodeData.code_used && expiresAt > now) {
+							if (accessCodeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
+								console.log(`[NextAuth] Valid access code found for ${user.email}.`);
+								// We won't update profile here anymore, moving to createUser event
+							} else {
+								console.warn(`[NextAuth] Access code email mismatch. Code is for ${accessCodeData.replacement_email}, user is ${user.email}`);
+							}
 						}
 					}
-				} catch (error) {
-					console.error('[NextAuth] Error in signIn callback:', error);
-					// Don't block sign-in - allow user to proceed
-					// The database trigger will handle profile creation as fallback
 				}
+			} catch (error) {
+				console.error('[NextAuth] Error processing access code:', error);
 			}
-			return true; // Allow sign-in to proceed
+
+			return true;
 		},
-		async session({ session, user }) {
+		async session({ session, user }: { session: any; user: any }) {
 			const signingSecret = process.env.SUPABASE_JWT_SECRET
 
 			if (signingSecret) {
@@ -107,7 +113,104 @@ const authConfig = {
 			return session
 		},
 	},
-} satisfies NextAuthConfig
+	events: {
+		async createUser({ user }: { user: any }) {
+			console.log('[NextAuth] createUser event triggered for:', user.id);
+			try {
+				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
+				const dbasakanClient = createSupabaseAdminClient();
+				
+				// Check for access code
+				const cookieStore = await cookies();
+				const accessCode = cookieStore.get('syndic_access_code')?.value;
+				let syndicData = null;
+
+				if (accessCode) {
+					const { data: codeData } = await dbasakanClient
+						.from('access_codes')
+						.select('*')
+						.eq('code', accessCode)
+						.maybeSingle();
+						
+					if (codeData && !codeData.code_used && new Date(codeData.expires_at) > new Date()) {
+						if (codeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
+							syndicData = codeData;
+							console.log('[NextAuth] Applying syndic access code logic for new user');
+						}
+					}
+				}
+
+				// Create profile
+				const fullName = user.name || user.email?.split('@')[0] || 'User';
+				const profilePayload: any = {
+					id: user.id,
+					full_name: fullName,
+					role: syndicData ? 'syndic' : 'syndic', // Default to syndic for new signups
+					onboarding_completed: !!syndicData, // Skip onboarding if taking over
+					residence_id: syndicData ? syndicData.residence_id : null,
+				};
+
+				console.log('[NextAuth] Creating profile in createUser event:', profilePayload);
+
+				const { error: upsertError } = await dbasakanClient
+					.from('profiles')
+					.upsert(profilePayload, { onConflict: 'id' });
+
+				if (upsertError) {
+					console.error('[NextAuth] Error creating profile in createUser event:', upsertError);
+				} else {
+					console.log('[NextAuth] Profile created successfully');
+					
+					// Mark access code as used if applicable
+					if (syndicData) {
+						await dbasakanClient
+							.from('access_codes')
+							.update({
+								code_used: true,
+								used_by_user_id: user.id,
+								used_at: new Date().toISOString(),
+							})
+							.eq('id', syndicData.id);
+					}
+				}
+			} catch (error) {
+				console.error('[NextAuth] Error in createUser event:', error);
+			}
+		},
+		async signIn({ user, isNewUser }: { user: any; isNewUser?: boolean }) {
+			// Only handle existing users who might be missing a profile
+			if (isNewUser) return; 
+			
+			console.log('[NextAuth] signIn event (existing user):', user.id);
+			try {
+				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
+				const dbasakanClient = createSupabaseAdminClient();
+
+				const { data: existingProfile } = await dbasakanClient
+					.from('profiles')
+					.select('id')
+					.eq('id', user.id)
+					.maybeSingle();
+
+				if (!existingProfile) {
+					console.log('[NextAuth] Profile missing for existing user, creating now...');
+					const fullName = user.name || user.email?.split('@')[0] || 'User';
+					await dbasakanClient
+						.from('profiles')
+						.upsert({
+							id: user.id,
+							full_name: fullName,
+							role: 'syndic',
+							onboarding_completed: false,
+							residence_id: null,
+						}, { onConflict: 'id' });
+				}
+			} catch (error) {
+				console.error('[NextAuth] Error in signIn event:', error);
+			}
+		}
+	}
+} as NextAuthConfig
 
 export const { auth } = NextAuth(authConfig)
 

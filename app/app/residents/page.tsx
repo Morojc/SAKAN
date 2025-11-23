@@ -28,7 +28,7 @@ async function ResidentsData() {
       .from('profiles')
       .select('residence_id, role, id')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('[ResidentsPage] Error fetching user profile:', {
@@ -226,6 +226,7 @@ async function ResidentsData() {
             initialFees={fees || []}
             currentUserId={userId}
             currentUserRole={userProfile?.role}
+            currentUserResidenceId={residenceId}
           />
         );
   } catch (error: any) {

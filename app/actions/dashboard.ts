@@ -34,6 +34,7 @@ export async function getDashboardStats() {
 				full_name,
 				role,
 				residence_id,
+				onboarding_completed,
 				residences (
 					id,
 					name,
@@ -42,11 +43,116 @@ export async function getDashboardStats() {
 				)
 			`)
 			.eq('id', userId)
-			.single();
+			.maybeSingle();
 
-		if (profileError || !profile?.residence_id) {
+		// Handle case where profile doesn't exist or has no residence
+		if (profileError) {
 			console.error('[Dashboard Actions] Error getting profile:', profileError);
-			throw new Error('User has no residence assigned');
+			// Return empty stats with success: true to avoid showing error
+			// The onboarding guard will handle showing the onboarding wizard
+			const { data: userData } = await supabase
+				.from('users')
+				.select('email, name, image')
+				.eq('id', userId)
+				.maybeSingle();
+			
+			return {
+				success: true,
+				stats: {
+					totalResidents: 0,
+					cashOnHand: 0,
+					bankBalance: 0,
+					outstandingFees: 0,
+					openIncidents: 0,
+					recentAnnouncementsCount: 0,
+					todayPayments: 0,
+					monthlyPayments: 0,
+					fillRate: 100,
+					residentsChange: 0,
+					topResidents: [],
+					user: {
+						name: userData?.name || 'User',
+						email: userData?.email || '',
+						image: userData?.image || null,
+						role: 'syndic',
+					},
+					residence: null,
+					onboardingCompleted: false,
+				},
+			};
+		}
+
+		if (!profile) {
+			console.log('[Dashboard Actions] Profile not found for user - returning empty stats for onboarding');
+			// Get user email for display
+			const { data: userData } = await supabase
+				.from('users')
+				.select('email, name, image')
+				.eq('id', userId)
+				.maybeSingle();
+			
+			// Return success: true with empty stats - onboarding guard will handle the rest
+			return {
+				success: true,
+				stats: {
+					totalResidents: 0,
+					cashOnHand: 0,
+					bankBalance: 0,
+					outstandingFees: 0,
+					openIncidents: 0,
+					recentAnnouncementsCount: 0,
+					todayPayments: 0,
+					monthlyPayments: 0,
+					fillRate: 100,
+					residentsChange: 0,
+					topResidents: [],
+					user: {
+						name: userData?.name || 'User',
+						email: userData?.email || '',
+						image: userData?.image || null,
+						role: 'syndic',
+					},
+					residence: null,
+					onboardingCompleted: false,
+				},
+			};
+		}
+
+		// If user has no residence_id, return empty stats (likely in onboarding)
+		if (!profile.residence_id) {
+			console.log('[Dashboard Actions] User has no residence assigned - returning empty stats');
+			
+			// Get user email for display
+			const { data: userData } = await supabase
+				.from('users')
+				.select('email, name, image')
+				.eq('id', userId)
+				.maybeSingle();
+
+			return {
+				success: true,
+				stats: {
+					totalResidents: 0,
+					cashOnHand: 0,
+					bankBalance: 0,
+					outstandingFees: 0,
+					openIncidents: 0,
+					recentAnnouncementsCount: 0,
+					todayPayments: 0,
+					monthlyPayments: 0,
+					fillRate: 100,
+					residentsChange: 0,
+					topResidents: [],
+					user: {
+						name: profile.full_name || userData?.name || 'Syndic',
+						email: userData?.email || '',
+						image: userData?.image || null,
+						role: profile.role || 'syndic',
+					},
+					residence: null,
+					onboardingCompleted: profile.onboarding_completed || false,
+				},
+			};
 		}
 
 		const residenceId = profile.residence_id;
@@ -56,7 +162,7 @@ export async function getDashboardStats() {
 			.from('users')
 			.select('email, name, image')
 			.eq('id', userId)
-			.single();
+			.maybeSingle();
 
 		// Fetch all stats in parallel
 		const [

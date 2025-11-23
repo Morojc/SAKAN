@@ -3,124 +3,298 @@
 import { useState } from 'react';
 import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import TermsAndConditionsDialog from './TermsAndConditionsDialog';
+import ReplacementResidentSelect from './ReplacementResidentSelect';
+import ActionSelectionDialog from './ActionSelectionDialog';
+import AccessCodeDisplay from './AccessCodeDisplay';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Trash2, AlertCircle } from 'lucide-react';
 
-export default function DeleteAccountButton() {
-	const [showConfirm, setShowConfirm] = useState(false);
-	const [isDeleting, setIsDeleting] = useState(false);
-	const [confirmText, setConfirmText] = useState('');
-
-	const handleDeleteAccount = async () => {
-		if (confirmText !== 'DELETE') {
-			toast.error('Please type "DELETE" to confirm');
-			return;
-		}
-
-		setIsDeleting(true);
-
-		try {
-			const response = await fetch('/api/account/delete', {
-				method: 'DELETE',
-			});
-
-			const data = await response.json();
-
-			if (response.ok) {
-				toast.success('Account deleted successfully');
-				// Sign out the user
-				await signOut({ callbackUrl: '/', redirect: true });
-			} else {
-				toast.error(data.error || 'Failed to delete account');
-				setIsDeleting(false);
-			}
-		} catch (error: any) {
-			console.error('Error deleting account:', error);
-			toast.error('Failed to delete account. Please try again.');
-			setIsDeleting(false);
-		}
-	};
-
-	return (
-		<div className="mt-8">
-			{!showConfirm ? (
-				<motion.button
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					onClick={() => setShowConfirm(true)}
-					className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 font-medium text-sm"
-				>
-					Delete Account
-				</motion.button>
-			) : (
-				<AnimatePresence>
-					<motion.div
-						initial={{ opacity: 0, height: 0 }}
-						animate={{ opacity: 1, height: 'auto' }}
-						exit={{ opacity: 0, height: 0 }}
-						className="bg-red-50 border-2 border-red-200 rounded-lg p-6 space-y-4"
-					>
-						<div className="flex items-start gap-3">
-							<div className="flex-shrink-0">
-								<svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-								</svg>
-							</div>
-							<div className="flex-1">
-								<h3 className="text-lg font-bold text-red-900 mb-2">Delete Your Account</h3>
-								<p className="text-sm text-red-800 mb-4">
-									This action cannot be undone. This will permanently delete your account, 
-									cancel any active subscriptions, and remove all of your data.
-								</p>
-								<div className="space-y-3">
-									<div>
-										<label className="block text-sm font-medium text-red-900 mb-2">
-											Type <span className="font-mono bg-red-100 px-2 py-1 rounded">DELETE</span> to confirm:
-										</label>
-										<input
-											type="text"
-											value={confirmText}
-											onChange={(e) => setConfirmText(e.target.value)}
-											placeholder="Type DELETE to confirm"
-											className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-											disabled={isDeleting}
-										/>
-									</div>
-									<div className="flex gap-3">
-										<button
-											onClick={handleDeleteAccount}
-											disabled={isDeleting || confirmText !== 'DELETE'}
-											className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 font-medium text-sm"
-										>
-											{isDeleting ? (
-												<span className="flex items-center gap-2">
-													<svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-														<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-														<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-													</svg>
-													Deleting...
-												</span>
-											) : (
-												'Yes, Delete My Account'
-											)}
-										</button>
-										<button
-											onClick={() => {
-												setShowConfirm(false);
-												setConfirmText('');
-											}}
-											disabled={isDeleting}
-											className="px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-800 rounded-lg transition-colors duration-200 font-medium text-sm"
-										>
-											Cancel
-										</button>
-									</div>
-								</div>
-							</div>
-						</div>
-					</motion.div>
-				</AnimatePresence>
-			)}
-		</div>
-	);
+interface DeleteAccountButtonProps {
+  userRole: string;
 }
 
+export default function DeleteAccountButton({ userRole }: DeleteAccountButtonProps) {
+  // Steps:
+  // 0: Idle
+  // 1: Terms
+  // 2: Replacement Select
+  // 2.5: No Residents Confirmation
+  // 3: Action Select
+  // 4: API Call (Loading)
+  // 5: Success (Show Code)
+  
+  const [step, setStep] = useState<number>(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [hasNoResidents, setHasNoResidents] = useState(false);
+  
+  // Data collected through steps
+  const [selectedResidentEmail, setSelectedResidentEmail] = useState<string>('');
+  const [selectedAction, setSelectedAction] = useState<'delete_account' | 'change_role' | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<string>('');
+
+  // Simple delete for non-syndics
+  const [isSimpleDeleting, setIsSimpleDeleting] = useState(false);
+  const [showSimpleConfirm, setShowSimpleConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const handleReset = () => {
+    setStep(0);
+    setSelectedResidentEmail('');
+    setSelectedAction(null);
+    setGeneratedCode('');
+    setConfirmText('');
+    setShowSimpleConfirm(false);
+    setHasNoResidents(false);
+  };
+
+  const processSyndicRequest = async (email: string | null, action: 'delete_account' | 'change_role') => {
+    try {
+      const response = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          replacementEmail: email, // null if no residents
+          actionType: action,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process request');
+      }
+      
+      // If no replacement, account is deleted immediately, sign out
+      if (!email) {
+        toast.success('Account deleted successfully');
+        await signOut({ callbackUrl: '/', redirect: true });
+        return;
+      }
+      
+      setGeneratedCode(data.accessCode);
+      setStep(5); // Success state
+      
+    } catch (error: any) {
+      console.error('Error processing request:', error);
+      toast.error(error.message || 'An error occurred');
+      if (hasNoResidents) {
+        setStep(2.5); // Go back to no residents confirmation
+      } else {
+        setStep(3); // Go back to action selection
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleNoResidentsDelete = async () => {
+    setIsProcessing(true);
+    setStep(4);
+    await processSyndicRequest(null, 'delete_account');
+  };
+
+  const handleSimpleDelete = async () => {
+    if (confirmText !== 'DELETE') {
+      toast.error('Please type "DELETE" to confirm');
+      return;
+    }
+
+    setIsSimpleDeleting(true);
+
+    try {
+      const response = await fetch('/api/account/delete', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Account deleted successfully');
+        await signOut({ callbackUrl: '/', redirect: true });
+      } else {
+        toast.error(data.error || 'Failed to delete account');
+        setIsSimpleDeleting(false);
+      }
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      toast.error('Failed to delete account. Please try again.');
+      setIsSimpleDeleting(false);
+    }
+  };
+
+  // If not a syndic, show simple delete button (or hide it based on requirements)
+  // But usually residents can delete their own accounts
+  if (userRole !== 'syndic') {
+    // Assuming we keep the original simple delete for residents
+    // reusing the original code structure for non-syndics
+    return (
+      <div className="mt-8">
+        {!showSimpleConfirm ? (
+          <Button
+            variant="destructive"
+            onClick={() => setShowSimpleConfirm(true)}
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Account
+          </Button>
+        ) : (
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-6 space-y-4">
+             {/* Simplified version of previous delete confirmation */}
+             <h3 className="text-lg font-bold text-red-900">Delete Your Account</h3>
+             <p className="text-sm text-red-800">
+               This action cannot be undone. Type DELETE to confirm.
+             </p>
+             <input
+               type="text"
+               value={confirmText}
+               onChange={(e) => setConfirmText(e.target.value)}
+               className="w-full px-3 py-2 border border-red-300 rounded-md"
+               placeholder="DELETE"
+             />
+             <div className="flex gap-3">
+               <Button
+                 variant="destructive"
+                 onClick={handleSimpleDelete}
+                 disabled={isSimpleDeleting || confirmText !== 'DELETE'}
+               >
+                 {isSimpleDeleting ? 'Deleting...' : 'Confirm Delete'}
+               </Button>
+               <Button variant="outline" onClick={handleReset} disabled={isSimpleDeleting}>
+                 Cancel
+               </Button>
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Syndic Flow
+  return (
+    <div className="mt-8">
+      <Button
+        variant="destructive"
+        onClick={() => setStep(1)}
+        className="bg-red-600 hover:bg-red-700 text-white"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Delete / Transfer Account
+      </Button>
+
+      <Dialog open={step > 0} onOpenChange={(open) => !open && step !== 5 && handleReset()}>
+        <DialogContent className="sm:max-w-[500px]">
+          {step === 1 && (
+            <TermsAndConditionsDialog
+              onAccept={() => setStep(2)}
+              onCancel={handleReset}
+            />
+          )}
+
+          {step === 2 && (
+            <ReplacementResidentSelect
+              onSelect={(email) => {
+                setSelectedResidentEmail(email);
+                setStep(3);
+              }}
+              onNoResidents={() => {
+                setHasNoResidents(true);
+                setStep(2.5);
+              }}
+              onCancel={handleReset}
+            />
+          )}
+
+          {step === 2.5 && (
+            <div className="space-y-6">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="h-5 w-5" />
+                  Confirm Account Deletion
+                </DialogTitle>
+                <DialogDescription>
+                  No residents available for transfer. Your account will be permanently deleted.
+                </DialogDescription>
+              </DialogHeader>
+
+              <Alert className="bg-red-50 text-red-800 border-red-200">
+                <AlertCircle className="h-4 w-4 text-red-800" />
+                <AlertTitle>Warning</AlertTitle>
+                <AlertDescription className="mt-2">
+                  This action cannot be undone. Your account and the entire residence will be permanently deleted. 
+                  All data including residence information, fees, payments, incidents, announcements, and all related records will be removed and cannot be recovered.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm-delete">Type DELETE to confirm:</Label>
+                <Input
+                  id="confirm-delete"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="font-mono"
+                />
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" onClick={handleReset} disabled={isProcessing}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={handleNoResidentsDelete}
+                  disabled={confirmText !== 'DELETE' || isProcessing}
+                >
+                  {isProcessing ? 'Deleting...' : 'Delete My Account'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {step === 3 && (
+            <ActionSelectionDialog
+              onSelect={(action) => {
+                // Set local state for the action
+                setSelectedAction(action);
+                
+                // Set processing state immediately to show spinner
+                setIsProcessing(true);
+                setStep(4);
+
+                // Trigger the API call with the passed action value
+                // We use a separate function that takes the values as args to avoid closure staleness
+                processSyndicRequest(selectedResidentEmail, action);
+              }}
+              onCancel={handleReset}
+            />
+          )}
+
+          {step === 4 && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+              <p className="text-sm text-muted-foreground">Processing your request...</p>
+            </div>
+          )}
+
+          {step === 5 && (
+            <AccessCodeDisplay
+              code={generatedCode}
+              replacementEmail={selectedResidentEmail}
+              actionType={selectedAction!}
+              onClose={handleReset}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

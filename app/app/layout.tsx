@@ -19,17 +19,27 @@ export default async function AppLayout({
 			const supabase = createSupabaseAdminClient();
 			const { data: profile } = await supabase
 				.from('profiles')
-				.select('onboarding_completed, residence_id')
+				.select('onboarding_completed, residence_id, role')
 				.eq('id', userId)
-				.single();
+				.maybeSingle();
 
 			// Consider onboarding incomplete if:
-			// 1. onboarding_completed is false, OR
-			// 2. residence_id is null (user hasn't created a residence yet)
-			onboardingCompleted = profile?.onboarding_completed === true && profile?.residence_id !== null;
+			// 1. Profile doesn't exist, OR
+			// 2. onboarding_completed is false, OR
+			// 3. residence_id is null (user hasn't created a residence yet)
+			// Only show onboarding for syndics (they need to create a residence)
+			if (!profile) {
+				onboardingCompleted = false; // Show onboarding if profile doesn't exist
+			} else if (profile.role === 'syndic') {
+				onboardingCompleted = profile.onboarding_completed === true && profile.residence_id !== null;
+			} else {
+				// Non-syndics don't need onboarding
+				onboardingCompleted = true;
+			}
 		} catch (error) {
 			console.error('[AppLayout] Error checking onboarding status:', error);
-			// Default to true to avoid blocking users
+			// Default to false to show onboarding if there's an error (safer for new users)
+			onboardingCompleted = false;
 		}
 	}
 

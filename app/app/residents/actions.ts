@@ -59,8 +59,40 @@ export async function createResident(data: CreateResidentData) {
       };
     }
 
+    // Ensure role is not 'syndic' when adding a resident
+    const finalRole = (data.role && data.role !== 'syndic') ? data.role : 'resident';
+    if (data.role === 'syndic') {
+      return {
+        success: false,
+        error: 'Cannot add a resident with syndic role. Only one syndic per residence is allowed.',
+      };
+    }
+
     const supabase = await getSupabaseClient();
     const adminSupabase = createSupabaseAdminClient();
+
+    // Fetch current user's role and residence_id to enforce permissions
+    const { data: currentUserProfile } = await adminSupabase
+      .from('profiles')
+      .select('role, residence_id')
+      .eq('id', userId)
+      .single();
+
+    // If current user is a syndic, enforce residence_id to be their own
+    if (currentUserProfile?.role === 'syndic') {
+      if (!currentUserProfile.residence_id) {
+        return {
+          success: false,
+          error: 'You must have a residence assigned to add residents.',
+        };
+      }
+      // Override residence_id with the syndic's residence_id
+      data.residence_id = currentUserProfile.residence_id;
+      console.log('[Residents Actions] Enforcing syndic residence_id:', data.residence_id);
+    }
+
+    // Note: finalRole is guaranteed to be 'resident' or 'guard', never 'syndic'
+    // (enforced above with validation)
 
     // Check if user with this email already exists
     // Use admin client to check users table (bypasses RLS)
@@ -86,7 +118,9 @@ export async function createResident(data: CreateResidentData) {
       
       if (existingProfile) {
         console.log('[Residents Actions] Profile already exists, updating instead of creating');
+        
         // Profile exists, update it instead of creating a new one
+        // Note: finalRole is guaranteed to be 'resident' or 'guard', never 'syndic'
         const { data: profile, error: profileError } = await adminSupabase
           .from('profiles')
           .update({
@@ -94,7 +128,7 @@ export async function createResident(data: CreateResidentData) {
             phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
             apartment_number: data.apartment_number,
             residence_id: data.residence_id,
-            role: data.role || 'resident',
+            role: finalRole,
           })
           .eq('id', finalUserId)
           .select(`
@@ -158,9 +192,8 @@ export async function createResident(data: CreateResidentData) {
       console.log('[Residents Actions] New user created:', finalUserId);
     }
 
-    // Create profile (only if it doesn't already exist)
+    // Create profile - managed entirely by code, not database triggers
     // Use admin client directly to avoid RLS infinite recursion issues
-    // When creating profiles for new users, RLS policies can cause recursion
     const { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
       .insert({
@@ -169,7 +202,7 @@ export async function createResident(data: CreateResidentData) {
         phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
         apartment_number: data.apartment_number.trim(),
         residence_id: data.residence_id,
-        role: data.role || 'resident',
+        role: finalRole,
       })
       .select(`
         id,
@@ -190,12 +223,20 @@ export async function createResident(data: CreateResidentData) {
     if (profileError) {
       console.error('[Residents Actions] Error creating profile:', profileError);
       
-      // If it's a duplicate key error, the profile might have been created between our check and insert
-      // Try to fetch and return the existing profile
+      // If it's a duplicate key error, profile might have been created by NextAuth callback
+      // or in a race condition - update it with the correct role and data
       if (profileError.code === '23505') {
-        console.log('[Residents Actions] Duplicate key detected, fetching existing profile');
-        const { data: existingProfile, error: fetchError } = await adminSupabase
+        console.log('[Residents Actions] Duplicate key detected, profile already exists. Updating with correct role and data.');
+        const { data: updatedProfile, error: updateError } = await adminSupabase
           .from('profiles')
+          .update({
+            full_name: data.full_name.trim(),
+            phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
+            apartment_number: data.apartment_number.trim(),
+            residence_id: data.residence_id,
+            role: finalRole, // Ensure role is set correctly (not 'syndic')
+          })
+          .eq('id', finalUserId)
           .select(`
             id,
             full_name,
@@ -210,15 +251,20 @@ export async function createResident(data: CreateResidentData) {
               address
             )
           `)
-          .eq('id', finalUserId)
           .single();
         
-        if (!fetchError && existingProfile) {
-          console.log('[Residents Actions] Found existing profile, returning it');
+        if (!updateError && updatedProfile) {
+          console.log('[Residents Actions] Profile updated successfully with correct role:', updatedProfile.role);
           revalidatePath('/app/residents');
           return {
             success: true,
-            resident: existingProfile,
+            resident: updatedProfile,
+          };
+        } else if (updateError) {
+          console.error('[Residents Actions] Error updating profile:', updateError);
+          return {
+            success: false,
+            error: updateError.message || 'Failed to update resident profile',
           };
         }
       }
@@ -302,7 +348,32 @@ export async function updateResident(data: UpdateResidentData) {
     }
     if (data.apartment_number !== undefined) updateData.apartment_number = data.apartment_number.trim();
     if (data.residence_id !== undefined) updateData.residence_id = data.residence_id;
-    if (data.role !== undefined) updateData.role = data.role;
+    
+    // Validate role: prevent setting role to 'syndic' if there's already a syndic in the residence
+    if (data.role !== undefined) {
+      if (data.role === 'syndic') {
+        // Get the residence_id (either from update data or from existing profile)
+        const residenceIdToCheck = data.residence_id;
+        
+        if (residenceIdToCheck) {
+          const { data: existingSyndic } = await adminSupabase
+            .from('profiles')
+            .select('id')
+            .eq('residence_id', residenceIdToCheck)
+            .eq('role', 'syndic')
+            .neq('id', data.id) // Exclude current user
+            .maybeSingle();
+          
+          if (existingSyndic) {
+            return {
+              success: false,
+              error: 'This residence already has a syndic. Only one syndic per residence is allowed.',
+            };
+          }
+        }
+      }
+      updateData.role = data.role;
+    }
 
     // Update profile - use admin client to bypass RLS and avoid infinite recursion
     const { data: profile, error: profileError } = await adminSupabase
