@@ -2,65 +2,109 @@
 
 import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { KeyRound, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { KeyRound, Loader2, AlertCircle, Mail } from 'lucide-react';
 import config from '@/config';
 
 export default function SignInPage() {
-  const searchParams = useSearchParams();
+  const [email, setEmail] = useState('');
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [isReplacementEmail, setIsReplacementEmail] = useState(false);
   const [accessCode, setAccessCode] = useState('');
   const [validating, setValidating] = useState(false);
   const [codeStatus, setCodeStatus] = useState<{
     valid: boolean;
     message?: string;
-    email?: string;
+    attemptsRemaining?: number;
+    codeDeleted?: boolean;
   } | null>(null);
 
-  // Check if there's an access code in the URL (optional convenience)
-  useEffect(() => {
-    const codeFromUrl = searchParams.get('code');
-    if (codeFromUrl) {
-      setAccessCode(codeFromUrl);
-      validateCode(codeFromUrl);
+  // Check if email is a replacement email
+  const checkReplacementEmail = async (emailValue: string) => {
+    if (!emailValue || !emailValue.includes('@')) {
+      setIsReplacementEmail(false);
+      return;
     }
-  }, [searchParams]);
+
+    setCheckingEmail(true);
+    try {
+      const response = await fetch(`/api/account/check-replacement-email?email=${encodeURIComponent(emailValue)}`);
+      const data = await response.json();
+      
+      setIsReplacementEmail(data.isReplacementEmail || false);
+    } catch (error) {
+      console.error('Error checking replacement email:', error);
+      setIsReplacementEmail(false);
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
+
+  // Debounce email check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (email) {
+        checkReplacementEmail(email);
+      } else {
+        setIsReplacementEmail(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [email]);
 
   const validateCode = async (code: string) => {
-    if (!code) return;
+    if (!code || !email) return;
     
     setValidating(true);
     setCodeStatus(null);
     
     try {
-      const response = await fetch(`/api/auth/validate-code?code=${code}`);
+      const response = await fetch('/api/account/validate-replacement-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code, userEmail: email }),
+      });
+      
       const data = await response.json();
       
-      if (data.valid) {
+      if (data.success) {
         setCodeStatus({
           valid: true,
-          message: `Code valid. Please sign in with ${data.data.replacement_email}`,
-          email: data.data.replacement_email
+          message: 'Code validé avec succès! Vous pouvez maintenant vous connecter.',
+          attemptsRemaining: 3
         });
-        // Store code in cookie so it persists through OAuth redirect
-        document.cookie = `syndic_access_code=${code}; path=/; max-age=3600; SameSite=Lax`;
+        
+        // After successful validation, proceed with Google sign-in
+        setTimeout(() => {
+          handleGoogleSignIn();
+        }, 1500);
       } else {
+        const attemptsRemaining = data.attemptsRemaining || 0;
+        let message = data.message || 'Code invalide';
+        
+        if (!data.codeDeleted && attemptsRemaining > 0) {
+          message += ` (${attemptsRemaining} tentative${attemptsRemaining !== 1 ? 's' : ''} restante${attemptsRemaining !== 1 ? 's' : ''})`;
+        }
+        
         setCodeStatus({
           valid: false,
-          message: data.message || 'Invalid code'
+          message,
+          attemptsRemaining,
+          codeDeleted: data.codeDeleted || false
         });
-        // Clear cookie if invalid
-        document.cookie = 'syndic_access_code=; path=/; max-age=0; SameSite=Lax'; 
       }
     } catch (error) {
       console.error('Error validating code:', error);
       setCodeStatus({
         valid: false,
-        message: 'Error validating code. Please try again.'
+        message: 'Erreur lors de la validation du code. Veuillez réessayer.'
       });
     } finally {
       setValidating(false);
@@ -68,8 +112,6 @@ export default function SignInPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    // If we have a valid code status, ensure cookie is set (it should be already)
-    // Then sign in
     await signIn('google', { callbackUrl: '/app' });
   };
 
@@ -83,46 +125,113 @@ export default function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          
-          {/* Access Code Section */}
+          {/* Email Input - Optional, to check if user is a replacement email */}
           <div className="space-y-2">
-            <Label htmlFor="access-code">Access Code (Optional)</Label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="access-code"
-                  placeholder="Enter code to claim syndic role"
-                  className="pl-9"
-                  value={accessCode}
-                  onChange={(e) => {
-                    setAccessCode(e.target.value);
-                    if (codeStatus) setCodeStatus(null);
-                  }}
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                onClick={() => validateCode(accessCode)}
-                disabled={!accessCode || validating}
-              >
-                {validating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
-              </Button>
+            <Label htmlFor="email">Email (Optionnel)</Label>
+            <div className="relative">
+              <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="Entrez votre email pour vérifier"
+                className="pl-9"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setCodeStatus(null);
+                }}
+                disabled={checkingEmail}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">
-              If you are claiming a syndic role, enter the code they provided.
-            </p>
+            {checkingEmail && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Vérification en cours...
+              </p>
+            )}
           </div>
 
-          {/* Validation Status */}
-          {codeStatus && (
-            <Alert variant={codeStatus.valid ? "default" : "destructive"} className={codeStatus.valid ? "bg-green-50 border-green-200 text-green-800" : ""}>
-              {codeStatus.valid ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertCircle className="h-4 w-4" />}
-              <AlertTitle>{codeStatus.valid ? "Code Verified" : "Invalid Code"}</AlertTitle>
-              <AlertDescription>
-                {codeStatus.message}
-              </AlertDescription>
-            </Alert>
+          {/* Access Code Section - Only shown if email is a replacement email */}
+          {isReplacementEmail && (
+            <div className="space-y-2 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <AlertTitle>Code de validation requis</AlertTitle>
+                <AlertDescription>
+                  Vous avez été sélectionné comme nouveau syndic. Veuillez entrer le code de validation qui vous a été envoyé par email.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-2">
+                <Label htmlFor="access-code">Code de validation</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <KeyRound className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="access-code"
+                      placeholder="Entrez votre code de validation"
+                      className="pl-9"
+                      value={accessCode}
+                      onChange={(e) => {
+                        setAccessCode(e.target.value.toUpperCase());
+                        if (codeStatus) setCodeStatus(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && accessCode) {
+                          validateCode(accessCode);
+                        }
+                      }}
+                      disabled={validating}
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => validateCode(accessCode)}
+                    disabled={!accessCode || validating}
+                    className="bg-gray-900 hover:bg-gray-800 text-white"
+                  >
+                    {validating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Valider'}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Entrez le code à 8 caractères qui vous a été envoyé par email.
+                </p>
+              </div>
+
+              {/* Validation Status */}
+              {codeStatus && (
+                <Alert 
+                  variant={codeStatus.valid ? "default" : "destructive"} 
+                  className={codeStatus.valid 
+                    ? "bg-green-50 border-green-200 text-green-800" 
+                    : codeStatus.codeDeleted 
+                      ? "bg-red-50 border-red-200 text-red-800"
+                      : "bg-amber-50 border-amber-200 text-amber-800"
+                  }
+                >
+                  {codeStatus.valid ? (
+                    <AlertCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  <AlertTitle>
+                    {codeStatus.valid 
+                      ? "Code validé" 
+                      : codeStatus.codeDeleted 
+                        ? "Code invalidé"
+                        : "Code invalide"
+                    }
+                  </AlertTitle>
+                  <AlertDescription>
+                    {codeStatus.message}
+                    {!codeStatus.valid && !codeStatus.codeDeleted && codeStatus.attemptsRemaining !== undefined && codeStatus.attemptsRemaining > 0 && (
+                      <span className="block mt-2 text-xs font-semibold">
+                        ⚠️ {codeStatus.attemptsRemaining} tentative{codeStatus.attemptsRemaining !== 1 ? 's' : ''} restante{codeStatus.attemptsRemaining !== 1 ? 's' : ''}. Après 3 tentatives échouées, votre compte sera supprimé.
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
           )}
 
           <div className="relative">
@@ -140,6 +249,7 @@ export default function SignInPage() {
             className="w-full flex items-center gap-2" 
             variant="outline" 
             onClick={handleGoogleSignIn}
+            disabled={isReplacementEmail && !codeStatus?.valid}
           >
             <svg className="h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
               <path
@@ -161,6 +271,11 @@ export default function SignInPage() {
             </svg>
             Continue with Google
           </Button>
+          {isReplacementEmail && !codeStatus?.valid && (
+            <p className="text-xs text-center text-amber-600">
+              ⚠️ Vous devez valider le code avant de pouvoir vous connecter.
+            </p>
+          )}
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-xs text-center text-muted-foreground">

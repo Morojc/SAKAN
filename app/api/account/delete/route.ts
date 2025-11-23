@@ -251,14 +251,18 @@ export async function POST(req: Request) {
     }
 
     // 1. Generate Access Code first (before any actions)
+    console.log('[Account Delete] Generating access code for:', replacementEmail);
     const accessCode = await createAccessCode(
       userId,
       replacementEmail,
       profile.residence_id,
       actionType
     );
+    
+    console.log('[Account Delete] Access code generated successfully. Code:', accessCode.code);
 
     // 2. Send Email to replacement user
+    console.log('[Account Delete] Sending email to:', replacementEmail);
     await sendAccessCodeEmail({
       to: replacementEmail,
       code: accessCode.code,
@@ -278,15 +282,13 @@ export async function POST(req: Request) {
         message: 'Account deletion initiated. Access code sent to replacement user.' 
       });
     } else if (actionType === 'change_role') {
-      // For change_role: DON'T transfer data or change role yet
-      // Wait for the replacement user to use the code, then syndic validates it
-      // Return the access code so the syndic can enter it after replacement uses it
+      // For change_role: The replacement user will use the code during sign-in
+      // The role change and data transfer will happen automatically when they sign in with the code
+      // No need for syndic to validate - the system handles it automatically
       return NextResponse.json({ 
         success: true, 
         accessCode: accessCode.code,
-        accessCodeId: accessCode.id,
-        message: 'Access code sent to replacement user. Please wait for them to use it, then enter the code below to complete the process.',
-        requiresValidation: true
+        message: 'Access code sent to replacement user. They must sign in with the code to claim the syndic role. Your role will automatically change to Resident once they sign in successfully.'
       });
     }
 

@@ -9,7 +9,6 @@ import TermsAndConditionsDialog from './TermsAndConditionsDialog';
 import ReplacementResidentSelect from './ReplacementResidentSelect';
 import ActionSelectionDialog from './ActionSelectionDialog';
 import AccessCodeDisplay from './AccessCodeDisplay';
-import AccessCodeValidation from './AccessCodeValidation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,8 +27,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
   // 2.5: No Residents Confirmation
   // 3: Action Select
   // 4: API Call (Loading)
-  // 5: Success (Show Code) - for delete_account
-  // 6: Code Validation - for change_role
+  // 5: Success (Show Code) - The replacement user will use this code during sign-in
   
   const [step, setStep] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -81,15 +79,15 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
         return;
       }
       
-      // Check if validation is required (for change_role)
-      if (data.requiresValidation && action === 'change_role') {
-        setGeneratedCode(data.accessCode);
-        setStep(6); // Show code validation step
-        toast.success('Access code sent to replacement user. Please wait for them to sign in, then enter the code.');
+      // Show the access code - replacement user will use it during sign-in
+      // The code is automatically validated when they sign in with the correct email
+      setGeneratedCode(data.accessCode);
+      setStep(5); // Show code display
+      
+      if (action === 'change_role') {
+        toast.success('Access code sent to replacement user. They must sign in with the code to claim the syndic role.');
       } else {
-        // For delete_account, show the code display
-        setGeneratedCode(data.accessCode);
-        setStep(5); // Success state
+        toast.success('Access code sent to replacement user.');
       }
       
     } catch (error: any) {
@@ -200,7 +198,19 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
         Delete / Transfer Account
       </Button>
 
-      <Dialog open={step > 0} onOpenChange={(open) => !open && step !== 5 && handleReset()}>
+      <Dialog open={step > 0} onOpenChange={(open) => {
+        // For change_role, prevent closing via backdrop click or escape key during critical wait (step 5)
+        // unless it's explicitly closed by the AccessCodeDisplay component (which calls handleReset via onClose)
+        if (!open && step === 5 && selectedAction === 'change_role') {
+          // We rely on AccessCodeDisplay to handle closure via explicit actions or timeouts
+          // Returning here prevents the dialog from closing when clicking outside or pressing Escape
+          return;
+        }
+        
+        if (!open) {
+          handleReset();
+        }
+      }}>
         <DialogContent className="sm:max-w-[500px]">
           {step === 1 && (
             <TermsAndConditionsDialog
@@ -300,20 +310,13 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               code={generatedCode}
               replacementEmail={selectedResidentEmail}
               actionType={selectedAction!}
-              onClose={handleReset}
-            />
-          )}
-
-          {step === 6 && (
-            <AccessCodeValidation
-              replacementEmail={selectedResidentEmail}
-              onSuccess={async () => {
-                toast.success('Role change completed! Your role is now Resident.');
+              onClose={() => {
+                // For change_role, if user closes during waiting, cancel the process
+                if (selectedAction === 'change_role') {
+                  toast('Process cancelled. The access code remains valid but no role change will occur until the replacement user signs in.', { icon: 'ℹ️' });
+                }
                 handleReset();
-                // Refresh the page to update the UI
-                window.location.reload();
               }}
-              onCancel={handleReset}
             />
           )}
         </DialogContent>

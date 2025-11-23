@@ -25,9 +25,9 @@ export async function sendVerificationRequest(params: SendVerificationRequestPar
 	
 	const result = await sendEmail({
 		to,
-		from: provider.from,
-		subject: `Sign in to ${host}`,
-		html: html({ url, host, theme }),
+			from: provider.from,
+			subject: `Sign in to ${host}`,
+			html: html({ url, host, theme }),
 	});
 
 	if (!result.success) {
@@ -73,12 +73,12 @@ export function html({ url, host, theme }: { url: string; host: string; theme: T
         </table>
       </td>
     </tr>
-        <tr>
-          <td align="center"
-            style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
-            If you did not request this email you can safely ignore it.
-          </td>
-        </tr>
+    <tr>
+      <td align="center"
+        style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
+        If you did not request this email you can safely ignore it.
+      </td>
+    </tr>
   </table>
 </body>
 `

@@ -44,54 +44,8 @@ const authConfig = {
 	}),
 	callbacks: {
 		async signIn({ user, account, profile }: { user: any; account: any; profile?: any }): Promise<boolean> {
-			// --- ACCESS CODE LOGIC ---
-			try {
-				const cookieStore = await cookies();
-				const accessCode = cookieStore.get('syndic_access_code')?.value;
-
-				if (accessCode && user.email) {
-					// Validate code
-					const { createClient } = await import('@supabase/supabase-js');
-					const adminClient = createClient(
-						process.env.NEXT_PUBLIC_SUPABASE_URL!,
-						process.env.SUPABASE_SECRET_KEY!,
-						{ db: { schema: 'dbasakan' }, auth: { persistSession: false } }
-					);
-
-					const { data: codeDataArray } = await adminClient
-						.rpc('get_access_code_by_code', { p_code: accessCode });
-
-					// RPC function returns SETOF (array), get the first element
-					const codeData = Array.isArray(codeDataArray) && codeDataArray.length > 0 ? codeDataArray[0] : null;
-
-					// Type assertion for RPC result
-					const accessCodeData = codeData as {
-						id: number;
-						code: string;
-						expires_at: string;
-						code_used: boolean;
-						replacement_email: string;
-						residence_id: number;
-					} | null;
-
-					if (accessCodeData) {
-						const now = new Date();
-						const expiresAt = new Date(accessCodeData.expires_at);
-						
-						if (!accessCodeData.code_used && expiresAt > now) {
-							if (accessCodeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
-								console.log(`[NextAuth] Valid access code found for ${user.email}.`);
-								// We won't update profile here anymore, moving to createUser event
-							} else {
-								console.warn(`[NextAuth] Access code email mismatch. Code is for ${accessCodeData.replacement_email}, user is ${user.email}`);
-							}
-						}
-					}
-				}
-			} catch (error) {
-				console.error('[NextAuth] Error processing access code:', error);
-			}
-
+			// Access code validation happens in createUser/signIn events
+			// This callback just allows the sign-in to proceed
 			return true;
 		},
 		async session({ session, user }: { session: any; user: any }) {
@@ -117,28 +71,94 @@ const authConfig = {
 	},
 	events: {
 		async createUser({ user }: { user: any }) {
+			// For replacement users, we don't validate the code here
+			// They will be redirected to /app/validate-code after authentication
+			// The code validation happens in that page
 			console.log('[NextAuth] createUser event triggered for:', user.id);
 			try {
 				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
 				const dbasakanClient = createSupabaseAdminClient();
 				
-				// Check for access code
+				// Check for access code in cookie (set during code validation on signin page)
 				const cookieStore = await cookies();
 				const accessCode = cookieStore.get('syndic_access_code')?.value;
-				let syndicData = null;
-
-				if (accessCode) {
-					const { data: codeData } = await dbasakanClient
-						.from('access_codes')
-						.select('*')
-						.eq('code', accessCode)
-						.maybeSingle();
+				
+				if (accessCode && user.email) {
+					console.log('[NextAuth] Access code found in cookie for new user, validating...');
+					
+					// Use validateAccessCode to check code and email match
+					const { validateAccessCode, markCodeAsUsed } = await import('@/lib/utils/access-code');
+					const validation = await validateAccessCode(accessCode, user.email);
+					
+					if (validation.valid && validation.data) {
+						console.log(`[NextAuth] Valid access code found for ${user.email}. Role will be set to syndic.`);
 						
-					if (codeData && !codeData.code_used && new Date(codeData.expires_at) > new Date()) {
-						if (codeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
-							syndicData = codeData;
-							console.log('[NextAuth] Applying syndic access code logic for new user');
+						// If action_type is 'change_role', transfer data from original syndic to this user
+						if (validation.data.action_type === 'change_role') {
+							console.log(`[NextAuth] Transferring syndic data from ${validation.data.original_user_id} to ${user.id}`);
+							const { transferSyndicData } = await import('@/lib/utils/account-transfer');
+							await transferSyndicData(validation.data.original_user_id, user.id);
+							
+							// Change original syndic's role to resident
+							await dbasakanClient
+								.from('profiles')
+								.update({ role: 'resident' })
+								.eq('id', validation.data.original_user_id);
+							
+							console.log(`[NextAuth] Data transferred and original syndic role changed to resident`);
 						}
+						
+						// Mark code as used
+						await markCodeAsUsed(accessCode, user.id);
+						
+						// Clear the cookie
+						cookieStore.set('syndic_access_code', '', { maxAge: 0 });
+						
+						// Create profile with syndic role and residence
+						const fullName = user.name || user.email?.split('@')[0] || 'User';
+						await dbasakanClient
+							.from('profiles')
+							.upsert({
+								id: user.id,
+								full_name: fullName,
+								role: 'syndic',
+								residence_id: validation.data.residence_id,
+								onboarding_completed: true, // Implicitly completed as they are taking over
+							}, {
+								onConflict: 'id'
+							});
+						
+						console.log('[NextAuth] Profile created with syndic role and code marked used');
+						return; // Don't process further
+					} else {
+						console.warn(`[NextAuth] Access code validation failed: ${validation.message}`);
+						// Clear cookie if validation failed
+						cookieStore.set('syndic_access_code', '', { maxAge: 0 });
+					}
+				}
+				
+				// Check if user is a replacement email (but no code in cookie)
+				// This means they haven't validated the code yet
+				if (user.email) {
+					const { checkIfReplacementEmail } = await import('@/lib/utils/access-code');
+					const codeData = await checkIfReplacementEmail(user.email);
+					
+					if (codeData) {
+						console.log('[NextAuth] User is a replacement email but no valid code found, creating resident profile');
+						// Create a basic profile with resident role - will be updated when code is validated
+						const fullName = user.name || user.email?.split('@')[0] || 'User';
+						await dbasakanClient
+							.from('profiles')
+							.upsert({
+								id: user.id,
+								full_name: fullName,
+								role: 'resident', // Will be updated to syndic when code is validated
+								onboarding_completed: false,
+								residence_id: null,
+							}, {
+								onConflict: 'id'
+							});
+						return; // Don't process further
 					}
 				}
 
@@ -149,14 +169,14 @@ const authConfig = {
 					.eq('id', user.id)
 					.maybeSingle();
 
-				// Create profile
+				// Create profile for new signups (default to syndic)
 				const fullName = user.name || user.email?.split('@')[0] || 'User';
 				const profilePayload: any = {
 					id: user.id,
 					full_name: fullName,
-					role: syndicData ? 'syndic' : (existingProfile?.role || 'syndic'), // Default to syndic for new signups
-					onboarding_completed: syndicData ? true : (existingProfile?.onboarding_completed || !!syndicData), // Skip onboarding if taking over
-					residence_id: syndicData ? syndicData.residence_id : (existingProfile?.residence_id || null),
+					role: existingProfile?.role || 'syndic', // Default to syndic for new signups
+					onboarding_completed: existingProfile?.onboarding_completed || false,
+					residence_id: existingProfile?.residence_id || null,
 				};
 
 				console.log('[NextAuth] Creating profile in createUser event:', profilePayload);
@@ -169,18 +189,6 @@ const authConfig = {
 					console.error('[NextAuth] Error creating profile in createUser event:', upsertError);
 				} else {
 					console.log('[NextAuth] Profile created successfully');
-					
-					// Mark access code as used if applicable
-					if (syndicData) {
-						await dbasakanClient
-							.from('access_codes')
-							.update({
-								code_used: true,
-								used_by_user_id: user.id,
-								used_at: new Date().toISOString(),
-							})
-							.eq('id', syndicData.id);
-					}
 				}
 			} catch (error) {
 				console.error('[NextAuth] Error in createUser event:', error);
@@ -195,44 +203,99 @@ const authConfig = {
 				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
 				const dbasakanClient = createSupabaseAdminClient();
 
-				// --- ACCESS CODE LOGIC FOR EXISTING USERS ---
+				// Check if user is a replacement email - if so, don't process here
+				// They will be redirected to /app/validate-code by the layout
+				if (user.email) {
+					const { checkIfReplacementEmail } = await import('@/lib/utils/access-code');
+					const codeData = await checkIfReplacementEmail(user.email);
+					
+					if (codeData) {
+						console.log('[NextAuth] User is a replacement email, skipping automatic validation');
+						// Don't process code here - let the validate-code page handle it
+						// Just ensure profile exists with resident role
+						const { data: existingProfile } = await dbasakanClient
+							.from('profiles')
+							.select('id, role')
+							.eq('id', user.id)
+							.maybeSingle();
+						
+						if (!existingProfile) {
+							// Create a basic profile with resident role - will be updated when code is validated
+							const fullName = user.name || user.email?.split('@')[0] || 'User';
+							await dbasakanClient
+								.from('profiles')
+								.upsert({
+									id: user.id,
+									full_name: fullName,
+									role: 'resident', // Will be updated to syndic when code is validated
+									onboarding_completed: false,
+									residence_id: null,
+								}, {
+									onConflict: 'id'
+								});
+						} else if (existingProfile.role === 'syndic') {
+							// If user already has syndic role but is a replacement_email, 
+							// it means they haven't validated the code yet, so keep them as resident
+							// (This shouldn't happen normally, but handle it just in case)
+							await dbasakanClient
+								.from('profiles')
+								.update({ role: 'resident' })
+								.eq('id', user.id);
+						}
+						return; // Don't process further - let validate-code page handle it
+					}
+				}
+
+				// --- ACCESS CODE LOGIC FOR EXISTING USERS (legacy support) ---
 				const cookieStore = await cookies();
 				const accessCode = cookieStore.get('syndic_access_code')?.value;
 
-				if (accessCode) {
-					console.log('[NextAuth] Checking access code for existing user');
-					const { data: codeData } = await dbasakanClient
-						.from('access_codes')
-						.select('*')
-						.eq('code', accessCode)
-						.maybeSingle();
-
-					if (codeData && !codeData.code_used && new Date(codeData.expires_at) > new Date()) {
-						if (codeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
-							console.log('[NextAuth] Applying syndic access code logic for existing user');
+				if (accessCode && user.email) {
+					console.log('[NextAuth] Validating access code for existing user (legacy)');
+					
+					// Use validateAccessCode to check code and email match, and track attempts
+					const { validateAccessCode, markCodeAsUsed } = await import('@/lib/utils/access-code');
+					const validation = await validateAccessCode(accessCode, user.email);
+					
+					if (validation.valid && validation.data) {
+						console.log(`[NextAuth] Valid access code found for existing user ${user.email}. Updating role to syndic.`);
+						
+						// If action_type is 'change_role', transfer data from original syndic to this user
+						if (validation.data.action_type === 'change_role') {
+							console.log(`[NextAuth] Transferring syndic data from ${validation.data.original_user_id} to ${user.id}`);
+							const { transferSyndicData } = await import('@/lib/utils/account-transfer');
+							await transferSyndicData(validation.data.original_user_id, user.id);
 							
-							// Update profile to syndic and link residence
+							// Change original syndic's role to resident
 							await dbasakanClient
 								.from('profiles')
-								.update({
-									role: 'syndic',
-									residence_id: codeData.residence_id,
-									onboarding_completed: true // Implicitly completed as they are taking over
-								})
-								.eq('id', user.id);
-
-							// Mark code as used
-							await dbasakanClient
-								.from('access_codes')
-								.update({
-									code_used: true,
-									used_by_user_id: user.id,
-									used_at: new Date().toISOString(),
-								})
-								.eq('id', codeData.id);
-
-							console.log('[NextAuth] Existing user role updated and code marked used');
+								.update({ role: 'resident' })
+								.eq('id', validation.data.original_user_id);
+							
+							console.log(`[NextAuth] Data transferred and original syndic role changed to resident`);
 						}
+						
+						// Update profile to syndic and link residence
+						await dbasakanClient
+							.from('profiles')
+							.update({
+								role: 'syndic',
+								residence_id: validation.data.residence_id,
+								onboarding_completed: true // Implicitly completed as they are taking over
+							})
+							.eq('id', user.id);
+
+						// Mark code as used (validateAccessCode already handled failed attempts)
+						await markCodeAsUsed(accessCode, user.id);
+
+						// Clear the cookie
+						cookieStore.set('syndic_access_code', '', { maxAge: 0 });
+						
+						console.log('[NextAuth] Existing user role updated to syndic and code marked used');
+					} else {
+						console.warn(`[NextAuth] Access code validation failed for existing user: ${validation.message}`);
+						// Clear cookie if validation failed
+						cookieStore.set('syndic_access_code', '', { maxAge: 0 });
 					}
 				}
 				// -------------------------------------------
