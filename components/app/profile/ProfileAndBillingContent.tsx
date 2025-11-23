@@ -186,11 +186,16 @@ export default function ProfileAndBillingContent() {
 
 			{/* Canceled Subscription Alert - Only show when data is available */}
 			{shouldShowAlert && subscriptionData && (
-				<motion.div variants={fadeIn}>
+				<motion.div 
+					variants={fadeIn}
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					style={{ display: 'block', visibility: 'visible' }}
+				>
 					<CanceledSubscriptionAlert
 						planName={planName}
 						planInterval={planInterval}
-						daysRemaining={subscriptionData.days_remaining}
+						daysRemaining={subscriptionData.days_remaining ?? 0}
 						accessUntil={new Date(subscriptionData.plan_expires)}
 						canceledAt={subscriptionData.canceled_at ? new Date(subscriptionData.canceled_at) : null}
 					/>
