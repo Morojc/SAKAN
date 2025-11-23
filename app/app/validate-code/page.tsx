@@ -21,8 +21,6 @@ export default function ValidateCodePage() {
   const [codeStatus, setCodeStatus] = useState<{
     valid: boolean;
     message?: string;
-    attemptsRemaining?: number;
-    codeDeleted?: boolean;
   } | null>(null);
   const [isReplacementEmail, setIsReplacementEmail] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,8 +78,7 @@ export default function ValidateCodePage() {
       if (data.success) {
         setCodeStatus({
           valid: true,
-          message: 'Code validé avec succès! Votre rôle a été mis à jour. Redirection...',
-          attemptsRemaining: 3
+          message: 'Code validé avec succès! Votre rôle a été mis à jour. Redirection...'
         });
         
         // Update role and transfer data immediately (since user is already authenticated)
@@ -113,27 +110,10 @@ export default function ValidateCodePage() {
           }, 1500);
         }
       } else {
-        const attemptsRemaining = data.attemptsRemaining || 0;
-        let message = data.message || 'Invalid code';
-        
-        if (!data.codeDeleted && attemptsRemaining > 0) {
-          message += ` (${attemptsRemaining} attempt${attemptsRemaining !== 1 ? 's' : ''} remaining)`;
-        }
-        
         setCodeStatus({
           valid: false,
-          message,
-          attemptsRemaining,
-          codeDeleted: data.codeDeleted || false
+          message: data.message || 'Code invalide'
         });
-        
-        // If account was deleted (3 failed attempts), sign out and redirect
-        if (data.accountDeleted) {
-          toast.error('Account deleted due to too many failed attempts.');
-          setTimeout(() => {
-            signOut({ callbackUrl: '/auth/signin', redirect: true });
-          }, 2000);
-        }
       }
     } catch (error) {
       console.error('Error validating code:', error);
@@ -221,9 +201,7 @@ export default function ValidateCodePage() {
               variant={codeStatus.valid ? "default" : "destructive"} 
               className={codeStatus.valid 
                 ? "bg-green-50 border-green-200 text-green-800" 
-                : codeStatus.codeDeleted 
-                  ? "bg-red-50 border-red-200 text-red-800"
-                  : "bg-amber-50 border-amber-200 text-amber-800"
+                : "bg-amber-50 border-amber-200 text-amber-800"
               }
             >
               {codeStatus.valid ? (
@@ -232,20 +210,10 @@ export default function ValidateCodePage() {
                 <AlertCircle className="h-4 w-4" />
               )}
               <AlertTitle>
-                {codeStatus.valid 
-                  ? "Code validé" 
-                  : codeStatus.codeDeleted 
-                    ? "Code invalidé"
-                    : "Code invalide"
-                }
+                {codeStatus.valid ? "Code validé" : "Code invalide"}
               </AlertTitle>
               <AlertDescription>
                 {codeStatus.message}
-                {!codeStatus.valid && !codeStatus.codeDeleted && codeStatus.attemptsRemaining !== undefined && codeStatus.attemptsRemaining > 0 && (
-                  <span className="block mt-2 text-xs font-semibold">
-                    ⚠️ {codeStatus.attemptsRemaining} tentative{codeStatus.attemptsRemaining !== 1 ? 's' : ''} restante{codeStatus.attemptsRemaining !== 1 ? 's' : ''}. Après 3 tentatives échouées, votre compte sera supprimé.
-                  </span>
-                )}
               </AlertDescription>
             </Alert>
           )}

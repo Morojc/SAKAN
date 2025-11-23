@@ -39,6 +39,12 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
         if (reason === 'timeout') {
           toast.error('Time expired. The access code has been invalidated.');
           setCodeStatus('expired');
+          
+          // Close dialog automatically after timeout
+          setTimeout(() => {
+            onClose();
+            router.refresh();
+          }, 3000);
         } else {
           toast.success('Process cancelled. The access code has been invalidated.');
         }
@@ -99,7 +105,10 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
         const response = await fetch(`/api/account/check-code-status?code=${code}`);
         const data = await response.json();
 
-        if (data.status === 'used') {
+        // If code is not found (and we have time remaining), it means it was deleted by the trigger
+        // which happens ONLY when code_used = true (Success)
+        // Note: We removed the auto-deletion on failure/invalidation to distinguish this case
+        if (data.status === 'used' || (data.status === 'not_found' && timeLeft > 5)) {
           // Code has been used successfully
           setCodeStatus('used');
           setStatusMessage('The replacement user has successfully signed in. Your role has been changed to Resident.');
@@ -136,12 +145,7 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
         } else if (data.status === 'pending') {
           // Code is still pending
           setCodeStatus('pending');
-          const attemptsRemaining = data.attemptsRemaining || 0;
-          setStatusMessage(
-            attemptsRemaining > 0 
-              ? `Waiting for ${replacementEmail} to sign in... (${attemptsRemaining} attempt${attemptsRemaining !== 1 ? 's' : ''} remaining)`
-              : `Waiting for ${replacementEmail} to sign in...`
-          );
+          setStatusMessage(`Waiting for ${replacementEmail} to sign in...`);
         }
       } catch (error) {
         console.error('Error checking code status:', error);

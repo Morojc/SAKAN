@@ -20,6 +20,11 @@ interface SendAccessCodeEmailParams {
  * See: https://resend.com/docs/dashboard/emails/send-test-emails
  */
 export async function sendAccessCodeEmail({ to, code, actionType }: SendAccessCodeEmailParams) {
+  // Log the code being sent to verify it matches database
+  console.log(`[Email] Preparing to send access code email to: ${to}`);
+  console.log(`[Email] Code to be sent in email: "${code}"`);
+  console.log(`[Email] Code length: ${code.length}, Code type: ${typeof code}`);
+  
   const { sendEmail } = await import('@/app/app/providers/resender');
   const host = process.env.NEXT_PUBLIC_APP_URL || 'https://sakan.app';
   const signInUrl = `${host}/auth/signin`;
@@ -92,7 +97,9 @@ export async function sendAccessCodeEmail({ to, code, actionType }: SendAccessCo
     console.error('[Email] Failed to send access code email:', result.error);
     // Don't throw - we'll show the code in UI anyway
   } else {
-    console.log('[Email] Access code email sent successfully to:', to, 'Message ID:', result.messageId);
+    console.log(`[Email] Access code email sent successfully to: ${to}`);
+    console.log(`[Email] Code sent in email: "${code}"`);
+    console.log(`[Email] Message ID: ${result.messageId}`);
   }
 
   return result;

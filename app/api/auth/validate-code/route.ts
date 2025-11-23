@@ -14,8 +14,7 @@ export async function GET(req: Request) {
   if (!code) {
     return NextResponse.json({ 
       valid: false, 
-      message: 'Code is required',
-      attemptsRemaining: 0
+      message: 'Code is required'
     }, { status: 400 });
   }
 
@@ -27,8 +26,7 @@ export async function GET(req: Request) {
     console.error('Error validating code:', error);
     return NextResponse.json({ 
       valid: false, 
-      message: 'Internal server error',
-      attemptsRemaining: 0
+      message: 'Internal server error'
     }, { status: 500 });
   }
 }

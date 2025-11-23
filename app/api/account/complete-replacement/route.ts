@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { validateAccessCode, markCodeAsUsed } from '@/lib/utils/access-code';
+import { validateAccessCodeForUser, markCodeAsUsed } from '@/lib/utils/access-code';
 import { createSupabaseAdminClient } from '@/utils/supabase/server';
 
 /**
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const supabase = createSupabaseAdminClient();
 
     // Validate the code with email
-    const validation = await validateAccessCode(code, email);
+    const validation = await validateAccessCodeForUser(code, email);
     
     if (!validation.valid || !validation.data) {
       return NextResponse.json({ 
@@ -75,4 +75,3 @@ export async function POST(req: Request) {
     }, { status: 500 });
   }
 }
-

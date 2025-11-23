@@ -259,15 +259,32 @@ export async function POST(req: Request) {
       actionType
     );
     
-    console.log('[Account Delete] Access code generated successfully. Code:', accessCode.code);
+    console.log('[Account Delete] Access code generated successfully.');
+    console.log('[Account Delete] Code from createAccessCode result:', accessCode.code);
+    console.log('[Account Delete] Code type:', typeof accessCode.code);
+    console.log('[Account Delete] Code length:', accessCode.code?.length);
+
+    // Verify the code one more time before sending email
+    if (!accessCode.code || typeof accessCode.code !== 'string') {
+      console.error('[Account Delete] ERROR: Invalid code received from createAccessCode');
+      throw new Error('Invalid access code generated');
+    }
 
     // 2. Send Email to replacement user
+    console.log('[Account Delete] ========================================');
     console.log('[Account Delete] Sending email to:', replacementEmail);
+    console.log('[Account Delete] Code being sent in email:', accessCode.code);
+    console.log('[Account Delete] Code length:', accessCode.code.length);
+    console.log('[Account Delete] ========================================');
+    
     await sendAccessCodeEmail({
       to: replacementEmail,
-      code: accessCode.code,
+      code: accessCode.code, // This should be the original generated code
       actionType
     });
+    
+    console.log('[Account Delete] Email sent successfully');
+    console.log('[Account Delete] Final code used:', accessCode.code);
 
     // 3. Handle Action Type
     if (actionType === 'delete_account') {

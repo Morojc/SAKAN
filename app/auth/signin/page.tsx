@@ -19,8 +19,6 @@ export default function SignInPage() {
   const [codeStatus, setCodeStatus] = useState<{
     valid: boolean;
     message?: string;
-    attemptsRemaining?: number;
-    codeDeleted?: boolean;
   } | null>(null);
 
   // Check if email is a replacement email
@@ -77,8 +75,7 @@ export default function SignInPage() {
       if (data.success) {
         setCodeStatus({
           valid: true,
-          message: 'Code validé avec succès! Vous pouvez maintenant vous connecter.',
-          attemptsRemaining: 3
+          message: 'Code validé avec succès! Vous pouvez maintenant vous connecter.'
         });
         
         // After successful validation, proceed with Google sign-in
@@ -86,18 +83,9 @@ export default function SignInPage() {
           handleGoogleSignIn();
         }, 1500);
       } else {
-        const attemptsRemaining = data.attemptsRemaining || 0;
-        let message = data.message || 'Code invalide';
-        
-        if (!data.codeDeleted && attemptsRemaining > 0) {
-          message += ` (${attemptsRemaining} tentative${attemptsRemaining !== 1 ? 's' : ''} restante${attemptsRemaining !== 1 ? 's' : ''})`;
-        }
-        
         setCodeStatus({
           valid: false,
-          message,
-          attemptsRemaining,
-          codeDeleted: data.codeDeleted || false
+          message: data.message || 'Code invalide'
         });
       }
     } catch (error) {
@@ -203,9 +191,7 @@ export default function SignInPage() {
                   variant={codeStatus.valid ? "default" : "destructive"} 
                   className={codeStatus.valid 
                     ? "bg-green-50 border-green-200 text-green-800" 
-                    : codeStatus.codeDeleted 
-                      ? "bg-red-50 border-red-200 text-red-800"
-                      : "bg-amber-50 border-amber-200 text-amber-800"
+                    : "bg-amber-50 border-amber-200 text-amber-800"
                   }
                 >
                   {codeStatus.valid ? (
@@ -214,20 +200,10 @@ export default function SignInPage() {
                     <AlertCircle className="h-4 w-4" />
                   )}
                   <AlertTitle>
-                    {codeStatus.valid 
-                      ? "Code validé" 
-                      : codeStatus.codeDeleted 
-                        ? "Code invalidé"
-                        : "Code invalide"
-                    }
+                    {codeStatus.valid ? "Code validé" : "Code invalide"}
                   </AlertTitle>
                   <AlertDescription>
                     {codeStatus.message}
-                    {!codeStatus.valid && !codeStatus.codeDeleted && codeStatus.attemptsRemaining !== undefined && codeStatus.attemptsRemaining > 0 && (
-                      <span className="block mt-2 text-xs font-semibold">
-                        ⚠️ {codeStatus.attemptsRemaining} tentative{codeStatus.attemptsRemaining !== 1 ? 's' : ''} restante{codeStatus.attemptsRemaining !== 1 ? 's' : ''}. Après 3 tentatives échouées, votre compte sera supprimé.
-                      </span>
-                    )}
                   </AlertDescription>
                 </Alert>
               )}
