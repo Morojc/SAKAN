@@ -1,4 +1,3 @@
-import { Resend } from 'resend';
 import config from "@/config"
 
 interface Theme {
@@ -16,44 +15,30 @@ interface SendVerificationRequestParams {
 	theme: Theme;
 }
 
-/**
- * Get test email address for verification emails
- * See: https://resend.com/docs/dashboard/emails/send-test-emails
- */
-function getTestEmailAddress(originalTo: string, testMode?: 'delivered' | 'bounced' | 'complained'): string {
-	const isDevelopment = process.env.NODE_ENV === 'development';
-	const useTestEmails = process.env.USE_RESEND_TEST_EMAILS === 'true' || isDevelopment;
-	
-	if (!useTestEmails) {
-		return originalTo;
-	}
-
-	// Extract label from original email (if any) or use a default
-	const emailLabel = originalTo.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
-	const testType = testMode || process.env.RESEND_TEST_MODE || 'delivered';
-	
-	// Use Resend test email addresses with labeling support
-	return `${testType}+${emailLabel || 'auth'}@resend.dev`;
-}
 
 export async function sendVerificationRequest(params: SendVerificationRequestParams) {
-	const { identifier: to, url } = params
-	
-	console.log('--- MOCK VERIFICATION EMAIL SENT ---');
-	console.log(`To: ${to}`);
-	console.log(`Magic Link: ${url}`);
-	console.log('------------------------------------');
-	return; // Early return to skip sending actual email
-
-	/* Original logic preserved for future use
 	const { identifier: to, provider, url, theme } = params
 	const { host } = new URL(url)
 	
-	// ... rest of the code ...
-	*/
+	// Import the Resend utility
+	const { sendEmail } = await import('@/app/app/providers/resender');
+	
+	const result = await sendEmail({
+		to,
+		from: provider.from,
+		subject: `Sign in to ${host}`,
+		html: html({ url, host, theme }),
+	});
+
+	if (!result.success) {
+		console.error('[Auth Email] Failed to send verification email:', result.error);
+		throw new Error("Failed to send verification email: " + (result.error || 'Unknown error'));
+	}
+	
+	console.log('[Auth Email] Verification email sent successfully to:', to, 'Message ID:', result.messageId);
 }
 
-export function html({ url, host, theme, isTestMode, testEmail }: { url: string; host: string; theme: Theme; isTestMode?: boolean; testEmail?: string }) {
+export function html({ url, host, theme }: { url: string; host: string; theme: Theme }) {
 	const escapedHost = host.replace(/\./g, "&#8203;.")
 
 	const brandColor = theme?.brandColor || "#346df1"
@@ -88,13 +73,12 @@ export function html({ url, host, theme, isTestMode, testEmail }: { url: string;
         </table>
       </td>
     </tr>
-    <tr>
-      <td align="center"
-        style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
-        If you did not request this email you can safely ignore it.
-        ${isTestMode ? `<p style="color: #f59e0b; font-weight: bold; margin-top: 10px;">⚠️ TEST MODE: This email was sent to a Resend test address (${testEmail})</p>` : ''}
-      </td>
-    </tr>
+        <tr>
+          <td align="center"
+            style="padding: 0px 0px 10px 0px; font-size: 16px; line-height: 22px; font-family: Helvetica, Arial, sans-serif; color: ${color.text};">
+            If you did not request this email you can safely ignore it.
+          </td>
+        </tr>
   </table>
 </body>
 `

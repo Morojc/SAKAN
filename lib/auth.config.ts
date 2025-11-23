@@ -58,9 +58,11 @@ const authConfig = {
 						{ db: { schema: 'dbasakan' }, auth: { persistSession: false } }
 					);
 
-					const { data: codeData } = await adminClient
-						.rpc('get_access_code_by_code', { p_code: accessCode })
-						.maybeSingle();
+					const { data: codeDataArray } = await adminClient
+						.rpc('get_access_code_by_code', { p_code: accessCode });
+
+					// RPC function returns SETOF (array), get the first element
+					const codeData = Array.isArray(codeDataArray) && codeDataArray.length > 0 ? codeDataArray[0] : null;
 
 					// Type assertion for RPC result
 					const accessCodeData = codeData as {

@@ -9,6 +9,7 @@ import TermsAndConditionsDialog from './TermsAndConditionsDialog';
 import ReplacementResidentSelect from './ReplacementResidentSelect';
 import ActionSelectionDialog from './ActionSelectionDialog';
 import AccessCodeDisplay from './AccessCodeDisplay';
+import AccessCodeValidation from './AccessCodeValidation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +28,8 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
   // 2.5: No Residents Confirmation
   // 3: Action Select
   // 4: API Call (Loading)
-  // 5: Success (Show Code)
+  // 5: Success (Show Code) - for delete_account
+  // 6: Code Validation - for change_role
   
   const [step, setStep] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -79,8 +81,16 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
         return;
       }
       
-      setGeneratedCode(data.accessCode);
-      setStep(5); // Success state
+      // Check if validation is required (for change_role)
+      if (data.requiresValidation && action === 'change_role') {
+        setGeneratedCode(data.accessCode);
+        setStep(6); // Show code validation step
+        toast.success('Access code sent to replacement user. Please wait for them to sign in, then enter the code.');
+      } else {
+        // For delete_account, show the code display
+        setGeneratedCode(data.accessCode);
+        setStep(5); // Success state
+      }
       
     } catch (error: any) {
       console.error('Error processing request:', error);
@@ -291,6 +301,19 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               replacementEmail={selectedResidentEmail}
               actionType={selectedAction!}
               onClose={handleReset}
+            />
+          )}
+
+          {step === 6 && (
+            <AccessCodeValidation
+              replacementEmail={selectedResidentEmail}
+              onSuccess={async () => {
+                toast.success('Role change completed! Your role is now Resident.');
+                handleReset();
+                // Refresh the page to update the UI
+                window.location.reload();
+              }}
+              onCancel={handleReset}
             />
           )}
         </DialogContent>

@@ -250,13 +250,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Replacement user must be in the same residence' }, { status: 400 });
     }
 
-    // 1. Cancel subscriptions
-    await cancelSubscriptions(userId);
-
-    // 2. Transfer data immediately
-    await transferSyndicData(userId, replacementUserId);
-
-    // 3. Generate Access Code
+    // 1. Generate Access Code first (before any actions)
     const accessCode = await createAccessCode(
       userId,
       replacementEmail,
@@ -264,38 +258,37 @@ export async function POST(req: Request) {
       actionType
     );
 
-    // 4. Handle Action Type
-    if (actionType === 'delete_account') {
-      // Delete account immediately
-      await deleteUserAccount(userId, session.user.email);
-      // We can't revalidate path effectively if user is deleted and signed out
-    } else if (actionType === 'change_role') {
-      // Change role to resident
-      const { error: updateRoleError } = await supabase
-        .from('profiles')
-        .update({ role: 'resident' })
-        .eq('id', userId);
-
-      if (updateRoleError) {
-        console.error('Error changing role:', updateRoleError);
-        return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
-      }
-      
-      revalidatePath('/app');
-    }
-
-    // 5. Send Email
+    // 2. Send Email to replacement user
     await sendAccessCodeEmail({
       to: replacementEmail,
       code: accessCode.code,
       actionType
     });
-    
-    return NextResponse.json({ 
-      success: true, 
-      accessCode: accessCode.code,
-      message: 'Process completed successfully' 
-    });
+
+    // 3. Handle Action Type
+    if (actionType === 'delete_account') {
+      // For delete_account: cancel subscriptions, transfer data, then delete
+      await cancelSubscriptions(userId);
+      await transferSyndicData(userId, replacementUserId);
+      await deleteUserAccount(userId, session.user.email);
+      
+      return NextResponse.json({ 
+        success: true, 
+        accessCode: accessCode.code,
+        message: 'Account deletion initiated. Access code sent to replacement user.' 
+      });
+    } else if (actionType === 'change_role') {
+      // For change_role: DON'T transfer data or change role yet
+      // Wait for the replacement user to use the code, then syndic validates it
+      // Return the access code so the syndic can enter it after replacement uses it
+      return NextResponse.json({ 
+        success: true, 
+        accessCode: accessCode.code,
+        accessCodeId: accessCode.id,
+        message: 'Access code sent to replacement user. Please wait for them to use it, then enter the code below to complete the process.',
+        requiresValidation: true
+      });
+    }
 
   } catch (error: any) {
     console.error('Error processing syndic request:', error);
