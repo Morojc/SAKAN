@@ -2,7 +2,7 @@
 
 import { DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Mail, KeyRound, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, KeyRound, Loader2, AlertCircle, CheckCircle2, X, Info } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,6 +20,7 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
   const [codeStatus, setCodeStatus] = useState<'pending' | 'used' | 'invalidated' | 'expired' | 'checking'>('pending');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes in seconds
+  const [isCancelling, setIsCancelling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
@@ -29,8 +30,14 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleCancelCode = async (reason: 'timeout' | 'user_cancel') => {
+  const handleCancelCode = async (reason: 'timeout' | 'user_cancel' | 'browser_close') => {
+    // Don't cancel if code is already used
+    if (codeStatus === 'used') {
+      return;
+    }
+
     try {
+      setIsCancelling(true);
       const response = await fetch(`/api/account/cancel-code?code=${code}`, {
         method: 'DELETE',
       });
@@ -45,6 +52,9 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
             onClose();
             router.refresh();
           }, 3000);
+        } else if (reason === 'browser_close') {
+          // Silent cancellation for browser close
+          console.log('[AccessCodeDisplay] Code cancelled due to browser close');
         } else {
           toast.success('Process cancelled. The access code has been invalidated.');
         }
@@ -59,7 +69,12 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
       }
     } catch (error) {
       console.error('Error cancelling code:', error);
-      toast.error('Failed to cancel code. Please try again.');
+      // Only show error if it's a user-initiated cancel
+      if (reason === 'user_cancel') {
+        toast.error('Failed to cancel code. Please try again.');
+      }
+    } finally {
+      setIsCancelling(false);
     }
     
     // Stop polling
@@ -168,6 +183,73 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
     };
   }, [code, actionType, replacementEmail, onClose, router]);
 
+  // Handle browser tab close or connection failure
+  useEffect(() => {
+    if (actionType !== 'change_role' || codeStatus !== 'pending') {
+      return;
+    }
+
+    // Handle beforeunload (browser tab close)
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only show warning if code is still pending
+      if (codeStatus === 'pending' && timeLeft > 0) {
+        e.preventDefault();
+        e.returnValue = 'The access code process is still pending. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    // Handle visibility change (tab switch, minimize, etc.)
+    const handleVisibilityChange = () => {
+      if (document.hidden && codeStatus === 'pending' && timeLeft > 0) {
+        // Tab is hidden but don't cancel - just log
+        console.log('[AccessCodeDisplay] Tab hidden, but keeping process active');
+      }
+    };
+
+    // Handle page unload (actual navigation away)
+    // Note: This is not 100% reliable, but we try to cancel the code
+    const handleUnload = () => {
+      if (codeStatus === 'pending' && timeLeft > 0) {
+        // Try to cancel the code when user actually leaves
+        // Use fetch with keepalive for better reliability
+        fetch(`/api/account/cancel-code?code=${code}`, {
+          method: 'DELETE',
+          keepalive: true,
+        }).catch(() => {
+          // Ignore errors - the server-side timer will handle cleanup
+          console.log('[AccessCodeDisplay] Could not cancel code on unload, server timer will handle it');
+        });
+      }
+    };
+
+    // Handle connection failures
+    const handleOnline = () => {
+      console.log('[AccessCodeDisplay] Connection restored');
+    };
+
+    const handleOffline = () => {
+      console.log('[AccessCodeDisplay] Connection lost - process will continue when connection is restored');
+      toast.error('Connection lost. The process will continue when your connection is restored.', {
+        duration: 5000,
+      });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('unload', handleUnload);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('unload', handleUnload);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [codeStatus, timeLeft, actionType, code]);
+
   return (
     <div className="space-y-6">
       <DialogHeader>
@@ -181,11 +263,13 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
       </DialogHeader>
 
       <div className="space-y-4">
+        {/* Email Sent Confirmation */}
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center space-y-2">
           <p className="text-sm text-green-800 font-medium">
             An access code has been generated and sent to:
           </p>
           <div className="flex items-center justify-center gap-2">
+            <Mail className="h-4 w-4 text-green-700" />
             <span className="font-semibold text-green-900 text-lg">
               {replacementEmail}
             </span>
@@ -195,37 +279,48 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
           </p>
         </div>
 
-        <div className="text-sm space-y-3 bg-muted/30 p-4 rounded-lg">
-          <h4 className="font-semibold flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Instructions sent to {replacementEmail}
+    
+
+        {/* Instructions for Current Syndic */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+          <h4 className="font-semibold text-amber-900 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            What happens next?
           </h4>
-          <ol className="list-decimal pl-5 space-y-2 text-muted-foreground">
-            <li>Ask the replacement resident to go to the Sign In page.</li>
-            <li>Enter the access code above in the "Access Code" field.</li>
-            <li>Sign in with their Google account ({replacementEmail}).</li>
-            <li>
-              {actionType === 'delete_account' 
-                ? "Once they sign in, your account will be permanently deleted."
-                : "Once they sign in, your role will change to 'Resident'."}
-            </li>
-          </ol>
+          <div className="text-sm text-amber-800 space-y-2">
+            <p>
+              <strong>You must wait</strong> for {replacementEmail} to complete the sign-in process with the access code.
+            </p>
+            <p>
+              {actionType === 'change_role' 
+                ? "Once they successfully sign in, you'll be automatically signed out and your role will change to 'Resident'."
+                : "Once they successfully sign in, your account will be permanently deleted and all your data will be transferred to them."}
+            </p>
+            <p className="font-medium mt-2">
+              ⚠️ Important: Do not close this window or navigate away until the process is complete, or you can cancel the process using the button below.
+            </p>
+          </div>
         </div>
 
+        {/* Timer Display */}
         {actionType === 'change_role' && codeStatus === 'pending' && (
-          <div className="text-center">
-            <p className="text-sm font-medium text-amber-600">
-              Time remaining: <span className="font-mono text-lg">{formatTime(timeLeft)}</span>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-amber-800 mb-1">
+              Time remaining: <span className="font-mono text-lg font-bold text-amber-900">{formatTime(timeLeft)}</span>
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              If the code is not used within this time, the process will be cancelled.
+            <p className="text-xs text-amber-700">
+              If the code is not used within this time, the process will be automatically cancelled.
             </p>
           </div>
         )}
 
-        <p className="text-xs text-center text-muted-foreground italic">
-          Note: The code expires in 7 days.
-        </p>
+        {/* Code Expiration Note */}
+        <div className="bg-muted/50 border border-muted rounded-lg p-3">
+          <p className="text-xs text-center text-muted-foreground">
+            <Info className="h-3 w-3 inline mr-1" />
+            Note: The access code expires in 7 days from creation. However, for role changes, you have 15 minutes to complete the process.
+          </p>
+        </div>
 
         {/* Status display for change_role */}
         {actionType === 'change_role' && (
@@ -267,25 +362,43 @@ export default function AccessCodeDisplay({ code, replacementEmail, actionType, 
         )}
       </div>
 
-      <DialogFooter>
-        {actionType === 'change_role' && codeStatus === 'pending' ? (
+      <DialogFooter className="flex flex-col sm:flex-row gap-2">
+        {/* Cancel Button - Only show for pending change_role */}
+        {actionType === 'change_role' && codeStatus === 'pending' && (
           <Button 
-            variant="outline" 
-            className="w-full sm:w-auto opacity-50 cursor-not-allowed"
-            disabled={true}
-            title="Please wait for the replacement user to sign in"
-          >
-            Processing...
-          </Button>
-        ) : (
-          <Button 
-            onClick={onClose} 
+            variant="destructive" 
+            onClick={() => handleCancelCode('user_cancel')}
+            disabled={isCancelling}
             className="w-full sm:w-auto"
-            disabled={actionType === 'change_role' && codeStatus === 'checking'}
           >
-            {codeStatus === 'used' ? 'Close' : 'Close'}
+            {isCancelling ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Cancelling...
+              </>
+            ) : (
+              <>
+                <X className="h-4 w-4 mr-2" />
+                Cancel Process
+              </>
+            )}
           </Button>
         )}
+        
+        {/* Close Button */}
+        <Button 
+          onClick={onClose} 
+          className="w-full sm:w-auto"
+          disabled={
+            (actionType === 'change_role' && codeStatus === 'checking') ||
+            (actionType === 'change_role' && codeStatus === 'pending' && !isCancelling)
+          }
+          variant={actionType === 'change_role' && codeStatus === 'pending' ? 'outline' : 'default'}
+        >
+          {codeStatus === 'used' ? 'Close' : 
+           actionType === 'change_role' && codeStatus === 'pending' ? 'Close (Process Active)' : 
+           'Close'}
+        </Button>
       </DialogFooter>
     </div>
   );
