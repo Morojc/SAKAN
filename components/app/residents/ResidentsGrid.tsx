@@ -225,17 +225,6 @@ export default function ResidentsGrid({
                               }`}>
                               {resident.full_name}
                             </h3>
-                            <Badge
-                              variant={isSyndic ? 'default' : resident.role === 'guard' ? 'secondary' : 'outline'}
-                              className={`text-xs ${isSyndic ? 'bg-primary text-primary-foreground shadow-sm' : ''}`}
-                            >
-                              {isSyndic ? (
-                                <span className="flex items-center gap-1">
-                                  <Crown className="h-3 w-3" />
-                                  Syndic
-                                </span>
-                              ) : resident.role === 'guard' ? 'Guard' : 'Resident'}
-                            </Badge>
                           </div>
                           {resident.apartment_number ? (
                             <div className="flex items-center text-xs text-gray-500 font-medium bg-white px-2 py-0.5 rounded-full border border-gray-200 w-fit shadow-sm">

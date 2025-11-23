@@ -54,6 +54,7 @@ export default function EditResidentDialog({
   const [apartmentNumber, setApartmentNumber] = useState('');
   const [residenceId, setResidenceId] = useState<string>('');
   const [role, setRole] = useState<'resident' | 'guard'>('resident');
+  const [originalRole, setOriginalRole] = useState<string>(''); // Store original role to preserve syndic
 
   // Validation errors
   const [errors, setErrors] = useState<{
@@ -73,7 +74,12 @@ export default function EditResidentDialog({
       setPhoneNumber(resident.phone_number || '');
       setApartmentNumber(resident.apartment_number || '');
       setResidenceId(resident.residence_id?.toString() || '');
-      setRole((resident.role === 'syndic' ? 'resident' : resident.role) as 'resident' | 'guard');
+      // Store original role to preserve syndic role
+      setOriginalRole(resident.role);
+      // Only set role for non-syndics (syndics will keep their role)
+      if (resident.role !== 'syndic') {
+        setRole(resident.role as 'resident' | 'guard');
+      }
       setErrors({});
       fetchResidences();
     }
@@ -161,6 +167,9 @@ export default function EditResidentDialog({
     setSubmitting(true);
 
     try {
+      // If original role was syndic, preserve it; otherwise use the form role
+      const roleToUpdate = originalRole === 'syndic' ? 'syndic' : role;
+      
       const result = await updateResident({
         id: resident.id,
         full_name: fullName.trim(),
@@ -168,7 +177,7 @@ export default function EditResidentDialog({
         phone_number: phoneNumber.trim() || undefined,
         apartment_number: apartmentNumber.trim(),
         residence_id: Number(residenceId),
-        role,
+        role: roleToUpdate as 'syndic' | 'resident' | 'guard',
       });
 
       if (result.success && result.resident) {
@@ -364,21 +373,33 @@ export default function EditResidentDialog({
               )}
             </div>
 
-            {/* Role */}
-            <div className="grid gap-2">
-              <Label htmlFor="edit-role">
-                Role <span className="text-destructive">*</span>
-              </Label>
-              <Select value={role} onValueChange={(value: 'resident' | 'guard') => setRole(value)}>
-                <SelectTrigger id="edit-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="resident">Resident</SelectItem>
-                  <SelectItem value="guard">Guard</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Role - Only show for non-syndics */}
+            {originalRole !== 'syndic' && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">
+                  Role <span className="text-destructive">*</span>
+                </Label>
+                <Select value={role} onValueChange={(value: 'resident' | 'guard') => setRole(value)}>
+                  <SelectTrigger id="edit-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="resident">Resident</SelectItem>
+                    <SelectItem value="guard">Guard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {/* Show read-only role for syndics */}
+            {originalRole === 'syndic' && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <div className="px-3 py-2 border rounded-md bg-muted text-sm">
+                  Syndic (cannot be changed)
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

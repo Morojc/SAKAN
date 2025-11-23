@@ -47,9 +47,8 @@ async function ResidentsData() {
     const residenceId = userProfile.residence_id;
     const userRole = userProfile.role;
 
-    // If user is syndic/admin and has no residence, show all residents
-    // Otherwise, require residence_id
-    if (!residenceId && userRole !== 'syndic') {
+    // All users (including syndics) must have a residence_id to view residents
+    if (!residenceId) {
       return (
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-6 rounded-lg">
@@ -65,8 +64,8 @@ async function ResidentsData() {
 
     console.log('[ResidentsPage] Fetching residents for residence_id:', residenceId || 'ALL (syndic)');
 
-    // Build query - filter by residence_id if user has one, otherwise show all (for syndic)
-    // Include all profiles including syndics
+    // Build query - filter by residence_id for all users (including syndics)
+    // Include all profiles including syndics, but only from the user's residence
     let profilesQuery = supabase
       .from('profiles')
       .select(`
@@ -85,19 +84,13 @@ async function ResidentsData() {
       `)
       .order('full_name', { ascending: true });
 
-    // For syndics: show ALL profiles (no filtering by residence_id)
-    // For non-syndics: show only profiles in their residence
-    if (userRole === 'syndic') {
-      // Syndics see all profiles regardless of residence_id, including other syndics
-      console.log('[ResidentsPage] Syndic mode: showing ALL profiles (no residence_id filter, including syndics)');
-      // No filter applied - will fetch all profiles including syndics
-    } else if (residenceId) {
-      // Non-syndics only see profiles in their residence, including syndics
+    // All users (including syndics) only see profiles from their own residence
+    if (residenceId) {
       profilesQuery = profilesQuery.eq('residence_id', residenceId);
-      console.log('[ResidentsPage] Non-syndic mode: showing profiles with residence_id =', residenceId, '(including syndics)');
+      console.log('[ResidentsPage] Showing profiles with residence_id =', residenceId, '(including syndics)');
     } else {
-      // Non-syndic with no residence_id - should not reach here (handled by earlier check)
-      console.log('[ResidentsPage] Warning: Non-syndic user has no residence_id');
+      // User has no residence_id - should not reach here for syndics (handled by earlier check)
+      console.log('[ResidentsPage] Warning: User has no residence_id');
     }
 
     // Fetch all profiles (no limit) to ensure we get all residents
@@ -120,7 +113,7 @@ async function ResidentsData() {
       sampleIds: profiles?.slice(0, 3).map(p => ({ id: p.id, name: p.full_name, residence_id: p.residence_id })),
     });
 
-    // Build fees query - filter by residence_id if user has one
+    // Build fees query - filter by residence_id for all users (including syndics)
     let feesQuery = supabase
       .from('fees')
       .select(`
@@ -135,9 +128,8 @@ async function ResidentsData() {
       `)
       .order('created_at', { ascending: false });
 
-    // For syndics: show all fees (no filtering)
-    // For non-syndics: filter by residence_id
-    if (userRole !== 'syndic' && residenceId) {
+    // All users (including syndics) only see fees from their own residence
+    if (residenceId) {
       feesQuery = feesQuery.eq('residence_id', residenceId);
     }
 

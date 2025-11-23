@@ -350,10 +350,21 @@ export async function updateResident(data: UpdateResidentData) {
     if (data.residence_id !== undefined) updateData.residence_id = data.residence_id;
     
     // Validate role: prevent setting role to 'syndic' if there's already a syndic in the residence
+    // But allow preserving syndic role if the user is already a syndic
     if (data.role !== undefined) {
-      if (data.role === 'syndic') {
+      // First, check if the current user is already a syndic and get their residence_id
+      const { data: currentProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, residence_id')
+        .eq('id', data.id)
+        .maybeSingle();
+      
+      const isCurrentlySyndic = currentProfile?.role === 'syndic';
+      
+      // Only validate if trying to SET role to syndic (not preserving it)
+      if (data.role === 'syndic' && !isCurrentlySyndic) {
         // Get the residence_id (either from update data or from existing profile)
-        const residenceIdToCheck = data.residence_id;
+        const residenceIdToCheck = data.residence_id || currentProfile?.residence_id;
         
         if (residenceIdToCheck) {
           const { data: existingSyndic } = await adminSupabase
@@ -372,6 +383,8 @@ export async function updateResident(data: UpdateResidentData) {
           }
         }
       }
+      
+      // Allow updating role (including preserving syndic role)
       updateData.role = data.role;
     }
 
@@ -514,7 +527,7 @@ export async function deleteResident(residentId: string) {
 }
 
 /**
- * Get all residences for dropdown
+ * Get residences for dropdown - only returns the user's own residence
  */
 export async function getResidences() {
   console.log('[Residents Actions] Fetching residences');
@@ -527,11 +540,38 @@ export async function getResidences() {
       throw new Error('User not authenticated');
     }
 
-    const supabase = await getSupabaseClient();
+    // Use admin client to bypass RLS policy recursion issues
+    const supabase = createSupabaseAdminClient();
 
+    // Get user's profile to get their residence_id
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('residence_id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('[Residents Actions] Error fetching user profile:', profileError);
+      return {
+        success: false,
+        error: profileError.message || 'Failed to fetch user profile',
+        residences: [],
+      };
+    }
+
+    if (!profile?.residence_id) {
+      console.warn('[Residents Actions] User has no residence_id');
+      return {
+        success: true,
+        residences: [],
+      };
+    }
+
+    // Fetch only the user's residence
     const { data: residences, error } = await supabase
       .from('residences')
       .select('id, name, address, city')
+      .eq('id', profile.residence_id)
       .order('name', { ascending: true });
 
     if (error) {
@@ -543,7 +583,7 @@ export async function getResidences() {
       };
     }
 
-    console.log('[Residents Actions] Fetched', residences?.length || 0, 'residences');
+    console.log('[Residents Actions] Fetched', residences?.length || 0, 'residences for residence_id:', profile.residence_id);
 
     return {
       success: true,

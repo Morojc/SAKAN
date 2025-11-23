@@ -19,18 +19,37 @@ async function ResidencesData() {
 
     const supabase = createSupabaseAdminClient();
 
-    // Get current user's profile to identify if they're a syndic
-    const { data: currentUserProfile } = await supabase
+    // Get current user's profile to get their residence_id
+    const { data: currentUserProfile, error: profileError } = await supabase
       .from('profiles')
       .select('id, role, residence_id')
       .eq('id', userId)
       .maybeSingle();
 
-    // Fetch all residences
-    const { data: residences, error: residencesError } = await supabase
+    if (profileError) {
+      console.error('[ResidencesPage] Error fetching user profile:', profileError);
+      throw new Error(`Failed to fetch user profile: ${profileError.message}`);
+    }
+
+    if (!currentUserProfile) {
+      throw new Error('User profile not found');
+    }
+
+    const userResidenceId = currentUserProfile.residence_id;
+
+    // Build query - filter by user's residence_id if they have one
+    let residencesQuery = supabase
       .from('residences')
       .select('id, name, address, city, created_at')
       .order('name', { ascending: true });
+
+    // All users (including syndics) only see their own residence
+    if (userResidenceId) {
+      residencesQuery = residencesQuery.eq('id', userResidenceId);
+      console.log('[ResidencesPage] Showing residence with id =', userResidenceId);
+    }
+
+    const { data: residences, error: residencesError } = await residencesQuery;
 
     if (residencesError) {
       console.error('[ResidencesPage] Error fetching residences:', residencesError);
