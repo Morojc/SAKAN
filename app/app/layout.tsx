@@ -23,15 +23,15 @@ export default async function AppLayout({
 				.eq('id', userId)
 				.maybeSingle();
 
-			// Consider onboarding incomplete if:
-			// 1. Profile doesn't exist, OR
-			// 2. onboarding_completed is false, OR
-			// 3. residence_id is null (user hasn't created a residence yet)
-			// Only show onboarding for syndics (they need to create a residence)
+			// Only show onboarding for syndics who haven't set a residence yet
+			// One residence per syndic (enforced by database schema)
 			if (!profile) {
-				onboardingCompleted = false; // Show onboarding if profile doesn't exist
+				// If profile doesn't exist, default to showing onboarding
+				// (new signups default to syndic role in auth.config.ts)
+				onboardingCompleted = false;
 			} else if (profile.role === 'syndic') {
-				onboardingCompleted = profile.onboarding_completed === true && profile.residence_id !== null;
+				// Show onboarding only if syndic has no residence assigned
+				onboardingCompleted = profile.residence_id !== null;
 			} else {
 				// Non-syndics don't need onboarding
 				onboardingCompleted = true;
