@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit, Trash2, DollarSign, Mail, Phone, MapPin, User, Building2, MoreVertical, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, DollarSign, Mail, Phone, MapPin, User, Building2, MoreVertical, AlertCircle, Crown } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -162,7 +162,7 @@ export default function ResidentsGrid({
 
   return (
     <>
-      <motion.div 
+      <motion.div
         variants={container}
         initial="hidden"
         animate="show"
@@ -170,27 +170,73 @@ export default function ResidentsGrid({
       >
         {residents.map((resident) => {
           const hasOutstandingFees = resident.outstandingFees > 0;
-          
+          const isSyndic = resident.role === 'syndic';
+
           return (
             <motion.div variants={item} key={resident.id}>
-              <Card className="group hover:shadow-lg transition-all duration-300 border-gray-200/60 overflow-hidden bg-white">
+              <Card className={`
+                group hover:shadow-lg transition-all duration-300 overflow-hidden relative
+                ${isSyndic
+                  ? 'border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent shadow-md shadow-primary/10'
+                  : 'border-gray-200/60 bg-white'}
+              `}>
+                {/* Syndic Accent Bar */}
+                {isSyndic && (
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/80 to-primary/60" />
+                )}
+
+                {/* Syndic Left Border Accent */}
+                {isSyndic && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary via-primary/90 to-primary/70" />
+                )}
+
                 <CardContent className="p-0">
                   {/* Header Section */}
-                  <div className="p-5 border-b border-gray-100 bg-gray-50/30">
+                  <div className={`p-5 border-b ${isSyndic ? 'border-primary/20 bg-primary/5' : 'border-gray-100 bg-gray-50/30'} relative`}>
+                    {/* Syndic Crown Icon */}
+                    {isSyndic && (
+                      <div className="absolute top-3 right-3">
+                        <div className="relative">
+                          <Crown className="h-5 w-5 text-primary fill-primary/20" />
+                          <div className="absolute inset-0 bg-primary/10 blur-sm rounded-full" />
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className={`
-                          w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shadow-sm
-                          ${hasOutstandingFees 
-                            ? 'bg-white text-orange-600 border border-orange-100' 
-                            : 'bg-white text-gray-700 border border-gray-200'}
+                          w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shadow-sm relative
+                          ${isSyndic
+                            ? 'bg-gradient-to-br from-primary/20 to-primary/10 text-primary border-2 border-primary/30'
+                            : hasOutstandingFees
+                              ? 'bg-white text-orange-600 border border-orange-100'
+                              : 'bg-white text-gray-700 border border-gray-200'}
                         `}>
+                          {isSyndic && (
+                            <Crown className="absolute -top-1 -right-1 h-4 w-4 text-primary fill-primary/30" />
+                          )}
                           {resident.full_name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors">
-                            {resident.full_name}
-                          </h3>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className={`font-semibold leading-tight transition-colors ${isSyndic
+                                ? 'text-primary group-hover:text-primary/80'
+                                : 'text-gray-900 group-hover:text-blue-600'
+                              }`}>
+                              {resident.full_name}
+                            </h3>
+                            <Badge
+                              variant={isSyndic ? 'default' : resident.role === 'guard' ? 'secondary' : 'outline'}
+                              className={`text-xs ${isSyndic ? 'bg-primary text-primary-foreground shadow-sm' : ''}`}
+                            >
+                              {isSyndic ? (
+                                <span className="flex items-center gap-1">
+                                  <Crown className="h-3 w-3" />
+                                  Syndic
+                                </span>
+                              ) : resident.role === 'guard' ? 'Guard' : 'Resident'}
+                            </Badge>
+                          </div>
                           {resident.apartment_number ? (
                             <div className="flex items-center text-xs text-gray-500 font-medium bg-white px-2 py-0.5 rounded-full border border-gray-200 w-fit shadow-sm">
                               <Building2 className="h-3 w-3 mr-1 text-gray-400" />
@@ -201,7 +247,7 @@ export default function ResidentsGrid({
                           )}
                         </div>
                       </div>
-                      
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600 hover:bg-white">
@@ -216,7 +262,7 @@ export default function ResidentsGrid({
                             Edit Details
                           </DropdownMenuItem>
                           {(resident.role !== 'syndic' || resident.id === currentUserId) && (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => handleDelete(resident)}
                               className="text-red-600 focus:text-red-600"
                             >
@@ -237,16 +283,19 @@ export default function ResidentsGrid({
                         <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Financials</span>
                         {getFeeStatusBadge(resident.outstandingFees, resident.unpaidFeeCount)}
                       </div>
-                      <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between">
+                      <div className={`p-3 rounded-xl flex items-center justify-between ${isSyndic
+                          ? 'bg-primary/5 border border-primary/20'
+                          : 'bg-gray-50 border border-gray-100'
+                        }`}>
                         <div>
-                          <p className="text-xs text-gray-500 mb-0.5">Total Due</p>
-                          <p className={`text-lg font-bold ${hasOutstandingFees ? 'text-orange-600' : 'text-gray-900'}`}>
+                          <p className={`text-xs mb-0.5 ${isSyndic ? 'text-primary/70' : 'text-gray-500'}`}>Total Due</p>
+                          <p className={`text-lg font-bold ${hasOutstandingFees ? 'text-orange-600' : isSyndic ? 'text-primary' : 'text-gray-900'}`}>
                             {formatCurrency(resident.outstandingFees)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-500 mb-0.5">Fees</p>
-                          <p className="text-sm font-medium text-gray-900">{resident.feeCount} Total</p>
+                          <p className={`text-xs mb-0.5 ${isSyndic ? 'text-primary/70' : 'text-gray-500'}`}>Fees</p>
+                          <p className={`text-sm font-medium ${isSyndic ? 'text-primary' : 'text-gray-900'}`}>{resident.feeCount} Total</p>
                         </div>
                       </div>
                     </div>
@@ -254,7 +303,7 @@ export default function ResidentsGrid({
                     {/* Contact Info */}
                     <div className="space-y-2">
                       {resident.email && (
-                        <a 
+                        <a
                           href={`mailto:${resident.email}`}
                           className="flex items-center gap-3 text-sm text-gray-600 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-blue-50 group/link"
                         >
@@ -263,7 +312,7 @@ export default function ResidentsGrid({
                         </a>
                       )}
                       {resident.phone_number && (
-                        <a 
+                        <a
                           href={`tel:${resident.phone_number}`}
                           className="flex items-center gap-3 text-sm text-gray-600 hover:text-green-600 transition-colors p-2 rounded-lg hover:bg-green-50 group/link"
                         >
@@ -274,8 +323,8 @@ export default function ResidentsGrid({
                     </div>
 
                     {/* Action Button */}
-                    <Button 
-                      className="w-full bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/10"
+                    <Button
+                      className={`w-full shadow-lg transition-all font-semibold ${'bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/10' }`}
                       onClick={() => handleAddFee(resident)}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />

@@ -244,6 +244,7 @@ export default function ResidentsTable({
                     {getSortIcon('apartment')}
                   </button>
                 </TableHead>
+                <TableHead className="font-semibold">Role</TableHead>
                 <TableHead className="font-semibold">Email</TableHead>
                 <TableHead className="font-semibold">Phone</TableHead>
                 <TableHead className="font-semibold">
@@ -284,6 +285,14 @@ export default function ResidentsTable({
                     ) : (
                       <span className="text-muted-foreground text-sm" aria-label="Not available">N/A</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant={resident.role === 'syndic' ? 'default' : resident.role === 'guard' ? 'secondary' : 'outline'}
+                      className="font-normal"
+                    >
+                      {resident.role === 'syndic' ? 'Syndic' : resident.role === 'guard' ? 'Guard' : 'Resident'}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {resident.email ? (

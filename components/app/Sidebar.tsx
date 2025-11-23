@@ -55,6 +55,7 @@ export function Sidebar() {
     {
       category: "Management",
       items: [
+        { href: "/app/residences", label: "Residences & Syndics", icon: Building2 },
         { href: "/app/incidents", label: "Incidents", icon: AlertCircle },
         { href: "/app/announcements", label: "Announcements", icon: Megaphone },
         { href: "/app/calendar", label: "Calendar", icon: Calendar },

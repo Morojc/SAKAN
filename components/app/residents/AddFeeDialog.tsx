@@ -353,7 +353,7 @@ export default function AddFeeDialog({
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || loading}>
+            <Button type="submit" disabled={submitting || loading} className={`w-1/2 shadow-lg transition-all font-semibold ${'bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/10' }`}>
               {submitting ? 'Adding...' : 'Add Fee'}
             </Button>
           </DialogFooter>

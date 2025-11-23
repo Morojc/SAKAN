@@ -66,7 +66,7 @@ async function ResidentsData() {
     console.log('[ResidentsPage] Fetching residents for residence_id:', residenceId || 'ALL (syndic)');
 
     // Build query - filter by residence_id if user has one, otherwise show all (for syndic)
-    // Exclude profiles with role 'syndic' - only show residents and guards
+    // Include all profiles including syndics
     let profilesQuery = supabase
       .from('profiles')
       .select(`
@@ -83,19 +83,18 @@ async function ResidentsData() {
           address
         )
       `)
-      .neq('role', 'syndic') // Exclude syndic profiles
       .order('full_name', { ascending: true });
 
-    // For syndics: show ALL residents (no filtering by residence_id)
-    // For non-syndics: show only residents in their residence
+    // For syndics: show ALL profiles (no filtering by residence_id)
+    // For non-syndics: show only profiles in their residence
     if (userRole === 'syndic') {
-      // Syndics see all residents regardless of residence_id
-      console.log('[ResidentsPage] Syndic mode: showing ALL residents (no residence_id filter, excluding syndics)');
-      // No filter applied - will fetch all profiles except syndics
+      // Syndics see all profiles regardless of residence_id, including other syndics
+      console.log('[ResidentsPage] Syndic mode: showing ALL profiles (no residence_id filter, including syndics)');
+      // No filter applied - will fetch all profiles including syndics
     } else if (residenceId) {
-      // Non-syndics only see residents in their residence
+      // Non-syndics only see profiles in their residence, including syndics
       profilesQuery = profilesQuery.eq('residence_id', residenceId);
-      console.log('[ResidentsPage] Non-syndic mode: showing residents with residence_id =', residenceId, '(excluding syndics)');
+      console.log('[ResidentsPage] Non-syndic mode: showing profiles with residence_id =', residenceId, '(including syndics)');
     } else {
       // Non-syndic with no residence_id - should not reach here (handled by earlier check)
       console.log('[ResidentsPage] Warning: Non-syndic user has no residence_id');
