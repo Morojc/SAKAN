@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { KeyRound, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { KeyRound, Loader2, AlertCircle, CheckCircle2, Mail, ArrowRight } from 'lucide-react';
 import config from '@/config';
 import toast from 'react-hot-toast';
 
@@ -22,6 +22,7 @@ export default function ResidentVerificationGuard({ children, needsVerification 
   const [isValidating, setIsValidating] = useState(false);
   const [isVerified, setIsVerified] = useState(!needsVerification);
   const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(true);
 
   // Check verification status on mount
   useEffect(() => {
@@ -79,6 +80,72 @@ export default function ResidentVerificationGuard({ children, needsVerification 
     return <>{children}</>;
   }
 
+  // Show instructions first, then verification form
+  if (showInstructions) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-2xl">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">{config.metadata.title}</CardTitle>
+            <CardDescription className="text-center">
+              Welcome! Account Verification Required
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+              <Mail className="h-4 w-4 text-blue-600" />
+              <AlertTitle>Verification Code Sent</AlertTitle>
+              <AlertDescription>
+                A verification code has been sent to your email address: <strong>{session?.user?.email}</strong>
+              </AlertDescription>
+            </Alert>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <KeyRound className="h-5 w-5" />
+                Verification Instructions
+              </h3>
+              <ol className="list-decimal pl-5 space-y-3 text-sm text-gray-700">
+                <li>
+                  <strong>Check your email inbox</strong> ({session?.user?.email}) for a message from {config.metadata.title}
+                </li>
+                <li>
+                  <strong>Look for the verification code</strong> - it's an 8-character alphanumeric code (e.g., ABC12345)
+                </li>
+                <li>
+                  <strong>Click "Continue to Verification"</strong> below to proceed to the code entry screen
+                </li>
+                <li>
+                  <strong>Enter the code</strong> exactly as shown in the email (case-insensitive)
+                </li>
+                <li>
+                  <strong>Once verified</strong>, you'll have full access to your account and dashboard
+                </li>
+              </ol>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                <strong>Note:</strong> The verification code expires in 7 days. If you don't see the email, check your spam folder or contact support.
+              </div>
+            </div>
+
+            <div className="flex flex-col space-y-2">
+              <Button
+                onClick={() => setShowInstructions(false)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white"
+                size="lg"
+              >
+                Continue to Verification
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Can't find the email? Check your spam folder or contact your building syndic.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show verification form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
@@ -86,7 +153,7 @@ export default function ResidentVerificationGuard({ children, needsVerification 
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">{config.metadata.title}</CardTitle>
           <CardDescription className="text-center">
-            Account Verification Required
+            Enter Verification Code
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -94,7 +161,6 @@ export default function ResidentVerificationGuard({ children, needsVerification 
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertTitle>Verification Required</AlertTitle>
             <AlertDescription>
-              Your account needs to be verified before you can access the application. 
               Please enter the verification code that was sent to your email address ({session?.user?.email}).
             </AlertDescription>
           </Alert>
@@ -137,9 +203,18 @@ export default function ResidentVerificationGuard({ children, needsVerification 
             )}
           </div>
 
-          <div className="text-sm text-muted-foreground text-center space-y-2">
-            <p>Didn't receive the code?</p>
-            <p>Please contact your building syndic to resend the verification code.</p>
+          <div className="flex flex-col space-y-2">
+            <Button
+              onClick={() => setShowInstructions(true)}
+              variant="outline"
+              className="w-full"
+            >
+              Back to Instructions
+            </Button>
+            <div className="text-sm text-muted-foreground text-center space-y-2">
+              <p>Didn't receive the code?</p>
+              <p>Please contact your building syndic to resend the verification code.</p>
+            </div>
           </div>
         </CardContent>
       </Card>

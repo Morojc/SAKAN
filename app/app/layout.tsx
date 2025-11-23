@@ -77,11 +77,13 @@ export default async function AppLayout({
 				// If profile doesn't exist, default to showing onboarding
 				// (new signups default to syndic role in auth.config.ts)
 				onboardingCompleted = false;
+				// New users need verification
+				needsResidentVerification = true;
 			} else if (profile.role === 'syndic') {
 				// Show onboarding only if syndic has no residence assigned
 				onboardingCompleted = profile.residence_id !== null;
-				// Syndics don't need verification
-				needsResidentVerification = false;
+				// All users (including syndics) need verification if not verified
+				needsResidentVerification = !profile.verified;
 			} else {
 				// Non-syndics don't need onboarding
 				onboardingCompleted = true;
@@ -95,6 +97,32 @@ export default async function AppLayout({
 		}
 	}
 
+	// If verification is needed, show verification screen WITHOUT header/sidebar
+	// This must be the first check - before any other content
+	if (needsResidentVerification) {
+		return (
+			<ResidentVerificationGuard needsVerification={needsResidentVerification}>
+				{/* This will never render if needsVerification is true, but required for type safety */}
+				{children}
+			</ResidentVerificationGuard>
+		);
+	}
+
+	// If replacement user, show redirect component
+	if (isReplacementUser) {
+		return (
+			<div className="flex h-screen bg-gray-50 overflow-hidden">
+				<div className="flex-1 flex flex-col overflow-hidden">
+					<main className="flex-1 overflow-y-auto bg-gray-50">
+						<ReplacementUserRedirect />
+						{children}
+					</main>
+				</div>
+			</div>
+		);
+	}
+
+	// Normal app layout with header, sidebar, and content
 	return (
 		<div className="flex h-screen bg-gray-50 overflow-hidden">
 			{/* Sidebar - Desktop Only */}
@@ -104,15 +132,12 @@ export default async function AppLayout({
 			
 			{/* Main Content Area */}
 			<div className="flex-1 flex flex-col overflow-hidden">
-			<Header />
+				<Header />
 				<main className="flex-1 overflow-y-auto bg-gray-50">
-					{isReplacementUser && <ReplacementUserRedirect />}
 					<OnboardingGuard onboardingCompleted={onboardingCompleted}>
-						<ResidentVerificationGuard needsVerification={needsResidentVerification}>
-							{children}
-						</ResidentVerificationGuard>
+						{children}
 					</OnboardingGuard>
-			</main>
+				</main>
 			</div>
 		</div>
 	)

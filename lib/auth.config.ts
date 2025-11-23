@@ -294,9 +294,13 @@ const authConfig = {
 				// Check if profile already exists (e.g. created manually or by trigger)
 				const { data: existingProfile } = await dbasakanClient
 					.from('profiles')
-					.select('role, residence_id, onboarding_completed')
+					.select('role, residence_id, onboarding_completed, verified')
 					.eq('id', user.id)
 					.maybeSingle();
+
+				// Determine if this is a truly new signup (not added by syndic)
+				// If profile doesn't exist or exists but not verified and no residence_id, it's a new signup
+				const isNewSignup = !existingProfile || (!existingProfile.verified && !existingProfile.residence_id);
 
 				// Create profile for new signups (default to syndic)
 				const fullName = user.name || user.email?.split('@')[0] || 'User';
@@ -306,9 +310,11 @@ const authConfig = {
 					role: existingProfile?.role || 'syndic', // Default to syndic for new signups
 					onboarding_completed: existingProfile?.onboarding_completed || false,
 					residence_id: existingProfile?.residence_id || null,
+					verified: existingProfile?.verified !== undefined ? existingProfile.verified : false, // Set to false for new signups
 				};
 
 				console.log('[NextAuth] Creating profile in createUser event:', profilePayload);
+				console.log('[NextAuth] Is new signup:', isNewSignup);
 
 				const { error: upsertError } = await dbasakanClient
 					.from('profiles')
@@ -318,6 +324,36 @@ const authConfig = {
 					console.error('[NextAuth] Error creating profile in createUser event:', upsertError);
 				} else {
 					console.log('[NextAuth] Profile created successfully');
+					
+					// For new signups, generate and send verification code
+					if (isNewSignup && user.email && !existingProfile?.verified) {
+						try {
+							console.log('[NextAuth] New signup detected, generating verification code...');
+							const { createAccessCode } = await import('@/lib/utils/access-code');
+							const { sendResidentVerificationCodeEmail } = await import('@/lib/utils/email');
+							
+							// Create access code for verification
+							// For verify_resident, residence_id can be NULL if user doesn't have a residence yet
+							const accessCodeData = await createAccessCode(
+								user.id, // Original user (themselves for new signups)
+								user.email, // Their own email
+								profilePayload.residence_id || null, // Can be NULL for new signups
+								'verify_resident'
+							);
+							
+							// Send verification code email
+							await sendResidentVerificationCodeEmail({
+								to: user.email,
+								name: fullName,
+								code: accessCodeData.code,
+							});
+							
+							console.log('[NextAuth] Verification code sent to new user:', user.email);
+						} catch (emailError: any) {
+							console.error('[NextAuth] Error sending verification code to new user:', emailError);
+							// Don't fail the signup if email fails
+						}
+					}
 				}
 			} catch (error) {
 				console.error('[NextAuth] Error in createUser event:', error);

@@ -13,7 +13,7 @@ export async function generateAccessCode(): Promise<string> {
 export async function createAccessCode(
   originalUserId: string,
   replacementEmail: string,
-  residenceId: number,
+  residenceId: number | null,
   actionType: 'delete_account' | 'change_role' | 'verify_resident'
 ) {
   const supabase = createSupabaseAdminClient();
