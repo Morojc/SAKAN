@@ -100,7 +100,7 @@ export default function ReplacementResidentSelect({ onSelect, onNoResidents, onC
   return (
     <div className="space-y-6">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
+        <DialogTitle className="flex items-center gap-2 bg-primary/10 text-primary">
           <UserCog className="h-5 w-5" />
           Select Replacement Resident
         </DialogTitle>
@@ -292,7 +292,7 @@ export default function ReplacementResidentSelect({ onSelect, onNoResidents, onC
           <Button 
             onClick={handleContinue} 
             disabled={!selectedResidentId || loading}
-            className="min-w-[100px]"
+            className="min-w-[100px] bg-red-600 hover:bg-red-700 text-white"
           >
             Continue
           </Button>

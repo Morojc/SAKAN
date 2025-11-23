@@ -110,7 +110,7 @@ export default function SignInPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              If you are replacing a syndic, enter the code they provided.
+              If you are claiming a syndic role, enter the code they provided.
             </p>
           </div>
 

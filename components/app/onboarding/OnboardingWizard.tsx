@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, MapPin, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Building2, MapPin, CheckCircle2, ArrowRight, ArrowLeft, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,9 +10,11 @@ import { Progress } from '@/components/ui/progress';
 import { createResidence } from '@/app/app/onboarding/actions';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
+  onCancel?: () => void;
 }
 
 type OnboardingStep = 'residence-name' | 'residence-details' | 'complete';
@@ -21,7 +23,7 @@ type OnboardingStep = 'residence-name' | 'residence-details' | 'complete';
  * Onboarding Wizard Component
  * Guides new syndic users through setting up their first residence
  */
-export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
+export default function OnboardingWizard({ onComplete, onCancel }: OnboardingWizardProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('residence-name');
   const [loading, setLoading] = useState(false);
@@ -136,7 +138,24 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       <Card className="w-full max-w-2xl mx-4 shadow-lg">
         <CardHeader className="space-y-4">
           <div className="space-y-2">
-            <CardTitle className="text-2xl">Bienvenue dans SAKAN!</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-2xl">Bienvenue dans SAKAN!</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  if (onCancel) {
+                    onCancel();
+                  } else {
+                    signOut({ callbackUrl: '/' });
+                  }
+                }}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Annuler
+              </Button>
+            </div>
             <CardDescription>
               Configurez votre résidence en quelques étapes simples
             </CardDescription>
@@ -306,6 +325,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
                 type="button"
                 onClick={handleNext}
                 disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {currentStep === 'residence-details' ? (
                   <>

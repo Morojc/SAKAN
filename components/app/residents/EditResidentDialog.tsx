@@ -385,7 +385,7 @@ export default function EditResidentDialog({
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || loading}>
+            <Button type="submit" disabled={submitting || loading} className="bg-blue-600 hover:bg-blue-700 text-white">
               {submitting ? 'Updating...' : 'Update Resident'}
             </Button>
           </DialogFooter>

@@ -34,6 +34,10 @@ export default function OnboardingGuard({ children, onboardingCompleted }: Onboa
     }, 100);
   };
 
+  const handleCancel = () => {
+    setShowOnboarding(false);
+  };
+
   if (!mounted) {
     return <>{children}</>;
   }
@@ -42,6 +46,7 @@ export default function OnboardingGuard({ children, onboardingCompleted }: Onboa
     return (
       <OnboardingWizard
         onComplete={handleComplete}
+        onCancel={handleCancel}
       />
     );
   }

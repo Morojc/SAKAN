@@ -80,6 +80,7 @@ export default function ActionSelectionDialog({ onSelect, onCancel }: ActionSele
           onClick={() => selectedAction && onSelect(selectedAction)} 
           disabled={!selectedAction}
           variant={selectedAction === 'delete_account' ? "destructive" : "default"}
+          className={selectedAction === 'change_role' ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
         >
           Continue
         </Button>

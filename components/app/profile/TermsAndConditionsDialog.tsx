@@ -55,6 +55,7 @@ export default function TermsAndConditionsDialog({ onAccept, onCancel }: TermsAn
           id="terms" 
           checked={accepted} 
           onCheckedChange={(checked) => setAccepted(checked as boolean)} 
+          className="border-red-600 data-[state=checked]:bg-red-600 data-[state=checked]:text-white"
         />
         <Label htmlFor="terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
           I have read and accept these conditions
