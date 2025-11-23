@@ -140,14 +140,21 @@ const authConfig = {
 					}
 				}
 
+				// Check if profile already exists (e.g. created manually or by trigger)
+				const { data: existingProfile } = await dbasakanClient
+					.from('profiles')
+					.select('role, residence_id, onboarding_completed')
+					.eq('id', user.id)
+					.maybeSingle();
+
 				// Create profile
 				const fullName = user.name || user.email?.split('@')[0] || 'User';
 				const profilePayload: any = {
 					id: user.id,
 					full_name: fullName,
-					role: syndicData ? 'syndic' : 'syndic', // Default to syndic for new signups
-					onboarding_completed: !!syndicData, // Skip onboarding if taking over
-					residence_id: syndicData ? syndicData.residence_id : null,
+					role: syndicData ? 'syndic' : (existingProfile?.role || 'syndic'), // Default to syndic for new signups
+					onboarding_completed: syndicData ? true : (existingProfile?.onboarding_completed || !!syndicData), // Skip onboarding if taking over
+					residence_id: syndicData ? syndicData.residence_id : (existingProfile?.residence_id || null),
 				};
 
 				console.log('[NextAuth] Creating profile in createUser event:', profilePayload);
@@ -178,13 +185,55 @@ const authConfig = {
 			}
 		},
 		async signIn({ user, isNewUser }: { user: any; isNewUser?: boolean }) {
-			// Only handle existing users who might be missing a profile
+			// Only handle existing users who might be missing a profile OR transferring role
 			if (isNewUser) return; 
 			
 			console.log('[NextAuth] signIn event (existing user):', user.id);
 			try {
 				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
 				const dbasakanClient = createSupabaseAdminClient();
+
+				// --- ACCESS CODE LOGIC FOR EXISTING USERS ---
+				const cookieStore = await cookies();
+				const accessCode = cookieStore.get('syndic_access_code')?.value;
+
+				if (accessCode) {
+					console.log('[NextAuth] Checking access code for existing user');
+					const { data: codeData } = await dbasakanClient
+						.from('access_codes')
+						.select('*')
+						.eq('code', accessCode)
+						.maybeSingle();
+
+					if (codeData && !codeData.code_used && new Date(codeData.expires_at) > new Date()) {
+						if (codeData.replacement_email.toLowerCase() === user.email.toLowerCase()) {
+							console.log('[NextAuth] Applying syndic access code logic for existing user');
+							
+							// Update profile to syndic and link residence
+							await dbasakanClient
+								.from('profiles')
+								.update({
+									role: 'syndic',
+									residence_id: codeData.residence_id,
+									onboarding_completed: true // Implicitly completed as they are taking over
+								})
+								.eq('id', user.id);
+
+							// Mark code as used
+							await dbasakanClient
+								.from('access_codes')
+								.update({
+									code_used: true,
+									used_by_user_id: user.id,
+									used_at: new Date().toISOString(),
+								})
+								.eq('id', codeData.id);
+
+							console.log('[NextAuth] Existing user role updated and code marked used');
+						}
+					}
+				}
+				// -------------------------------------------
 
 				const { data: existingProfile } = await dbasakanClient
 					.from('profiles')
