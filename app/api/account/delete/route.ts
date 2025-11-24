@@ -78,7 +78,62 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
     }
   );
 
-  // Delete from stripe_customers
+  // STEP 1: Delete document submissions and their files from storage FIRST
+  // This must be done before deleting the profile due to foreign key constraints
+  const { data: submissions, error: submissionsError } = await dbasakanClient
+    .from('syndic_document_submissions')
+    .select('document_url, id_card_url')
+    .eq('user_id', userId);
+
+  if (!submissionsError && submissions) {
+    console.log(`[Account Delete] Found ${submissions.length} document submission(s) to delete`);
+    
+    // Delete all files from storage
+    const filesToDelete: string[] = [];
+    for (const submission of submissions) {
+      if (submission.document_url) {
+        const documentPath = submission.document_url.split('/syndic-documents/')[1];
+        if (documentPath) {
+          filesToDelete.push(`syndic-documents/${documentPath}`);
+        }
+      }
+      if (submission.id_card_url) {
+        const idCardPath = submission.id_card_url.split('/syndic-documents/')[1];
+        if (idCardPath) {
+          filesToDelete.push(`syndic-documents/${idCardPath}`);
+        }
+      }
+    }
+
+    if (filesToDelete.length > 0) {
+      const { error: storageDeleteError } = await adminSupabase.storage
+        .from('SAKAN')
+        .remove(filesToDelete);
+
+      if (storageDeleteError) {
+        console.error('[Account Delete] Error deleting files from storage:', storageDeleteError);
+        // Continue anyway - don't fail account deletion if file deletion fails
+      } else {
+        console.log(`[Account Delete] Deleted ${filesToDelete.length} file(s) from storage`);
+      }
+    }
+
+    // Delete document submissions from database
+    const { error: deleteSubmissionsError } = await dbasakanClient
+      .from('syndic_document_submissions')
+      .delete()
+      .eq('user_id', userId);
+
+    if (deleteSubmissionsError) {
+      console.error('[Account Delete] Error deleting document submissions:', deleteSubmissionsError);
+      // This is critical - if we can't delete submissions, we can't delete the profile
+      throw new Error(`Failed to delete document submissions: ${deleteSubmissionsError.message}`);
+    } else {
+      console.log(`[Account Delete] Deleted ${submissions.length} document submission(s)`);
+    }
+  }
+
+  // STEP 2: Delete from stripe_customers
   const { error: deleteStripeError } = await adminSupabase
     .from('stripe_customers')
     .delete()
@@ -88,7 +143,7 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
     console.error('Error deleting from stripe_customers:', deleteStripeError);
   }
 
-  // Delete from dbasakan.profiles
+  // STEP 3: Delete from dbasakan.profiles (now safe since submissions are deleted)
   const { error: deleteProfileError } = await dbasakanClient
     .from('profiles')
     .delete()
@@ -96,6 +151,7 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
 
   if (deleteProfileError && deleteProfileError.code !== 'PGRST116') {
     console.error('Error deleting from profiles:', deleteProfileError);
+    throw new Error(`Failed to delete profile: ${deleteProfileError.message}`);
   }
 
   // Delete from dbasakan.users (NextAuth)

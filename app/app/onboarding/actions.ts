@@ -50,11 +50,41 @@ export async function createResidence(data: CreateResidenceData) {
       };
     }
 
-    // Get Supabase client
-    const supabase = await getSupabaseClient();
+    // Use admin client to bypass RLS policies that might cause infinite recursion
+    // This is especially important for profile updates which have RLS policies
+    // that query the profiles table itself
+    const adminSupabase = createSupabaseAdminClient();
+
+    // Check if syndic already has a residence (one syndic = one residence)
+    const { data: existingProfile } = await adminSupabase
+      .from('profiles')
+      .select('id, residence_id, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (existingProfile?.residence_id) {
+      return {
+        success: false,
+        error: 'Vous avez déjà une résidence assignée. Un syndic ne peut gérer qu\'une seule résidence.',
+      };
+    }
+
+    // Also check if there's already a residence with this syndic_user_id
+    const { data: existingResidence } = await adminSupabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
+
+    if (existingResidence) {
+      return {
+        success: false,
+        error: 'Vous avez déjà une résidence assignée. Un syndic ne peut gérer qu\'une seule résidence.',
+      };
+    }
 
     // Create residence
-    const { data: residence, error: residenceError } = await supabase
+    const { data: residence, error: residenceError } = await adminSupabase
       .from('residences')
       .insert({
         name: data.name.trim(),
@@ -68,54 +98,15 @@ export async function createResidence(data: CreateResidenceData) {
 
     if (residenceError) {
       console.error('[Onboarding Actions] Error creating residence:', residenceError);
-      
-      // Try with admin client as fallback
-      const adminSupabase = createSupabaseAdminClient();
-      const { data: adminResidence, error: adminError } = await adminSupabase
-        .from('residences')
-        .insert({
-          name: data.name.trim(),
-          address: data.address.trim(),
-          city: data.city.trim(),
-          bank_account_rib: data.bank_account_rib?.trim() || null,
-          syndic_user_id: userId,
-        })
-        .select()
-        .single();
-
-      if (adminError) {
-        return {
-          success: false,
-          error: adminError.message || 'Failed to create residence',
-        };
-      }
-
-      // Update user profile with residence_id and mark onboarding as complete
-      const { error: profileError } = await adminSupabase
-        .from('profiles')
-        .update({
-          residence_id: adminResidence.id,
-          onboarding_completed: true,
-        })
-        .eq('id', userId);
-
-      if (profileError) {
-        console.error('[Onboarding Actions] Error updating profile:', profileError);
-        return {
-          success: false,
-          error: 'Residence created but failed to update profile',
-        };
-      }
-
-      revalidatePath('/app');
       return {
-        success: true,
-        residence: adminResidence,
+        success: false,
+        error: residenceError.message || 'Failed to create residence',
       };
     }
 
     // Update user profile with residence_id and mark onboarding as complete
-    const { error: profileError } = await supabase
+    // Always use admin client to avoid RLS infinite recursion
+    const { error: profileError } = await adminSupabase
       .from('profiles')
       .update({
         residence_id: residence.id,
@@ -125,23 +116,10 @@ export async function createResidence(data: CreateResidenceData) {
 
     if (profileError) {
       console.error('[Onboarding Actions] Error updating profile:', profileError);
-      
-      // Try with admin client
-      const adminSupabase = createSupabaseAdminClient();
-      const { error: adminProfileError } = await adminSupabase
-        .from('profiles')
-        .update({
-          residence_id: residence.id,
-          onboarding_completed: true,
-        })
-        .eq('id', userId);
-
-      if (adminProfileError) {
-        return {
-          success: false,
-          error: 'Residence created but failed to update profile',
-        };
-      }
+      return {
+        success: false,
+        error: 'Residence created but failed to update profile: ' + profileError.message,
+      };
     }
 
     console.log('[Onboarding Actions] Residence created successfully:', residence.id);

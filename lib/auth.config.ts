@@ -55,19 +55,24 @@ const authConfig = {
 				// Check if profile already exists (e.g. created manually or by trigger)
 				const { data: existingProfile } = await dbasakanClient
 					.from('profiles')
-					.select('role, residence_id, onboarding_completed, verified')
+					.select('role, residence_id, onboarding_completed, verified, email_verified')
 					.eq('id', user.id)
 					.maybeSingle();
 
 				// Create profile for new signups (default to syndic)
 				const fullName = user.name || user.email?.split('@')[0] || 'User';
+				const isNewSyndic = !existingProfile; // New user signup (defaults to syndic role)
+				
+				// For new syndics: require email verification and document verification
+				// For existing profiles: preserve their verification status
 				const profilePayload: any = {
 					id: user.id,
 					full_name: fullName,
 					role: existingProfile?.role || 'syndic', // Default to syndic for new signups
 					onboarding_completed: existingProfile?.onboarding_completed || false,
 					residence_id: existingProfile?.residence_id || null,
-					verified: existingProfile?.verified !== undefined ? existingProfile.verified : true, // Auto-verify for new signups
+					verified: existingProfile?.verified !== undefined ? existingProfile.verified : false, // Require verification for new signups
+					email_verified: existingProfile?.email_verified !== undefined ? existingProfile.email_verified : false, // Require email verification
 				};
 
 				console.log('[NextAuth] Creating profile in createUser event:', profilePayload);
@@ -80,6 +85,32 @@ const authConfig = {
 					console.error('[NextAuth] Error creating profile in createUser event:', upsertError);
 				} else {
 					console.log('[NextAuth] Profile created successfully');
+					
+					// Generate and send email verification code for new syndics
+					if (isNewSyndic && user.email) {
+						try {
+							const { generateVerificationCode, sendVerificationCode } = await import('@/lib/email/verification');
+							const verificationCode = generateVerificationCode();
+							const expiresAt = new Date();
+							expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiration
+							
+							// Store verification code in profile
+							await dbasakanClient
+								.from('profiles')
+								.update({
+									email_verification_code: verificationCode,
+									email_verification_code_expires_at: expiresAt.toISOString(),
+								})
+								.eq('id', user.id);
+							
+							// Send verification code email
+							await sendVerificationCode(user.email, verificationCode, fullName);
+							console.log('[NextAuth] Email verification code generated and sent');
+						} catch (error) {
+							console.error('[NextAuth] Error generating/sending verification code:', error);
+							// Don't fail the signup if email fails, user can request resend
+						}
+					}
 				}
 			} catch (error) {
 				console.error('[NextAuth] Error in createUser event:', error);

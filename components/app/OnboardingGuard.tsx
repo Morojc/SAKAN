@@ -24,14 +24,12 @@ export default function OnboardingGuard({ children, onboardingCompleted }: Onboa
     setShowOnboarding(!onboardingCompleted);
   }, [onboardingCompleted]);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setShowOnboarding(false);
     // Force a full page refresh to re-evaluate onboarding status
-    router.refresh();
-    // Also navigate to dashboard to ensure we're on the right page
-    setTimeout(() => {
-      router.push('/app');
-    }, 100);
+    // Use window.location.reload() to ensure a complete refresh and remount of all components
+    // This ensures the server re-renders with updated onboarding status and dashboard content loads
+    window.location.reload();
   };
 
   const handleCancel = () => {

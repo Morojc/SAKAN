@@ -380,19 +380,30 @@ export async function updateResident(data: UpdateResidentData) {
       updateData.phone_number = data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null;
     }
     if (data.apartment_number !== undefined) updateData.apartment_number = data.apartment_number.trim();
+    // Check if user is a syndic before allowing residence_id changes
+    const { data: currentProfile } = await adminSupabase
+      .from('profiles')
+      .select('role, residence_id')
+      .eq('id', data.id)
+      .maybeSingle();
+    
+    const isSyndic = currentProfile?.role === 'syndic';
+    
+    // Prevent syndics from changing their residence_id (one syndic = one residence)
+    if (isSyndic && data.residence_id !== undefined && data.residence_id !== currentProfile?.residence_id) {
+      return {
+        success: false,
+        error: 'Un syndic ne peut pas changer de résidence. Un syndic ne peut gérer qu\'une seule résidence.',
+      };
+    }
+    
     if (data.residence_id !== undefined) updateData.residence_id = data.residence_id;
     
     // Validate role: prevent setting role to 'syndic' if there's already a syndic in the residence
     // But allow preserving syndic role if the user is already a syndic
     if (data.role !== undefined) {
-      // First, check if the current user is already a syndic and get their residence_id
-      const { data: currentProfile } = await adminSupabase
-        .from('profiles')
-        .select('role, residence_id')
-        .eq('id', data.id)
-        .maybeSingle();
-      
-      const isCurrentlySyndic = currentProfile?.role === 'syndic';
+      // Use the profile we already fetched above
+      const isCurrentlySyndic = isSyndic;
       
       // Only validate if trying to SET role to syndic (not preserving it)
       if (data.role === 'syndic' && !isCurrentlySyndic) {
