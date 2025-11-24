@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseClient, createSupabaseAdminClient } from '@/utils/supabase/server';
+import { getSupabaseClient, createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
@@ -51,7 +51,7 @@ export async function createResidence(data: CreateResidenceData) {
     }
 
     // Get Supabase client
-    let supabase = await getSupabaseClient();
+    const supabase = await getSupabaseClient();
 
     // Create residence
     const { data: residence, error: residenceError } = await supabase

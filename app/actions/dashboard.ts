@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { getBalances } from './payments';
 
 /**
@@ -215,22 +215,22 @@ export async function getDashboardStats() {
 				.eq('residence_id', residenceId),
 
 			// Open incidents (if incidents table exists)
-			supabase
-				.from('incidents')
-				.select('id', { count: 'exact', head: true })
-				.eq('residence_id', residenceId)
-				.in('status', ['open', 'in_progress'])
-				.then((res) => res)
-				.catch(() => ({ count: 0, error: null })),
+			Promise.resolve(
+				supabase
+					.from('incidents')
+					.select('id', { count: 'exact', head: true })
+					.eq('residence_id', residenceId)
+					.in('status', ['open', 'in_progress'])
+			).catch(() => ({ count: 0, error: null, data: null } as any)),
 
 			// Recent announcements (if announcements table exists)
-			supabase
-				.from('announcements')
-				.select('id', { count: 'exact', head: true })
-				.eq('residence_id', residenceId)
-				.gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
-				.then((res) => res)
-				.catch(() => ({ count: 0, error: null })),
+			Promise.resolve(
+				supabase
+					.from('announcements')
+					.select('id', { count: 'exact', head: true })
+					.eq('residence_id', residenceId)
+					.gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
+			).catch(() => ({ count: 0, error: null, data: null } as any)),
 
 			// Balances
 			getBalances(residenceId),
@@ -325,7 +325,9 @@ export async function getDashboardStats() {
 				image: userData?.image || null,
 				role: profile.role || 'syndic',
 			},
-			residence: profile.residences || null,
+			residence: Array.isArray(profile.residences) && profile.residences.length > 0 
+				? profile.residences[0] 
+				: null,
 		};
 
 		console.log('[Dashboard Actions] Stats loaded:', {

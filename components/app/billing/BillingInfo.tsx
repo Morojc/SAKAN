@@ -1,7 +1,7 @@
-import { createSupabaseAdminClient, getSupabaseClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient, getSupabaseClient } from '@/lib/supabase/server';
 import { auth } from "@/lib/auth"
 import PortalButton from '@/components/stripe/PortalButton';
-import { stripe } from '@/utils/stripe';
+import { stripe } from '@/lib/stripe/client';
 import config from '@/config';
 import RefundButton from '@/components/stripe/RefundButton';
 import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';

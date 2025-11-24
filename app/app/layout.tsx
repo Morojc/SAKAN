@@ -2,7 +2,7 @@ import { Header } from "../../components/app/Header"
 import { Sidebar } from "../../components/app/Sidebar"
 import OnboardingGuard from "../../components/app/OnboardingGuard"
 import { auth } from "@/lib/auth"
-import { createSupabaseAdminClient } from "@/utils/supabase/server"
+import { createSupabaseAdminClient } from "@/lib/supabase/server"
 
 export default async function AppLayout({
 	children

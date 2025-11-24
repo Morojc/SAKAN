@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/utils/stripe';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
+import { stripe } from '@/lib/stripe/client';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import Stripe from 'stripe';
 import config from '@/config';
 // This is where we receive Stripe webhook events

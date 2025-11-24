@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { createBillingPortalSession } from '@/lib/stripe/services/billing.service';
 import { refundSubscriptionPayment } from '@/lib/stripe/services/payment.service';
-import { stripe } from '@/utils/stripe';
+import { stripe } from '@/lib/stripe/client';
 
 /**
  * Create billing portal session for current user

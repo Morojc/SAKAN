@@ -49,7 +49,7 @@ const authConfig = {
 		async createUser({ user }: { user: any }) {
 			console.log('[NextAuth] createUser event triggered for:', user.id, 'email:', user.email);
 			try {
-				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
+				const { createSupabaseAdminClient } = await import('@/lib/supabase/server');
 				const dbasakanClient = createSupabaseAdminClient();
 				
 				// Check if profile already exists (e.g. created manually or by trigger)
@@ -91,7 +91,7 @@ const authConfig = {
 			
 			console.log('[NextAuth] signIn event (existing user):', user.id);
 			try {
-				const { createSupabaseAdminClient } = await import('@/utils/supabase/server');
+				const { createSupabaseAdminClient } = await import('@/lib/supabase/server');
 				const dbasakanClient = createSupabaseAdminClient();
 
 				const { data: existingProfile } = await dbasakanClient

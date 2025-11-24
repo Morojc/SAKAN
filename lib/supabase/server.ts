@@ -59,3 +59,4 @@ function createSupabaseAdminClient() {
 	)
 }
 export { getSupabaseClient, createSupabaseAdminClient }
+

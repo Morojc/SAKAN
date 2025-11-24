@@ -131,6 +131,7 @@ export default function BillingContent() {
 	const planName = profileData?.planName || 'Free';
 	const planInterval = profileData?.planInterval || 'month';
 	const priceData = profileData?.priceData;
+	const userRole = profileData?.userRole || 'resident';
 	
 	// Ensure priceData is always an array
 	const safePriceData = Array.isArray(priceData) ? priceData : [];
@@ -682,7 +683,7 @@ export default function BillingContent() {
 						<p className="text-sm text-gray-600 mt-1">Permanently delete your account and all associated data</p>
 					</div>
 				</div>
-				<DeleteAccountButton />
+				<DeleteAccountButton userRole={userRole} />
 			</motion.div>
 		</motion.div>
 	);

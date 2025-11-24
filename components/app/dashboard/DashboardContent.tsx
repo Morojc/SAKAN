@@ -36,7 +36,12 @@ export default function DashboardContent() {
 			image: null,
 			role: 'syndic',
 		},
-		residence: null,
+		residence: null as {
+			id: number;
+			name: string;
+			address: string;
+			city: string;
+		} | null,
 	});
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -55,7 +60,7 @@ export default function DashboardContent() {
 					setStats(result.stats);
 					// If user has no residence, the onboarding guard will handle showing the wizard
 					// Don't show error, just show empty stats
-					if (!result.stats.residence && result.stats.onboardingCompleted === false) {
+					if (!result.stats.residence) {
 						console.log('[DashboardContent] User has no residence - onboarding will be shown');
 					}
 				} else {

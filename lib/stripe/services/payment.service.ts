@@ -1,4 +1,4 @@
-import { stripe } from '@/utils/stripe';
+import { stripe } from '@/lib/stripe/client';
 import Stripe from 'stripe';
 import { getActiveSubscriptionByUserId } from './subscription.service';
 

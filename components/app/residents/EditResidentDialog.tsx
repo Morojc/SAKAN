@@ -192,10 +192,10 @@ export default function EditResidentDialog({
           role: result.resident.role,
           residence_id: result.resident.residence_id,
           email: email.trim(),
-          residences: result.resident.residences ? {
-            id: result.resident.residences.id,
-            name: result.resident.residences.name,
-            address: result.resident.residences.address,
+          residences: Array.isArray(result.resident.residences) && result.resident.residences.length > 0 ? {
+            id: result.resident.residences[0].id,
+            name: result.resident.residences[0].name,
+            address: result.resident.residences[0].address,
           } : null,
         };
 

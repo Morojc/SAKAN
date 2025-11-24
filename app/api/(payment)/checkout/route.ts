@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { stripe } from '@/utils/stripe';
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { stripe } from '@/lib/stripe/client';
+import { getSupabaseClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 export async function POST(request: Request) {
 	try {

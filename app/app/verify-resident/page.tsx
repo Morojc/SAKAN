@@ -196,7 +196,7 @@ export default function VerifyResidentPage() {
             </Alert>
           )}
 
-          {(status === 'success' || status === 'already-verified') && (
+          {status === 'already-verified' && (
             <div className="space-y-2">
               <Button
                 onClick={() => router.push('/auth/signin')}

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
-import { stripe } from '@/utils/stripe';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import { stripe } from '@/lib/stripe/client';
 import { getCustomerByUserId } from '@/lib/stripe/services/customer.service';
 import { revalidatePath } from 'next/cache';
 

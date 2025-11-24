@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import ResidentsContent from '@/components/app/residents/ResidentsContent';
 import { Users } from 'lucide-react';
 import { auth } from '@/lib/auth';

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';
 import config from '@/config';

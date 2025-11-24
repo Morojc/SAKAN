@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
-import { generateCashReceiptPDF, downloadPDF } from '@/utils/pdf';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import { generateCashReceiptPDF, downloadPDF } from '@/lib/pdf/generator';
 import toast from 'react-hot-toast';
 
 interface PaymentsTableProps {

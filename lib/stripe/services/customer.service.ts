@@ -1,6 +1,6 @@
-import { stripe } from '@/utils/stripe';
+import { stripe } from '@/lib/stripe/client';
 import Stripe from 'stripe';
-import { createSupabaseAdminClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 /**
  * Stripe Customer Service

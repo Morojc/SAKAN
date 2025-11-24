@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { getSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 /**

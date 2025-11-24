@@ -24,3 +24,4 @@ export function extractUserDataForSupabase(clerkUser: any) {
 		updated_at: clerkUser.updated_at ? new Date(clerkUser.updated_at).toISOString() : now
 	};
 }
+
