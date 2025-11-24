@@ -6,9 +6,6 @@ import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import TermsAndConditionsDialog from './TermsAndConditionsDialog';
-import ReplacementResidentSelect from './ReplacementResidentSelect';
-import ActionSelectionDialog from './ActionSelectionDialog';
-import AccessCodeDisplay from './AccessCodeDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,20 +20,11 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
   // Steps:
   // 0: Idle
   // 1: Terms
-  // 2: Replacement Select
-  // 2.5: No Residents Confirmation
-  // 3: Action Select
-  // 4: API Call (Loading)
-  // 5: Success (Show Code) - The replacement user will use this code during sign-in
+  // 2: Confirmation
+  // 3: API Call (Loading)
   
   const [step, setStep] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [hasNoResidents, setHasNoResidents] = useState(false);
-  
-  // Data collected through steps
-  const [selectedResidentEmail, setSelectedResidentEmail] = useState<string>('');
-  const [selectedAction, setSelectedAction] = useState<'delete_account' | 'change_role' | null>(null);
-  const [generatedCode, setGeneratedCode] = useState<string>('');
 
   // Simple delete for non-syndics
   const [isSimpleDeleting, setIsSimpleDeleting] = useState(false);
@@ -45,15 +33,19 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
 
   const handleReset = () => {
     setStep(0);
-    setSelectedResidentEmail('');
-    setSelectedAction(null);
-    setGeneratedCode('');
     setConfirmText('');
     setShowSimpleConfirm(false);
-    setHasNoResidents(false);
   };
 
-  const processSyndicRequest = async (email: string | null, action: 'delete_account' | 'change_role') => {
+  const handleSyndicDelete = async () => {
+    if (confirmText !== 'DELETE') {
+      toast.error('Please type "DELETE" to confirm');
+      return;
+    }
+
+    setIsProcessing(true);
+    setStep(3);
+
     try {
       const response = await fetch('/api/account/delete', {
         method: 'POST',
@@ -61,52 +53,25 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          replacementEmail: email, // null if no residents
-          actionType: action,
+          actionType: 'delete_account',
         }),
       });
       
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to process request');
+        throw new Error(data.error || 'Failed to delete account');
       }
       
-      // If no replacement, account is deleted immediately, sign out
-      if (!email) {
-        toast.success('Account deleted successfully');
-        await signOut({ callbackUrl: '/', redirect: true });
-        return;
-      }
-      
-      // Show the access code - replacement user will use it during sign-in
-      // The code is automatically validated when they sign in with the correct email
-      setGeneratedCode(data.accessCode);
-      setStep(5); // Show code display
-      
-      if (action === 'change_role') {
-        toast.success('Access code sent to replacement user. They must sign in with the code to claim the syndic role.');
-      } else {
-        toast.success('Access code sent to replacement user.');
-      }
+      toast.success('Account deleted successfully');
+      await signOut({ callbackUrl: '/', redirect: true });
       
     } catch (error: any) {
-      console.error('Error processing request:', error);
+      console.error('Error deleting account:', error);
       toast.error(error.message || 'An error occurred');
-      if (hasNoResidents) {
-        setStep(2.5); // Go back to no residents confirmation
-      } else {
-        setStep(3); // Go back to action selection
-      }
-    } finally {
       setIsProcessing(false);
+      setStep(2); // Go back to confirmation
     }
-  };
-
-  const handleNoResidentsDelete = async () => {
-    setIsProcessing(true);
-    setStep(4);
-    await processSyndicRequest(null, 'delete_account');
   };
 
   const handleSimpleDelete = async () => {
@@ -195,18 +160,10 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
         className="bg-red-600 hover:bg-red-700 text-white"
       >
         <Trash2 className="mr-2 h-4 w-4" />
-        Delete / Transfer Account
+        Delete Account
       </Button>
 
       <Dialog open={step > 0} onOpenChange={(open) => {
-        // For change_role, prevent closing via backdrop click or escape key during critical wait (step 5)
-        // unless it's explicitly closed by the AccessCodeDisplay component (which calls handleReset via onClose)
-        if (!open && step === 5 && selectedAction === 'change_role') {
-          // We rely on AccessCodeDisplay to handle closure via explicit actions or timeouts
-          // Returning here prevents the dialog from closing when clicking outside or pressing Escape
-          return;
-        }
-        
         if (!open) {
           handleReset();
         }
@@ -220,20 +177,6 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           )}
 
           {step === 2 && (
-            <ReplacementResidentSelect
-              onSelect={(email) => {
-                setSelectedResidentEmail(email);
-                setStep(3);
-              }}
-              onNoResidents={() => {
-                setHasNoResidents(true);
-                setStep(2.5);
-              }}
-              onCancel={handleReset}
-            />
-          )}
-
-          {step === 2.5 && (
             <div className="space-y-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -241,7 +184,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                   Confirm Account Deletion
                 </DialogTitle>
                 <DialogDescription>
-                  No residents available for transfer. Your account will be permanently deleted.
+                  Your account will be permanently deleted. This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
 
@@ -249,7 +192,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                 <AlertCircle className="h-4 w-4 text-red-800" />
                 <AlertTitle>Warning</AlertTitle>
                 <AlertDescription className="mt-2">
-                  This action cannot be undone. Your account and the entire residence will be permanently deleted. 
+                  This action cannot be undone. Your account and all associated data will be permanently deleted. 
                   All data including residence information, fees, payments, incidents, announcements, and all related records will be removed and cannot be recovered.
                 </AlertDescription>
               </Alert>
@@ -271,7 +214,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                 </Button>
                 <Button 
                   variant="destructive"
-                  onClick={handleNoResidentsDelete}
+                  onClick={handleSyndicDelete}
                   disabled={confirmText !== 'DELETE' || isProcessing}
                 >
                   {isProcessing ? 'Deleting...' : 'Delete My Account'}
@@ -281,43 +224,10 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           )}
 
           {step === 3 && (
-            <ActionSelectionDialog
-              onSelect={(action) => {
-                // Set local state for the action
-                setSelectedAction(action);
-                
-                // Set processing state immediately to show spinner
-                setIsProcessing(true);
-                setStep(4);
-
-                // Trigger the API call with the passed action value
-                // We use a separate function that takes the values as args to avoid closure staleness
-                processSyndicRequest(selectedResidentEmail, action);
-              }}
-              onCancel={handleReset}
-            />
-          )}
-
-          {step === 4 && (
             <div className="py-12 flex flex-col items-center justify-center space-y-4">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-              <p className="text-sm text-muted-foreground">Processing your request...</p>
+              <p className="text-sm text-muted-foreground">Deleting your account...</p>
             </div>
-          )}
-
-          {step === 5 && (
-            <AccessCodeDisplay
-              code={generatedCode}
-              replacementEmail={selectedResidentEmail}
-              actionType={selectedAction!}
-              onClose={() => {
-                // For change_role, if user closes during waiting, cancel the process
-                if (selectedAction === 'change_role') {
-                  toast('Process cancelled. The access code remains valid but no role change will occur until the replacement user signs in.', { icon: 'ℹ️' });
-                }
-                handleReset();
-              }}
-            />
           )}
         </DialogContent>
       </Dialog>

@@ -3,9 +3,6 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/utils/supabase/server';
 import { stripe } from '@/utils/stripe';
 import { getCustomerByUserId } from '@/lib/stripe/services/customer.service';
-import { createAccessCode } from '@/lib/utils/access-code';
-import { transferSyndicData } from '@/lib/utils/account-transfer';
-import { sendAccessCodeEmail } from '@/lib/utils/email';
 import { revalidatePath } from 'next/cache';
 
 // Helper to cancel Stripe subscriptions
@@ -134,15 +131,9 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
     const userId = session?.user?.id;
-    const body = await req.json();
-    const { replacementEmail, actionType } = body;
 
     if (!userId) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
-    }
-
-    if (!actionType) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();
@@ -158,159 +149,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Only syndics can perform this action' }, { status: 403 });
     }
 
-    // If no replacement email, delete account directly (no residents available)
-    if (!replacementEmail) {
-      // Cancel subscriptions
-      await cancelSubscriptions(userId);
+    // Cancel subscriptions
+    await cancelSubscriptions(userId);
+    
+    // Check if there are any other residents in the residence
+    if (profile.residence_id) {
+      const { data: otherResidents, error: residentsCheckError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('residence_id', profile.residence_id)
+        .neq('id', userId); // Exclude current user
       
-      // Check if there are any other residents in the residence
-      if (profile.residence_id) {
-        const { data: otherResidents, error: residentsCheckError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('residence_id', profile.residence_id)
-          .neq('id', userId); // Exclude current user
+      // If no other residents exist, delete the residence as well
+      if (!residentsCheckError && (!otherResidents || otherResidents.length === 0)) {
+        console.log(`[Account Delete] No other residents found. Deleting residence ${profile.residence_id}`);
         
-        // If no other residents exist, delete the residence as well
-        if (!residentsCheckError && (!otherResidents || otherResidents.length === 0)) {
-          console.log(`[Account Delete] No other residents found. Deleting residence ${profile.residence_id}`);
-          
-          // Delete the residence (this will cascade to related records based on FK constraints)
-          const { error: deleteResidenceError } = await supabase
-            .from('residences')
-            .delete()
-            .eq('id', profile.residence_id);
-          
-          if (deleteResidenceError) {
-            console.error('[Account Delete] Error deleting residence:', deleteResidenceError);
-            // Continue with account deletion even if residence deletion fails
-          } else {
-            console.log(`[Account Delete] Residence ${profile.residence_id} deleted successfully`);
-          }
+        // Delete the residence (this will cascade to related records based on FK constraints)
+        const { error: deleteResidenceError } = await supabase
+          .from('residences')
+          .delete()
+          .eq('id', profile.residence_id);
+        
+        if (deleteResidenceError) {
+          console.error('[Account Delete] Error deleting residence:', deleteResidenceError);
+          // Continue with account deletion even if residence deletion fails
+        } else {
+          console.log(`[Account Delete] Residence ${profile.residence_id} deleted successfully`);
         }
       }
-      
-      // Delete account immediately
-      await deleteUserAccount(userId, session.user.email);
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Account deleted successfully' 
-      });
     }
     
-    if (!profile.residence_id) {
-       return NextResponse.json({ error: 'No residence associated with profile' }, { status: 400 });
-    }
-
-    // Find replacement user ID by email
-    // Note: replacementEmail comes from frontend selection, but we verify ID
-    // We need to look up the replacement user ID to perform transfer
-    // We can look in profiles table (joined with users or email field if added)
-    // For now, let's assume we need to find the user by email in Users or Profiles
-    // Since we populated the dropdown from Profiles/Users, let's try to find by email
+    // Delete account immediately
+    await deleteUserAccount(userId, session.user.email);
     
-    // First try to find in profiles if email is stored there (schema doesn't strictly enforce email in profiles but our API joined it)
-    // The ReplacementResidentSelect sends the email.
-    // Let's find the user ID corresponding to this email in the same residence
-    
-    // Try to find user by email in users table (NextAuth table)
-    const { data: replacementUser, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', replacementEmail)
-      .single();
-      
-    if (userError || !replacementUser) {
-        // Try looking in profiles if email is stored there
-        const { data: replacementProfile, error: profError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('residence_id', profile.residence_id)
-            .ilike('email', replacementEmail) // Assuming email might be added to profiles or we search by join logic
-            .maybeSingle();
-            
-        if (!replacementProfile) {
-             return NextResponse.json({ error: 'Replacement user not found' }, { status: 404 });
-        }
-        // Use this ID
-        var replacementUserId = replacementProfile.id;
-    } else {
-        var replacementUserId = replacementUser.id;
-    }
-    
-    // Verify replacement is in same residence
-    const { data: replacementProfileCheck } = await supabase
-        .from('profiles')
-        .select('residence_id')
-        .eq('id', replacementUserId)
-        .single();
-        
-    if (replacementProfileCheck?.residence_id !== profile.residence_id) {
-        return NextResponse.json({ error: 'Replacement user must be in the same residence' }, { status: 400 });
-    }
-
-    // 1. Generate Access Code first (before any actions)
-    console.log('[Account Delete] Generating access code for:', replacementEmail);
-    const accessCode = await createAccessCode(
-      userId,
-      replacementEmail,
-      profile.residence_id,
-      actionType
-    );
-    
-    console.log('[Account Delete] Access code generated successfully.');
-    console.log('[Account Delete] Code from createAccessCode result:', accessCode.code);
-    console.log('[Account Delete] Code type:', typeof accessCode.code);
-    console.log('[Account Delete] Code length:', accessCode.code?.length);
-
-    // Verify the code one more time before sending email
-    if (!accessCode.code || typeof accessCode.code !== 'string') {
-      console.error('[Account Delete] ERROR: Invalid code received from createAccessCode');
-      throw new Error('Invalid access code generated');
-    }
-
-    // 2. Send Email to replacement user
-    console.log('[Account Delete] ========================================');
-    console.log('[Account Delete] Sending email to:', replacementEmail);
-    console.log('[Account Delete] Code being sent in email:', accessCode.code);
-    console.log('[Account Delete] Code length:', accessCode.code.length);
-    console.log('[Account Delete] ========================================');
-    
-    await sendAccessCodeEmail({
-      to: replacementEmail,
-      code: accessCode.code, // This should be the original generated code
-      actionType
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Account deleted successfully' 
     });
-    
-    console.log('[Account Delete] Email sent successfully');
-    console.log('[Account Delete] Final code used:', accessCode.code);
-
-    // 3. Handle Action Type
-    if (actionType === 'delete_account') {
-      // For delete_account: cancel subscriptions, transfer data, then delete
-      await cancelSubscriptions(userId);
-      await transferSyndicData(userId, replacementUserId);
-      await deleteUserAccount(userId, session.user.email);
-      
-      return NextResponse.json({ 
-        success: true, 
-        accessCode: accessCode.code,
-        message: 'Account deletion initiated. Access code sent to replacement user.' 
-      });
-    } else if (actionType === 'change_role') {
-      // For change_role: The replacement user will use the code during sign-in
-      // The role change and data transfer will happen automatically when they sign in with the code
-      // No need for syndic to validate - the system handles it automatically
-      return NextResponse.json({ 
-        success: true, 
-        accessCode: accessCode.code,
-        message: 'Access code sent to replacement user. They must sign in with the code to claim the syndic role. Your role will automatically change to Resident once they sign in successfully.'
-      });
-    }
 
   } catch (error: any) {
-    console.error('Error processing syndic request:', error);
+    console.error('Error deleting account:', error);
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: error.message 

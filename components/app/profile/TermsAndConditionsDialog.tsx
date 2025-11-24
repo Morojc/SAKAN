@@ -29,23 +29,20 @@ export default function TermsAndConditionsDialog({ onAccept, onCancel }: TermsAn
 
       <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-3 border border-muted">
         <p>
-          You are about to initiate a process to transfer your syndic responsibilities to another resident.
+          You are about to permanently delete your account.
         </p>
         <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
-          <li>
-            You will need to select a replacement resident from your building.
-          </li>
-          <li>
-            A unique access code will be generated for the replacement resident.
-          </li>
-          <li>
-            Once the replacement resident uses the code, all your syndic data (residence management, fees, payments, etc.) will be transferred to him/her.
-          </li>
           <li>
             <strong>All your active payments and subscriptions will be canceled immediately.</strong>
           </li>
           <li>
-            You will have the option to either permanently delete your account or change your role to a regular resident.
+            Your account and all associated data will be permanently deleted.
+          </li>
+          <li>
+            All data including residence information, fees, payments, incidents, announcements, and all related records will be removed and cannot be recovered.
+          </li>
+          <li>
+            <strong>This action cannot be undone.</strong>
           </li>
         </ul>
       </div>
