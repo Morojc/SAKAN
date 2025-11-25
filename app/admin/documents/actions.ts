@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 interface ReviewDocumentParams {
   submissionId: string
   userId: string
-  action: 'approve' | 'reject'
+  action: 'approve' | 'reject' | 'pending'
   residenceId?: number
   rejectionReason?: string
 }
@@ -129,7 +129,7 @@ export async function reviewDocument({
       }
 
       console.log('[Admin Review] Document approved and residence assigned:', { userId, residenceId })
-    } else {
+    } else if (action === 'reject') {
       // Reject
       if (!rejectionReason?.trim()) {
         return {
@@ -172,6 +172,45 @@ export async function reviewDocument({
       }
 
       console.log('[Admin Review] Document rejected:', { userId, reason: rejectionReason })
+    } else if (action === 'pending') {
+      // Set back to pending
+      const { error: submissionError } = await supabase
+        .from('syndic_document_submissions')
+        .update({
+          status: 'pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          rejection_reason: null,
+          assigned_residence_id: null,
+        })
+        .eq('id', submissionId)
+
+      if (submissionError) {
+        console.error('[Admin Review] Error updating submission:', submissionError)
+        return {
+          success: false,
+          error: 'Erreur lors de la mise à jour du document',
+        }
+      }
+
+      // Update profile: remove residence assignment if exists
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          verified: false,
+          residence_id: null
+        })
+        .eq('id', userId)
+
+      if (profileError) {
+        console.error('[Admin Review] Error updating profile:', profileError)
+        return {
+          success: false,
+          error: 'Erreur lors de la mise à jour du profil',
+        }
+      }
+
+      console.log('[Admin Review] Document set back to pending:', { userId })
     }
 
     // Revalidate paths

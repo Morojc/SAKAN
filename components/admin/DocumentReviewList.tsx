@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, Check, X, Eye, Building2, User, Phone, Calendar } from 'lucide-react'
+import { FileText, Check, X, Eye, Building2, User, Phone, Calendar, Download, Search } from 'lucide-react'
 import { DocumentReviewModal } from './DocumentReviewModal'
 
 interface Submission {
@@ -55,10 +56,22 @@ interface DocumentReviewListProps {
 export function DocumentReviewList({ submissions, residences }: DocumentReviewListProps) {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const pendingSubmissions = submissions.filter(s => s.status === 'pending')
-  const approvedSubmissions = submissions.filter(s => s.status === 'approved')
-  const rejectedSubmissions = submissions.filter(s => s.status === 'rejected')
+  // Filter submissions by search query
+  const filteredSubmissions = submissions.filter(submission => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      submission.profiles.full_name?.toLowerCase().includes(query) ||
+      submission.profiles.email?.toLowerCase().includes(query) ||
+      submission.profiles.phone?.toLowerCase().includes(query)
+    )
+  })
+
+  const pendingSubmissions = filteredSubmissions.filter(s => s.status === 'pending')
+  const approvedSubmissions = filteredSubmissions.filter(s => s.status === 'approved')
+  const rejectedSubmissions = filteredSubmissions.filter(s => s.status === 'rejected')
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -174,37 +187,63 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
           {/* Document Viewing Buttons */}
           <div className="flex gap-2 flex-wrap">
             {submission.document_url ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  console.log('[Document View] Opening procès verbal:', submission.document_url)
-                  window.open(submission.document_url, '_blank')
-                }}
-                className="flex-1"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Voir procès verbal
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(submission.document_url, '_blank')}
+                  className="flex-1"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Voir PV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = submission.document_url
+                    link.download = `PV-${submission.profiles.full_name}-${new Date().toISOString()}.pdf`
+                    link.click()
+                  }}
+                  title="Télécharger procès verbal"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </>
             ) : (
               <div className="flex-1 text-xs text-gray-400 p-2 border border-dashed rounded">
                 Pas de PV
               </div>
             )}
-            
+          </div>
+          
+          <div className="flex gap-2 flex-wrap">
             {(submission.id_card_url && submission.id_card_url !== 'null' && submission.id_card_url !== '') ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  console.log('[Document View] Opening ID card:', submission.id_card_url)
-                  window.open(submission.id_card_url, '_blank')
-                }}
-                className="flex-1"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Voir carte d'identité
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(submission.id_card_url, '_blank')}
+                  className="flex-1"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Voir ID
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a')
+                    link.href = submission.id_card_url
+                    link.download = `ID-${submission.profiles.full_name}-${new Date().toISOString()}.pdf`
+                    link.click()
+                  }}
+                  title="Télécharger carte d'identité"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </>
             ) : (
               <div className="flex-1 text-xs text-gray-400 p-2 border border-dashed rounded">
                 Pas de carte ID
@@ -239,6 +278,18 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
 
   return (
     <>
+      {/* Search Bar */}
+      <div className="relative mb-6">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          type="text"
+          placeholder="Rechercher par nom, email ou téléphone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList>
           <TabsTrigger value="pending" className="relative">

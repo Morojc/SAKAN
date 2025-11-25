@@ -3,6 +3,7 @@ import { headers } from "next/headers"
 import { AdminHeader } from "@/components/admin/AdminHeader"
 import { AdminSidebar } from "@/components/admin/AdminSidebar"
 import { getAdminUser } from "@/lib/admin-auth"
+import { Toaster } from 'sonner'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,7 @@ export default async function AdminLayout({
           {children}
         </main>
       </div>
+      <Toaster position="top-right" />
     </div>
   )
 }

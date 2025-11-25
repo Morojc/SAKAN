@@ -51,7 +51,7 @@ export function DocumentReviewModal({
 }: DocumentReviewModalProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [action, setAction] = useState<'approve' | 'reject' | null>(null)
+  const [action, setAction] = useState<'approve' | 'reject' | 'pending' | null>(null)
   const [selectedResidenceId, setSelectedResidenceId] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [error, setError] = useState('')
@@ -84,6 +84,10 @@ export function DocumentReviewModal({
       })
 
       if (result.success) {
+        // Reset form state
+        setAction(null)
+        setSelectedResidenceId('')
+        setRejectionReason('')
         router.refresh()
         onClose()
       } else {
@@ -166,6 +170,15 @@ export function DocumentReviewModal({
                 <X className="h-4 w-4 mr-2" />
                 Rejeter
               </Button>
+              {submission.status !== 'pending' && (
+                <Button
+                  onClick={() => setAction('pending')}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Remettre en attente
+                </Button>
+              )}
             </div>
           )}
 
@@ -238,6 +251,20 @@ export function DocumentReviewModal({
             </div>
           )}
 
+          {/* Pending Flow */}
+          {action === 'pending' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm font-medium text-yellow-800">
+                  Remettre en attente
+                </p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Le document sera remis en attente et toutes les actions précédentes seront annulées (assignation de résidence, vérification, etc.)
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
@@ -267,7 +294,9 @@ export function DocumentReviewModal({
                 className={`flex-1 ${
                   action === 'approve'
                     ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
+                    : action === 'reject'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-yellow-600 hover:bg-yellow-700'
                 }`}
               >
                 {isSubmitting ? (
@@ -282,10 +311,14 @@ export function DocumentReviewModal({
                         <Check className="h-4 w-4 mr-2" />
                         Confirmer l'approbation
                       </>
-                    ) : (
+                    ) : action === 'reject' ? (
                       <>
                         <X className="h-4 w-4 mr-2" />
                         Confirmer le rejet
+                      </>
+                    ) : (
+                      <>
+                        Remettre en attente
                       </>
                     )}
                   </>

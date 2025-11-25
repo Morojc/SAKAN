@@ -9,18 +9,10 @@ export const dynamic = 'force-dynamic'
 export default async function AdminResidencesPage() {
   const supabase = createSupabaseAdminClient()
 
-  // Fetch all residences with syndic info
+  // Fetch all residences
   const { data: residences, error } = await supabase
     .from('residences')
-    .select(`
-      *,
-      syndic:syndic_user_id (
-        id,
-        full_name,
-        email,
-        phone_number
-      )
-    `)
+    .select('*')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -33,6 +25,28 @@ export default async function AdminResidencesPage() {
       </div>
     )
   }
+
+  // Get syndic data separately
+  const syndicIds = residences?.filter(r => r.syndic_user_id).map(r => r.syndic_user_id) || []
+  
+  // Fetch profiles for syndics
+  const { data: profiles } = syndicIds.length > 0
+    ? await supabase
+        .from('profiles')
+        .select('id, full_name, phone_number')
+        .in('id', syndicIds)
+    : { data: [] }
+
+  // Fetch users for emails
+  const { data: users } = syndicIds.length > 0
+    ? await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', syndicIds)
+    : { data: [] }
+
+  const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
+  const usersMap = new Map(users?.map(u => [u.id, u]) || [])
 
   return (
     <div className="p-6 space-y-6">
@@ -66,7 +80,10 @@ export default async function AdminResidencesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {residences?.map((residence) => (
+          {residences?.map((residence) => {
+            const syndic = residence.syndic_user_id ? profilesMap.get(residence.syndic_user_id) : null
+            const user = residence.syndic_user_id ? usersMap.get(residence.syndic_user_id) : null
+            return (
             <Card key={residence.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -100,17 +117,17 @@ export default async function AdminResidencesPage() {
                 )}
 
                 {/* Syndic Info */}
-                {residence.syndic ? (
+                {syndic ? (
                   <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-sm text-green-600 font-medium flex items-center gap-2">
                       <User className="h-4 w-4" />
                       Syndic assigné
                     </p>
                     <p className="text-sm font-medium mt-1">
-                      {residence.syndic.full_name || residence.syndic.email}
+                      {syndic.full_name || user?.email}
                     </p>
-                    {residence.syndic.phone_number && (
-                      <p className="text-xs text-gray-600">{residence.syndic.phone_number}</p>
+                    {syndic.phone_number && (
+                      <p className="text-xs text-gray-600">{syndic.phone_number}</p>
                     )}
                   </div>
                 ) : (
@@ -129,7 +146,8 @@ export default async function AdminResidencesPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          )
+          })}
         </div>
       )}
     </div>
