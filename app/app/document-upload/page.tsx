@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Upload, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, Eye, X, CreditCard } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, Eye, X, CreditCard, LogOut } from 'lucide-react';
 import { uploadDocument, getDocumentStatus, cancelSubmission } from './actions';
 import { toast } from 'react-hot-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { signOut } from 'next-auth/react';
 
 export default function DocumentUploadPage() {
 	const router = useRouter();
@@ -22,6 +23,27 @@ export default function DocumentUploadPage() {
 
 	useEffect(() => {
 		loadStatus();
+	}, []);
+
+	// Handle browser back button - redirect to sign out
+	useEffect(() => {
+		// Prevent browser back
+		const handlePopState = (e: PopStateEvent) => {
+			e.preventDefault();
+			// Redirect to sign out API route
+			window.location.href = '/api/auth/signout';
+		};
+
+		// Add event listener
+		window.addEventListener('popstate', handlePopState);
+
+		// Push a dummy state to capture back button
+		window.history.pushState(null, '', window.location.href);
+
+		// Cleanup
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
 	}, []);
 
 	const loadStatus = async () => {
@@ -148,17 +170,31 @@ export default function DocumentUploadPage() {
 									Veuillez télécharger votre document "procès verbal" pour compléter votre vérification
 								</CardDescription>
 							</div>
-							{/* Delete account button in header - always visible */}
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => setShowCancelDialog(true)}
-								disabled={isCanceling || isUploading}
-								className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-							>
-								<X className="h-4 w-4" />
-							</Button>
+							<div className="flex gap-2">
+								{/* Sign out button */}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => window.location.href = '/api/auth/signout'}
+									disabled={isCanceling || isUploading}
+									className="border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50"
+								>
+									<LogOut className="h-4 w-4 mr-2" />
+									<span className="hidden sm:inline">Se déconnecter</span>
+								</Button>
+								{/* Delete account button */}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setShowCancelDialog(true)}
+									disabled={isCanceling || isUploading}
+									className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+								>
+									<X className="h-4 w-4" />
+								</Button>
+							</div>
 						</div>
 					</CardHeader>
 					<CardContent className="space-y-6">

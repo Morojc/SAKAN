@@ -1,26 +1,110 @@
-import authConfig from "@/lib/auth.config"
-import NextAuth from "next-auth"
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 
 export const config = {
-	matcher: ["/app/:path*"],
+	matcher: ["/app/:path*", "/admin/:path*"],
 };
 
-const { auth } = NextAuth(authConfig)
+export async function middleware(req: NextRequest) {
+	const pathname = req.nextUrl.pathname;
+	
+	// =====================================================
+	// ADMIN ROUTES - Independent Authentication System
+	// =====================================================
+	if (pathname.startsWith('/admin')) {
+		// Allow access to diagnostic page
+		if (pathname === '/admin/check-hash') {
+			const response = NextResponse.next();
+			response.headers.set('x-pathname', pathname);
+			return response;
+		}
 
-// Pages that are allowed even if user is not verified
-const ALLOWED_UNVERIFIED_PAGES = [
-	'/app/verify-email-code',
-	'/app/document-upload',
-	'/app/verification-pending',
-];
+		// Allow access to login pages with access hash (e.g., /admin/abc123def)
+		// Pattern: exactly 12 lowercase letters and numbers
+		const isAccessHashRoute = /^\/admin\/[a-z0-9]{12}$/.test(pathname);
+		
+		if (isAccessHashRoute) {
+			// This is a login page with access hash - allow without authentication
+			const response = NextResponse.next();
+			response.headers.set('x-pathname', pathname);
+			return response;
+		}
 
-export default auth(async (req) => {
-	if (!req.auth) {
+		// For other admin routes, check admin session
+		try {
+			const { createSupabaseAdminClient } = await import('@/lib/supabase/server');
+			const { cookies } = await import('next/headers');
+			
+			const cookieStore = await cookies();
+			const sessionToken = cookieStore.get('admin_session')?.value;
+			
+			if (!sessionToken) {
+				// No session - redirect to 404 (since they need unique URL)
+				return NextResponse.redirect(new URL("/404", req.url));
+			}
+			
+			// Verify session in database
+			const supabase = createSupabaseAdminClient();
+			const { data: session } = await supabase
+				.from('admin_sessions')
+				.select('admin_id, expires_at')
+				.eq('token', sessionToken)
+				.maybeSingle();
+			
+			if (!session || new Date(session.expires_at) < new Date()) {
+				// Invalid or expired session - redirect to 404
+				return NextResponse.redirect(new URL("/404", req.url));
+			}
+			
+			// Check if admin is active
+			const { data: admin } = await supabase
+				.from('admins')
+				.select('id, is_active')
+				.eq('id', session.admin_id)
+				.eq('is_active', true)
+				.maybeSingle();
+			
+			if (!admin) {
+				// Admin not active - redirect to 404
+				return NextResponse.redirect(new URL("/404", req.url));
+			}
+			
+			// Admin authenticated - allow access
+			const response = NextResponse.next();
+			response.headers.set('x-pathname', pathname);
+			response.headers.set('x-is-admin', 'true');
+			response.headers.set('x-admin-id', admin.id);
+			return response;
+		} catch (error) {
+			console.error('[Middleware] Error checking admin session:', error);
+			return NextResponse.redirect(new URL("/404", req.url));
+		}
+	}
+
+	// =====================================================
+	// APP ROUTES - NextAuth User Authentication System
+	// =====================================================
+	// Only load NextAuth for /app routes
+	const authConfig = await import("@/lib/auth.config");
+	const NextAuth = await import("next-auth");
+	const { auth } = NextAuth.default(authConfig.default);
+
+	// Get session for app routes
+	const session = await auth();
+	
+	if (!session) {
 		return NextResponse.redirect(new URL("/api/auth/signin", req.url));
 	}
 	
-	const pathname = req.nextUrl.pathname;
+	const userId = session.user?.id;
+	
+	// Pages that are allowed even if user is not verified
+	const ALLOWED_UNVERIFIED_PAGES = [
+		'/app/verify-email-code',
+		'/app/document-upload',
+		'/app/verification-pending',
+		'/app/waiting-residence',
+	];
 	
 	// Allow access to verification pages
 	if (ALLOWED_UNVERIFIED_PAGES.some(page => pathname.startsWith(page))) {
@@ -29,19 +113,19 @@ export default auth(async (req) => {
 		return response;
 	}
 	
-	// Check verification status for other pages
+	// Check verification status for app pages
 	try {
 		const { createSupabaseAdminClient } = await import('@/lib/supabase/server');
 		const supabase = createSupabaseAdminClient();
 		
 		const { data: profile } = await supabase
 			.from('profiles')
-			.select('role, email_verified, verified')
-			.eq('id', req.auth.user?.id)
+			.select('role, email_verified, verified, residence_id')
+			.eq('id', userId)
 			.maybeSingle();
 		
 		if (profile) {
-			// For syndics: check email verification first, then document verification
+			// For syndics: check email verification, document verification, and residence assignment
 			if (profile.role === 'syndic') {
 				if (!profile.email_verified) {
 					// Redirect to email verification if not verified
@@ -53,7 +137,7 @@ export default auth(async (req) => {
 					const { data: submission } = await supabase
 						.from('syndic_document_submissions')
 						.select('id, status')
-						.eq('user_id', req.auth.user?.id)
+						.eq('user_id', userId)
 						.order('submitted_at', { ascending: false })
 						.limit(1)
 						.maybeSingle();
@@ -70,6 +154,12 @@ export default auth(async (req) => {
 					}
 					// If approved, verified should be true, but if not, allow access (admin will set it)
 				}
+				
+				// Check if syndic has been assigned a residence
+				if (profile.verified && !profile.residence_id) {
+					// Document approved but no residence assigned yet
+					return NextResponse.redirect(new URL("/app/waiting-residence", req.url));
+				}
 			}
 		}
 	} catch (error) {
@@ -82,4 +172,4 @@ export default auth(async (req) => {
 	response.headers.set('x-pathname', pathname);
 	
 	return response;
-});
+}

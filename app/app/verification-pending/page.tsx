@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, ArrowLeft, LogOut } from 'lucide-react';
 import { getDocumentStatus } from '../document-upload/actions';
 import { toast } from 'react-hot-toast';
+import { signOut } from 'next-auth/react';
 
 export default function VerificationPendingPage() {
 	const router = useRouter();
@@ -24,6 +25,27 @@ export default function VerificationPendingPage() {
 		}, 30000);
 
 		return () => clearInterval(interval);
+	}, []);
+
+	// Handle browser back button - redirect to sign out
+	useEffect(() => {
+		// Prevent browser back
+		const handlePopState = (e: PopStateEvent) => {
+			e.preventDefault();
+			// Redirect to sign out API route
+			window.location.href = '/api/auth/signout';
+		};
+
+		// Add event listener
+		window.addEventListener('popstate', handlePopState);
+
+		// Push a dummy state to capture back button
+		window.history.pushState(null, '', window.location.href);
+
+		// Cleanup
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
 	}, []);
 
 	const loadStatus = async (silent = false) => {
@@ -60,10 +82,6 @@ export default function VerificationPendingPage() {
 		}
 	};
 
-	const handleGoBack = () => {
-		// Simply navigate back to document upload page
-		router.push('/app/document-upload');
-	};
 
 	if (isLoading) {
 		return (
@@ -118,10 +136,30 @@ export default function VerificationPendingPage() {
 			<div className="max-w-2xl mx-auto">
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-2xl font-bold">Statut de vérification</CardTitle>
-						<CardDescription>
-							Suivez l'état de révision de votre document
-						</CardDescription>
+						<div className="flex items-start justify-between">
+							<div>
+								<CardTitle className="text-2xl font-bold">Statut de vérification</CardTitle>
+								<CardDescription>
+									Suivez l'état de révision de votre document
+								</CardDescription>
+							</div>
+							{/* Sign out button */}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={async () => {
+									// Sign out using NextAuth without confirmation
+									await signOut({ redirect: false });
+									// Then redirect to home page
+									window.location.href = '/';
+								}}
+								className="border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-70"
+							>
+								<LogOut className="h-4 w-4 mr-2" />
+								<span className="hidden sm:inline">Se déconnecter</span>
+							</Button>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-6">
 						<div className="flex flex-col items-center justify-center py-8 space-y-4">
@@ -189,16 +227,6 @@ export default function VerificationPendingPage() {
 										Actualiser
 									</>
 								)}
-							</Button>
-
-							<Button
-								variant="outline"
-								onClick={handleGoBack}
-								disabled={isRefreshing}
-								className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
-							>
-								<ArrowLeft className="mr-2 h-4 w-4" />
-								Retour au téléchargement
 							</Button>
 
 							{(submission?.status === 'rejected' || !submission) && (

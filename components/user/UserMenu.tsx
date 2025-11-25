@@ -8,8 +8,12 @@ export default function UserMenu() {
 	const { data: session } = useSession();
 	const user = session?.user;
 
-	const handleSignOut = async () => {
-		// Sign out and redirect to home page
+	const handleSignOut = async (e: React.MouseEvent) => {
+		// Prevent any default behavior or confirmation
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Sign out immediately without confirmation
 		await signOut({ callbackUrl: '/', redirect: true });
 	};
 

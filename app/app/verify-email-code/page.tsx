@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, XCircle, Loader2, AlertCircle, Mail, KeyRound, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, AlertCircle, Mail, KeyRound, RefreshCw, X } from 'lucide-react';
 import config from '@/config';
 
 export default function VerifyEmailCodePage() {
@@ -162,10 +162,27 @@ export default function VerifyEmailCodePage() {
 		<div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
 			<Card className="w-full max-w-md">
 				<CardHeader className="space-y-1">
-					<CardTitle className="text-2xl font-bold text-center">{config.metadata.title}</CardTitle>
-					<CardDescription className="text-center">
-						Vérification de l'email
-					</CardDescription>
+					<div className="flex items-center justify-between">
+						<div className="flex-1">
+							<CardTitle className="text-2xl font-bold text-center">{config.metadata.title}</CardTitle>
+							<CardDescription className="text-center">
+								Vérification de l'email
+							</CardDescription>
+						</div>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={async () => {
+								// Sign out and redirect to sign in page
+								await fetch('/api/auth/signout', { method: 'POST' });
+								window.location.href = '/api/auth/signin';
+							}}
+							className="text-gray-400 hover:text-gray-600"
+							title="Quitter"
+						>
+							<X className="h-5 w-5" />
+						</Button>
+					</div>
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<Alert className="bg-blue-50 border-blue-200 text-blue-800">
@@ -186,12 +203,12 @@ export default function VerifyEmailCodePage() {
 						</label>
 						<div className="flex gap-2 justify-center" onPaste={handlePaste}>
 							{code.map((char, index) => (
-								<Input
-									key={index}
-									ref={(el) => (inputRefs.current[index] = el)}
-									type="text"
-									inputMode="text"
-									maxLength={1}
+															<Input
+																key={index}
+																ref={(el) => { inputRefs.current[index] = el }}
+																type="text"
+																inputMode="text"
+																maxLength={1}
 									value={char}
 									onChange={(e) => handleCodeChange(index, e.target.value)}
 									onKeyDown={(e) => handleKeyDown(index, e)}

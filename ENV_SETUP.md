@@ -13,7 +13,7 @@ The application uses `NEXT_PUBLIC_APP_URL` to generate links in emails and for v
 
 2. **For ngrok (Development with External Access):**
    ```env
-   NEXT_PUBLIC_APP_URL=https://unspiral-crusily-katerine.ngrok-free.dev
+   NEXT_PUBLIC_APP_URL=https://varicose-populational-emilie.ngrok-free.dev 
    ```
    > **Note:** Make sure to include the protocol (`https://`) and remove any trailing slash
 
@@ -39,7 +39,7 @@ The application uses `NEXT_PUBLIC_APP_URL` to generate links in emails and for v
 
 ```env
 # Application Domain
-NEXT_PUBLIC_APP_URL=https://unspiral-crusily-katerine.ngrok-free.dev
+NEXT_PUBLIC_APP_URL=https://varicose-populational-emilie.ngrok-free.dev 
 
 # Other environment variables...
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
