@@ -85,9 +85,15 @@ export function AdminHeader({ admin }: AdminHeaderProps) {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  
+                  // Logout and clear session
                   await fetch('/api/admin/auth/logout', { method: 'POST' })
-                  window.location.href = '/' // Redirect to home page
+                  
+                  // Use replace to prevent back button from returning to admin dashboard
+                  window.location.replace('/')
                 }}
               >
                 <LogOut className="mr-2 h-4 w-4" />

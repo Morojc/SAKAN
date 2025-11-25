@@ -1,8 +1,8 @@
 'use server'
 
-import { auth } from '@/lib/auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getAdminId } from '@/lib/admin-auth'
 
 interface CreateResidenceData {
   name: string
@@ -15,15 +15,17 @@ export async function createResidence(data: CreateResidenceData) {
   console.log('[Admin Residences] Creating residence:', data)
 
   try {
-    const session = await auth()
-    const adminId = session?.user?.id
-
+    // Verify admin authentication
+    const adminId = await getAdminId()
+    
     if (!adminId) {
       return {
         success: false,
         error: 'Non authentifié',
       }
     }
+
+    const supabase = createSupabaseAdminClient()
 
     // Validate input
     if (!data.name?.trim()) {
@@ -46,8 +48,6 @@ export async function createResidence(data: CreateResidenceData) {
         error: 'La ville est requise',
       }
     }
-
-    const supabase = createSupabaseAdminClient()
 
     // Verify user is an active admin
     const { data: admin } = await supabase

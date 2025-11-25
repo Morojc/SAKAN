@@ -6,16 +6,60 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, ArrowLeft, LogOut } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, ArrowLeft, LogOut, Trash2 } from 'lucide-react';
 import { getDocumentStatus } from '../document-upload/actions';
 import { toast } from 'react-hot-toast';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
+import { AuthNavigationManager } from '@/lib/auth-navigation';
 
 export default function VerificationPendingPage() {
 	const router = useRouter();
+	const { data: session } = useSession();
 	const [submission, setSubmission] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+	// Save auth state
+	useEffect(() => {
+		if (session?.user?.id) {
+			AuthNavigationManager.saveAuthState(session.user.id);
+		}
+	}, [session?.user?.id]);
+
+	// Prevent back navigation while on verification pending page
+	useEffect(() => {
+		// Push initial state
+		window.history.pushState(null, '', window.location.href);
+
+		const handlePopState = () => {
+			// Push state again to prevent going back
+			window.history.pushState(null, '', window.location.href);
+		};
+
+		// Add listener for back button
+		window.addEventListener('popstate', handlePopState);
+
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
+	}, []);
+
+	// Setup proper logout handling
+	useEffect(() => {
+		const cleanup = AuthNavigationManager.preventBackAfterLogout();
+		return cleanup;
+	}, []);
+
+	// Setup session refresh on page visibility
+	useEffect(() => {
+		const cleanup = AuthNavigationManager.setupVisibilityHandler(() => {
+			loadStatus(true);
+		});
+		return cleanup;
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	useEffect(() => {
 		loadStatus();
@@ -25,27 +69,7 @@ export default function VerificationPendingPage() {
 		}, 30000);
 
 		return () => clearInterval(interval);
-	}, []);
-
-	// Handle browser back button - redirect to sign out
-	useEffect(() => {
-		// Prevent browser back
-		const handlePopState = (e: PopStateEvent) => {
-			e.preventDefault();
-			// Redirect to sign out API route
-			window.location.href = '/api/auth/signout';
-		};
-
-		// Add event listener
-		window.addEventListener('popstate', handlePopState);
-
-		// Push a dummy state to capture back button
-		window.history.pushState(null, '', window.location.href);
-
-		// Cleanup
-		return () => {
-			window.removeEventListener('popstate', handlePopState);
-		};
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const loadStatus = async (silent = false) => {
@@ -79,6 +103,38 @@ export default function VerificationPendingPage() {
 		} finally {
 			setIsLoading(false);
 			setIsRefreshing(false);
+		}
+	};
+
+	const handleDeleteAccount = async () => {
+		setIsDeleting(true);
+		try {
+			const response = await fetch('/api/account/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+			});
+
+			const data = await response.json();
+
+			if (data.success || response.ok) {
+				toast.success('Compte supprimé avec succès. Déconnexion...');
+				
+				// Clear auth state
+				AuthNavigationManager.clearAuthState();
+				
+				// Sign out and redirect to home
+				await signOut({ redirect: false });
+				
+				// Force clean redirect to home without back navigation
+				window.location.replace('/');
+			} else {
+				toast.error(data.error || 'Échec de la suppression du compte');
+				setIsDeleting(false);
+			}
+		} catch (error) {
+			console.error('Delete account error:', error);
+			toast.error('Une erreur s\'est produite. Veuillez réessayer.');
+			setIsDeleting(false);
 		}
 	};
 
@@ -148,11 +204,17 @@ export default function VerificationPendingPage() {
 								type="button"
 								variant="outline"
 								size="sm"
-								onClick={async () => {
-									// Sign out using NextAuth without confirmation
+								onClick={async (e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									
+									// Mark as user-initiated logout
+									AuthNavigationManager.markLogout();
+									AuthNavigationManager.clearAuthState();
+									
+									// Sign out and redirect
 									await signOut({ redirect: false });
-									// Then redirect to home page
-									window.location.href = '/';
+									window.location.replace('/');
 								}}
 								className="border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-70"
 							>
@@ -209,33 +271,57 @@ export default function VerificationPendingPage() {
 							</div>
 						)}
 
-						<div className="flex gap-3">
-							<Button
-								variant="outline"
-								onClick={() => loadStatus()}
-								disabled={isRefreshing}
-								className="flex-1"
-							>
-								{isRefreshing ? (
-									<>
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-										Actualisation...
-									</>
-								) : (
-									<>
-										<RefreshCw className="mr-2 h-4 w-4" />
-										Actualiser
-									</>
-								)}
-							</Button>
-
-							{(submission?.status === 'rejected' || !submission) && (
+						<div className="space-y-3">
+							<div className="flex gap-3">
 								<Button
-									onClick={() => router.push('/app/document-upload')}
+									variant="outline"
+									onClick={() => loadStatus()}
+									disabled={isRefreshing}
 									className="flex-1"
 								>
-									<Upload className="mr-2 h-4 w-4" />
-									{submission?.status === 'rejected' ? 'Télécharger un nouveau document' : 'Télécharger un document'}
+									{isRefreshing ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											Actualisation...
+										</>
+									) : (
+										<>
+											<RefreshCw className="mr-2 h-4 w-4" />
+											Actualiser
+										</>
+									)}
+								</Button>
+
+								{(submission?.status === 'rejected' || !submission) && (
+									<Button
+										onClick={() => router.push('/app/document-upload')}
+										className="flex-1 bg-blue-600 hover:bg-blue-700"
+									>
+										<Upload className="mr-2 h-4 w-4" />
+										{submission?.status === 'rejected' ? 'Télécharger un nouveau document' : 'Télécharger un document'}
+									</Button>
+								)}
+							</div>
+
+							{/* Delete account button for rejected documents */}
+							{submission?.status === 'rejected' && (
+								<Button
+									variant="destructive"
+									onClick={() => setShowDeleteDialog(true)}
+									disabled={isDeleting}
+									className="w-full bg-red-600 hover:bg-red-700"
+								>
+									{isDeleting ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											Suppression...
+										</>
+									) : (
+										<>
+											<Trash2 className="mr-2 h-4 w-4" />
+											Supprimer mon compte
+										</>
+									)}
 								</Button>
 							)}
 						</div>
@@ -246,6 +332,57 @@ export default function VerificationPendingPage() {
 						</div>
 					</CardContent>
 				</Card>
+
+				{/* Delete Account Confirmation Dialog */}
+				<Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Supprimer mon compte et me déconnecter</DialogTitle>
+							<DialogDescription asChild>
+								<div>
+									<p className="text-sm text-muted-foreground">
+										Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et :
+									</p>
+									<ul className="list-disc list-inside mt-2 space-y-1 text-sm text-muted-foreground">
+										<li>Supprimera définitivement votre compte utilisateur</li>
+										<li>Supprimera tous vos documents soumis</li>
+										<li>Supprimera votre profil et toutes les données associées</li>
+										<li>Annulera vos abonnements et paiements</li>
+										<li className="font-semibold text-red-600">Vous serez automatiquement déconnecté</li>
+									</ul>
+									<p className="mt-3 text-sm font-semibold text-red-600">Cette action ne peut pas être annulée.</p>
+								</div>
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setShowDeleteDialog(false)}
+								disabled={isDeleting}
+							>
+								Annuler
+							</Button>
+							<Button
+								variant="destructive"
+								className="bg-red-600 hover:bg-red-700"
+								onClick={async () => {
+									setShowDeleteDialog(false);
+									await handleDeleteAccount();
+								}}
+								disabled={isDeleting}
+							>
+								{isDeleting ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Suppression...
+									</>
+								) : (
+									'Oui, supprimer et me déconnecter'
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 
 			</div>
 		</div>

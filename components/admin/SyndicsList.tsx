@@ -239,14 +239,18 @@ export function SyndicsList({ syndics }: SyndicsListProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Cela supprimera définitivement :
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Le compte du syndic</li>
-                <li>Tous ses documents téléchargés</li>
-                <li>Toutes ses données personnelles</li>
-                <li>L'assignation de résidence (si existante)</li>
-              </ul>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Cette action est irréversible. Cela supprimera définitivement :
+                </p>
+                <ul className="list-disc list-inside mt-2 space-y-1 text-sm text-muted-foreground">
+                  <li>Le compte du syndic</li>
+                  <li>Tous ses documents téléchargés</li>
+                  <li>Toutes ses données personnelles</li>
+                  <li>L'assignation de résidence (si existante)</li>
+                </ul>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

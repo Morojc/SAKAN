@@ -9,10 +9,12 @@ import { Upload, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, Eye, X, 
 import { uploadDocument, getDocumentStatus, cancelSubmission } from './actions';
 import { toast } from 'react-hot-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
+import { AuthNavigationManager } from '@/lib/auth-navigation';
 
 export default function DocumentUploadPage() {
 	const router = useRouter();
+	const { data: session } = useSession();
 	const [file, setFile] = useState<File | null>(null);
 	const [idCardFile, setIdCardFile] = useState<File | null>(null);
 	const [isUploading, setIsUploading] = useState(false);
@@ -21,29 +23,39 @@ export default function DocumentUploadPage() {
 	const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 	const [showCancelDialog, setShowCancelDialog] = useState(false);
 
+	// Save auth state
 	useEffect(() => {
-		loadStatus();
-	}, []);
+		if (session?.user?.id) {
+			AuthNavigationManager.saveAuthState(session.user.id);
+		}
+	}, [session?.user?.id]);
 
-	// Handle browser back button - redirect to sign out
+	// Prevent back navigation during document upload flow
 	useEffect(() => {
-		// Prevent browser back
-		const handlePopState = (e: PopStateEvent) => {
-			e.preventDefault();
-			// Redirect to sign out API route
-			window.location.href = '/api/auth/signout';
-		};
-
-		// Add event listener
-		window.addEventListener('popstate', handlePopState);
-
-		// Push a dummy state to capture back button
+		// Push initial state
 		window.history.pushState(null, '', window.location.href);
 
-		// Cleanup
+		const handlePopState = () => {
+			// Push state again to prevent going back
+			window.history.pushState(null, '', window.location.href);
+		};
+
+		// Add listener for back button
+		window.addEventListener('popstate', handlePopState);
+
 		return () => {
 			window.removeEventListener('popstate', handlePopState);
 		};
+	}, []);
+
+	// Setup proper logout handling
+	useEffect(() => {
+		const cleanup = AuthNavigationManager.preventBackAfterLogout();
+		return cleanup;
+	}, []);
+
+	useEffect(() => {
+		loadStatus();
 	}, []);
 
 	const loadStatus = async () => {
@@ -130,18 +142,23 @@ export default function DocumentUploadPage() {
 			const data = await response.json();
 
 			if (data.success || response.ok) {
-				toast.success('Compte supprimé avec succès');
-				// Redirect to sign out or home page
-				setTimeout(() => {
-					window.location.href = '/api/auth/signout';
-				}, 1500);
+				toast.success('Compte supprimé avec succès. Déconnexion...');
+				
+				// Clear auth state
+				AuthNavigationManager.clearAuthState();
+				
+				// Sign out and redirect to home
+				await signOut({ redirect: false });
+				
+				// Force clean redirect to home without back navigation
+				window.location.replace('/');
 			} else {
 				toast.error(data.error || 'Échec de la suppression du compte');
+				setIsCanceling(false);
 			}
 		} catch (error) {
 			console.error('Delete account error:', error);
 			toast.error('Une erreur s\'est produite. Veuillez réessayer.');
-		} finally {
 			setIsCanceling(false);
 		}
 	};
@@ -419,16 +436,21 @@ export default function DocumentUploadPage() {
 						<Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
 							<DialogContent>
 								<DialogHeader>
-									<DialogTitle>Supprimer mon compte</DialogTitle>
-								<DialogDescription>
-									Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et supprimera définitivement :
-									<ul className="list-disc list-inside mt-2 space-y-1">
-										<li>Votre compte utilisateur</li>
-										<li>Tous vos documents soumis</li>
-										<li>Votre profil et toutes les données associées</li>
-										<li>Vos abonnements et paiements</li>
-									</ul>
-									<p className="mt-3 font-semibold text-red-600">Cette action ne peut pas être annulée.</p>
+									<DialogTitle>Supprimer mon compte et me déconnecter</DialogTitle>
+								<DialogDescription asChild>
+									<div>
+										<p className="text-sm text-muted-foreground">
+											Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et :
+										</p>
+										<ul className="list-disc list-inside mt-2 space-y-1 text-sm text-muted-foreground">
+											<li>Supprimera définitivement votre compte utilisateur</li>
+											<li>Supprimera tous vos documents soumis</li>
+											<li>Supprimera votre profil et toutes les données associées</li>
+											<li>Annulera vos abonnements et paiements</li>
+											<li className="font-semibold text-red-600">Vous serez automatiquement déconnecté</li>
+										</ul>
+										<p className="mt-3 text-sm font-semibold text-red-600">Cette action ne peut pas être annulée.</p>
+									</div>
 								</DialogDescription>
 								</DialogHeader>
 								<DialogFooter>
@@ -437,14 +459,14 @@ export default function DocumentUploadPage() {
 										onClick={() => setShowCancelDialog(false)}
 										disabled={isCanceling}
 									>
-										Non, garder
+										Annuler
 									</Button>
 									<Button
 										className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
 										variant="destructive"
 										onClick={async () => {
-											await handleDeleteAccount();
 											setShowCancelDialog(false);
+											await handleDeleteAccount();
 										}}
 										disabled={isCanceling}
 									>
@@ -454,7 +476,7 @@ export default function DocumentUploadPage() {
 												Suppression...
 											</>
 										) : (
-											'Oui, supprimer mon compte'
+											'Oui, supprimer et me déconnecter'
 										)}
 									</Button>
 								</DialogFooter>

@@ -64,8 +64,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     const query = searchQuery.toLowerCase()
     return (
       submission.profiles.full_name?.toLowerCase().includes(query) ||
-      submission.profiles.email?.toLowerCase().includes(query) ||
-      submission.profiles.phone?.toLowerCase().includes(query)
+      submission.profiles.phone_number?.toLowerCase().includes(query)
     )
   })
 
@@ -264,7 +263,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
             <Button
               size="sm"
               onClick={() => handleReview(submission)}
-              className="w-full"
+              className="w-full bg-green-600 hover:bg-green-700"
             >
               <Check className="h-4 w-4 mr-2" />
               Vérifier

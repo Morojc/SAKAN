@@ -1,54 +1,61 @@
-import { auth } from "@/lib/auth"
-import { createSupabaseAdminClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+'use client'
+
+import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Clock, Building2, FileCheck, CheckCircle } from "lucide-react"
+import { Clock, Building2, FileCheck, CheckCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { signOut } from "@/lib/auth"
+import { AuthNavigationManager } from '@/lib/auth-navigation'
 
-export const dynamic = 'force-dynamic'
+export default function WaitingResidencePage() {
+  const { data: session } = useSession()
+  const router = useRouter()
 
-export default async function WaitingResidencePage() {
-  const session = await auth()
-  const userId = session?.user?.id
+  // Prevent back navigation
+  useEffect(() => {
+    // Push initial state
+    window.history.pushState(null, '', window.location.href)
 
-  if (!userId) {
-    redirect('/api/auth/signin')
+    const handlePopState = () => {
+      // Push state again to prevent going back
+      window.history.pushState(null, '', window.location.href)
+    }
+
+    // Add listener for back button
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
+  // Auto-refresh to check for residence assignment
+  useEffect(() => {
+    const interval = setInterval(() => {
+      router.refresh()
+    }, 30000) // Check every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [router])
+
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    AuthNavigationManager.markLogout()
+    AuthNavigationManager.clearAuthState()
+    
+    window.location.replace('/api/auth/signout?callbackUrl=/')
   }
 
-  const supabase = createSupabaseAdminClient()
-
-  // Get profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, email_verified, verified, residence_id')
-    .eq('id', userId)
-    .maybeSingle()
-
-  // If user has a residence, redirect to dashboard
-  if (profile?.residence_id) {
-    redirect('/app')
+  if (!session?.user) {
+    router.push('/api/auth/signin')
+    return null
   }
-
-  // If not verified, redirect to appropriate page
-  if (!profile?.email_verified) {
-    redirect('/app/verify-email-code')
-  }
-
-  if (!profile?.verified) {
-    redirect('/app/verification-pending')
-  }
-
-  // Get latest document submission
-  const { data: submission } = await supabase
-    .from('syndic_document_submissions')
-    .select('status, submitted_at, reviewed_at')
-    .eq('user_id', userId)
-    .order('submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
 
   return (
+
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-6">
         {/* Logo */}
@@ -96,17 +103,6 @@ export default async function WaitingResidencePage() {
                   <h3 className="font-medium text-gray-900">Document approuvé</h3>
                   <p className="text-sm text-gray-500">
                     Votre document a été vérifié et approuvé
-                    {submission?.reviewed_at && (
-                      <span className="block text-xs mt-1">
-                        Le {new Date(submission.reviewed_at).toLocaleDateString('fr-FR', {
-                          day: '2-digit',
-                          month: 'long',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    )}
                   </p>
                 </div>
               </div>
@@ -155,14 +151,14 @@ export default async function WaitingResidencePage() {
                     Contacter le support
                   </a>
                 </Button>
-                <form action={async () => {
-                  'use server'
-                  await signOut({ redirectTo: '/' })
-                }}>
-                  <Button variant="ghost" type="submit">
-                    Se déconnecter
-                  </Button>
-                </form>
+                <Button 
+                  variant="ghost" 
+                  onClick={handleSignOut}
+                  className="gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Se déconnecter
+                </Button>
               </div>
             </div>
           </CardContent>

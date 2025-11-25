@@ -25,6 +25,11 @@ const authConfig = {
 			return true;
 		},
 		async session({ session, user }: { session: any; user: any }) {
+			// Add user.id to the session
+			if (session?.user) {
+				session.user.id = user.id
+			}
+
 			const signingSecret = process.env.SUPABASE_JWT_SECRET
 
 			if (signingSecret) {

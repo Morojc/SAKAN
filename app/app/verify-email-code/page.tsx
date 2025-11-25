@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2, XCircle, Loader2, AlertCircle, Mail, KeyRound, RefreshCw, X } from 'lucide-react';
 import config from '@/config';
+import { AuthNavigationManager } from '@/lib/auth-navigation';
 
 export default function VerifyEmailCodePage() {
 	const router = useRouter();
@@ -172,10 +173,16 @@ export default function VerifyEmailCodePage() {
 						<Button
 							variant="ghost"
 							size="icon"
-							onClick={async () => {
+							onClick={async (e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								
+								// Mark logout as user action
+								AuthNavigationManager.markLogout();
+								AuthNavigationManager.clearAuthState();
+								
 								// Sign out and redirect to sign in page
-								await fetch('/api/auth/signout', { method: 'POST' });
-								window.location.href = '/api/auth/signin';
+								window.location.replace('/api/auth/signout?callbackUrl=/api/auth/signin');
 							}}
 							className="text-gray-400 hover:text-gray-600"
 							title="Quitter"

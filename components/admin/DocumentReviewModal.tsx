@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -20,7 +21,7 @@ interface Submission {
   id: string
   user_id: string
   document_url: string
-  id_card_url?: string
+  id_card_url: string | null
   document_type: string
   status: string
   profiles: {
@@ -55,6 +56,12 @@ export function DocumentReviewModal({
   const [selectedResidenceId, setSelectedResidenceId] = useState<string>('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [error, setError] = useState('')
+  
+  // New residence creation fields
+  const [residenceName, setResidenceName] = useState('')
+  const [residenceAddress, setResidenceAddress] = useState('')
+  const [residenceCity, setResidenceCity] = useState('')
+  const [residenceBankRib, setResidenceBankRib] = useState('')
 
   // Filter residences that don't have a syndic or only show all for now
   const availableResidences = residences.filter(r => !r.syndic_user_id || r.syndic_user_id === submission.user_id)
@@ -62,9 +69,20 @@ export function DocumentReviewModal({
   const handleSubmit = async () => {
     setError('')
 
-    if (action === 'approve' && !selectedResidenceId) {
-      setError('Veuillez sélectionner une résidence pour approuver')
-      return
+    if (action === 'approve') {
+      // Validate new residence fields
+      if (!residenceName.trim()) {
+        setError('Le nom de la résidence est requis')
+        return
+      }
+      if (!residenceAddress.trim()) {
+        setError('L\'adresse de la résidence est requise')
+        return
+      }
+      if (!residenceCity.trim()) {
+        setError('La ville de la résidence est requise')
+        return
+      }
     }
 
     if (action === 'reject' && !rejectionReason.trim()) {
@@ -79,8 +97,15 @@ export function DocumentReviewModal({
         submissionId: submission.id,
         userId: submission.user_id,
         action: action!,
-        residenceId: action === 'approve' ? parseInt(selectedResidenceId) : undefined,
+        residenceId: action === 'approve' && selectedResidenceId ? parseInt(selectedResidenceId) : undefined,
         rejectionReason: action === 'reject' ? rejectionReason : undefined,
+        // New residence data
+        newResidence: action === 'approve' ? {
+          name: residenceName,
+          address: residenceAddress,
+          city: residenceCity,
+          bank_account_rib: residenceBankRib || undefined,
+        } : undefined,
       })
 
       if (result.success) {
@@ -88,6 +113,10 @@ export function DocumentReviewModal({
         setAction(null)
         setSelectedResidenceId('')
         setRejectionReason('')
+        setResidenceName('')
+        setResidenceAddress('')
+        setResidenceCity('')
+        setResidenceBankRib('')
         router.refresh()
         onClose()
       } else {
@@ -190,38 +219,61 @@ export function DocumentReviewModal({
                   Approbation du document
                 </p>
                 <p className="text-sm text-green-700 mt-1">
-                  Sélectionnez une résidence à assigner à ce syndic
+                  Remplissez les informations de la résidence pour ce syndic
                 </p>
               </div>
 
-              <div>
-                <Label htmlFor="residence">Résidence à assigner *</Label>
-                <Select value={selectedResidenceId} onValueChange={setSelectedResidenceId}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Choisir une résidence" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableResidences.length === 0 ? (
-                      <div className="p-4 text-sm text-gray-500">
-                        Aucune résidence disponible. Créez-en une d'abord.
-                      </div>
-                    ) : (
-                      availableResidences.map((residence) => (
-                        <SelectItem key={residence.id} value={residence.id.toString()}>
-                          <div>
-                            <p className="font-medium">{residence.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {residence.address}, {residence.city}
-                            </p>
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Le syndic sera assigné à cette résidence et pourra accéder au dashboard
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="residenceName">Nom de la résidence *</Label>
+                  <Input
+                    id="residenceName"
+                    type="text"
+                    value={residenceName}
+                    onChange={(e) => setResidenceName(e.target.value)}
+                    placeholder="Ex: Résidence Les Palmiers"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="residenceAddress">Adresse *</Label>
+                  <Input
+                    id="residenceAddress"
+                    type="text"
+                    value={residenceAddress}
+                    onChange={(e) => setResidenceAddress(e.target.value)}
+                    placeholder="Ex: 123 Avenue Mohammed V"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="residenceCity">Ville *</Label>
+                  <Input
+                    id="residenceCity"
+                    type="text"
+                    value={residenceCity}
+                    onChange={(e) => setResidenceCity(e.target.value)}
+                    placeholder="Ex: Casablanca"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="residenceBankRib">RIB Bancaire (optionnel)</Label>
+                  <Input
+                    id="residenceBankRib"
+                    type="text"
+                    value={residenceBankRib}
+                    onChange={(e) => setResidenceBankRib(e.target.value)}
+                    placeholder="Ex: 123456789012345678901234"
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Le compte bancaire de la résidence pour les paiements
+                  </p>
+                </div>
               </div>
             </div>
           )}

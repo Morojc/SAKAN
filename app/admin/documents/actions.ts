@@ -1,8 +1,8 @@
 'use server'
 
-import { auth } from '@/lib/auth'
 import { createSupabaseAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getAdminId } from '@/lib/admin-auth'
 
 interface ReviewDocumentParams {
   submissionId: string
@@ -10,6 +10,12 @@ interface ReviewDocumentParams {
   action: 'approve' | 'reject' | 'pending'
   residenceId?: number
   rejectionReason?: string
+  newResidence?: {
+    name: string
+    address: string
+    city: string
+    bank_account_rib?: string
+  }
 }
 
 export async function reviewDocument({
@@ -18,13 +24,14 @@ export async function reviewDocument({
   action,
   residenceId,
   rejectionReason,
+  newResidence,
 }: ReviewDocumentParams) {
   console.log('[Admin Review] Reviewing document:', { submissionId, userId, action, residenceId })
 
   try {
-    const session = await auth()
-    const adminId = session?.user?.id
-
+    // Verify admin authentication
+    const adminId = await getAdminId()
+    
     if (!adminId) {
       return {
         success: false,
@@ -32,51 +39,41 @@ export async function reviewDocument({
       }
     }
 
+    console.log('[Admin Review] Admin authenticated:', adminId)
+    
     const supabase = createSupabaseAdminClient()
 
-    // Verify user is an active admin
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id, is_active')
-      .eq('id', adminId)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    if (!admin) {
-      return {
-        success: false,
-        error: 'Accès refusé - vous n\'êtes pas administrateur',
-      }
-    }
-
     if (action === 'approve') {
-      if (!residenceId) {
+      // Validate new residence data
+      if (!newResidence?.name || !newResidence?.address || !newResidence?.city) {
         return {
           success: false,
-          error: 'Une résidence doit être sélectionnée pour approuver',
+          error: 'Les informations de la résidence sont requises',
         }
       }
 
-      // Check if residence is already assigned to another syndic
-      const { data: residence } = await supabase
+      // Create new residence
+      const { data: createdResidence, error: residenceCreateError } = await supabase
         .from('residences')
-        .select('id, syndic_user_id')
-        .eq('id', residenceId)
-        .maybeSingle()
+        .insert({
+          name: newResidence.name,
+          address: newResidence.address,
+          city: newResidence.city,
+          bank_account_rib: newResidence.bank_account_rib || null,
+          syndic_user_id: userId,
+        })
+        .select()
+        .single()
 
-      if (!residence) {
+      if (residenceCreateError || !createdResidence) {
+        console.error('[Admin Review] Error creating residence:', residenceCreateError)
         return {
           success: false,
-          error: 'Résidence introuvable',
+          error: 'Erreur lors de la création de la résidence',
         }
       }
 
-      if (residence.syndic_user_id && residence.syndic_user_id !== userId) {
-        return {
-          success: false,
-          error: 'Cette résidence est déjà assignée à un autre syndic',
-        }
-      }
+      const newResidenceId = createdResidence.id
 
       // Update document submission
       const { error: submissionError } = await supabase
@@ -85,7 +82,7 @@ export async function reviewDocument({
           status: 'approved',
           reviewed_by: adminId,
           reviewed_at: new Date().toISOString(),
-          assigned_residence_id: residenceId,
+          assigned_residence_id: newResidenceId,
         })
         .eq('id', submissionId)
 
@@ -97,26 +94,12 @@ export async function reviewDocument({
         }
       }
 
-      // Update residence with syndic_user_id
-      const { error: residenceError } = await supabase
-        .from('residences')
-        .update({ syndic_user_id: userId })
-        .eq('id', residenceId)
-
-      if (residenceError) {
-        console.error('[Admin Review] Error updating residence:', residenceError)
-        return {
-          success: false,
-          error: 'Erreur lors de l\'assignation de la résidence',
-        }
-      }
-
       // Update profile: mark as verified and assign residence
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           verified: true,
-          residence_id: residenceId,
+          residence_id: newResidenceId,
         })
         .eq('id', userId)
 
@@ -128,7 +111,7 @@ export async function reviewDocument({
         }
       }
 
-      console.log('[Admin Review] Document approved and residence assigned:', { userId, residenceId })
+      console.log('[Admin Review] Document approved, residence created and assigned:', { userId, residenceId: newResidenceId })
     } else if (action === 'reject') {
       // Reject
       if (!rejectionReason?.trim()) {

@@ -164,6 +164,18 @@ export async function getDashboardStats() {
 			.eq('id', userId)
 			.maybeSingle();
 
+		// Fetch residence data explicitly to ensure all fields are available
+		let residenceData = null;
+		if (residenceId) {
+			const { data: residence } = await supabase
+				.from('residences')
+				.select('id, name, address, city')
+				.eq('id', residenceId)
+				.maybeSingle();
+			
+			residenceData = residence;
+		}
+
 		// Fetch all stats in parallel
 		const [
 			totalResidentsResult,
@@ -325,9 +337,7 @@ export async function getDashboardStats() {
 				image: userData?.image || null,
 				role: profile.role || 'syndic',
 			},
-			residence: Array.isArray(profile.residences) && profile.residences.length > 0 
-				? profile.residences[0] 
-				: null,
+			residence: residenceData,
 		};
 
 		console.log('[Dashboard Actions] Stats loaded:', {

@@ -350,6 +350,42 @@ export async function updateResident(data: UpdateResidentData) {
     const supabase = await getSupabaseClient();
     const adminSupabase = createSupabaseAdminClient();
 
+    // Get current user's residence_id to verify ownership
+    const { data: currentUserProfile } = await adminSupabase
+      .from('profiles')
+      .select('residence_id, role')
+      .eq('id', userId)
+      .single();
+
+    if (!currentUserProfile?.residence_id) {
+      return {
+        success: false,
+        error: 'You must have a residence assigned to update residents',
+      };
+    }
+
+    // Verify the resident being updated belongs to the user's residence
+    const { data: targetResident } = await adminSupabase
+      .from('profiles')
+      .select('residence_id, role')
+      .eq('id', data.id)
+      .single();
+
+    if (!targetResident) {
+      return {
+        success: false,
+        error: 'Resident not found',
+      };
+    }
+
+    // Syndics can only update residents from their own residence
+    if (currentUserProfile.role === 'syndic' && targetResident.residence_id !== currentUserProfile.residence_id) {
+      return {
+        success: false,
+        error: 'You can only update residents from your own residence',
+      };
+    }
+
     // Validate email if provided
     if (data.email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -504,11 +540,25 @@ export async function deleteResident(residentId: string) {
     const supabase = await getSupabaseClient();
     const adminSupabase = createSupabaseAdminClient();
 
-    // Get the resident being deleted to check their role
+    // Get current user's residence_id to verify ownership
+    const { data: currentUserProfile } = await adminSupabase
+      .from('profiles')
+      .select('residence_id, role')
+      .eq('id', userId)
+      .single();
+
+    if (!currentUserProfile?.residence_id) {
+      return {
+        success: false,
+        error: 'You must have a residence assigned to delete residents',
+      };
+    }
+
+    // Get the resident being deleted to check their role and residence
     // Use admin client to bypass RLS and avoid infinite recursion
     const { data: residentToDelete, error: residentError } = await adminSupabase
       .from('profiles')
-      .select('id, role, full_name')
+      .select('id, role, full_name, residence_id')
       .eq('id', residentId)
       .single();
 
@@ -517,6 +567,14 @@ export async function deleteResident(residentId: string) {
       return {
         success: false,
         error: 'Resident not found',
+      };
+    }
+
+    // Syndics can only delete residents from their own residence
+    if (currentUserProfile.role === 'syndic' && residentToDelete.residence_id !== currentUserProfile.residence_id) {
+      return {
+        success: false,
+        error: 'You can only delete residents from your own residence',
       };
     }
 
@@ -540,10 +598,18 @@ export async function deleteResident(residentId: string) {
 
     // Delete profile (this will cascade to related records due to foreign key constraints)
     // Use admin client to bypass RLS and avoid infinite recursion
-    const { error: deleteError } = await adminSupabase
+    // For syndics, ensure we only delete from their residence
+    let deleteQuery = adminSupabase
       .from('profiles')
       .delete()
       .eq('id', residentId);
+    
+    // Additional security: if user is syndic, ensure residence matches
+    if (currentUserProfile.role === 'syndic') {
+      deleteQuery = deleteQuery.eq('residence_id', currentUserProfile.residence_id);
+    }
+    
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       console.error('[Residents Actions] Error deleting profile:', deleteError);

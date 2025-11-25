@@ -1,11 +1,14 @@
-import NextAuth from "next-auth"
+import NextAuth, { DefaultSession } from "next-auth"
 import authConfig from "@/lib/auth.config"
 
 
-// Extend the Session type to include supabaseAccessToken
+// Extend the Session type to include supabaseAccessToken and user.id
 declare module 'next-auth' {
 	interface Session {
 		supabaseAccessToken?: string
+		user: {
+			id: string
+		} & DefaultSession["user"]
 	}
 }
 

@@ -67,6 +67,28 @@ export async function createFee(data: CreateFeeData) {
 
     const supabase = await getSupabaseClient();
 
+    // Get user's residence_id to verify ownership
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('residence_id')
+      .eq('id', userId)
+      .single();
+
+    if (!profile?.residence_id) {
+      return {
+        success: false,
+        error: 'User has no residence assigned',
+      };
+    }
+
+    // Verify the residence_id matches user's residence
+    if (data.residence_id !== profile.residence_id) {
+      return {
+        success: false,
+        error: 'You can only create fees for your own residence',
+      };
+    }
+
     // Create fee
     const { data: fee, error: feeError } = await supabase
       .from('fees')
@@ -130,6 +152,41 @@ export async function updateFee(data: UpdateFeeData) {
 
     const supabase = await getSupabaseClient();
 
+    // Get user's residence_id to verify ownership
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('residence_id')
+      .eq('id', userId)
+      .single();
+
+    if (!profile?.residence_id) {
+      return {
+        success: false,
+        error: 'User has no residence assigned',
+      };
+    }
+
+    // Verify fee belongs to user's residence
+    const { data: existingFee, error: fetchError } = await supabase
+      .from('fees')
+      .select('residence_id')
+      .eq('id', data.id)
+      .single();
+
+    if (fetchError || !existingFee) {
+      return {
+        success: false,
+        error: 'Fee not found',
+      };
+    }
+
+    if (existingFee.residence_id !== profile.residence_id) {
+      return {
+        success: false,
+        error: 'You can only update fees from your own residence',
+      };
+    }
+
     // Build update object
     const updateData: any = {};
     if (data.title) updateData.title = data.title.trim();
@@ -159,6 +216,7 @@ export async function updateFee(data: UpdateFeeData) {
       .from('fees')
       .update(updateData)
       .eq('id', data.id)
+      .eq('residence_id', profile.residence_id) // Additional security: ensure we only update fees from user's residence
       .select()
       .single();
 
@@ -211,11 +269,47 @@ export async function deleteFee(feeId: number) {
 
     const supabase = await getSupabaseClient();
 
+    // Get user's residence_id to verify ownership
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('residence_id')
+      .eq('id', userId)
+      .single();
+
+    if (!profile?.residence_id) {
+      return {
+        success: false,
+        error: 'User has no residence assigned',
+      };
+    }
+
+    // Verify fee belongs to user's residence
+    const { data: existingFee, error: fetchError } = await supabase
+      .from('fees')
+      .select('residence_id')
+      .eq('id', feeId)
+      .single();
+
+    if (fetchError || !existingFee) {
+      return {
+        success: false,
+        error: 'Fee not found',
+      };
+    }
+
+    if (existingFee.residence_id !== profile.residence_id) {
+      return {
+        success: false,
+        error: 'You can only delete fees from your own residence',
+      };
+    }
+
     // Delete fee
     const { error: deleteError } = await supabase
       .from('fees')
       .delete()
-      .eq('id', feeId);
+      .eq('id', feeId)
+      .eq('residence_id', profile.residence_id); // Additional security: ensure we only delete fees from user's residence
 
     if (deleteError) {
       console.error('[Fee Actions] Error deleting fee:', deleteError);

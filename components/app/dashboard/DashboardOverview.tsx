@@ -264,6 +264,76 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 				</motion.div>
 			</div>
 
+			{/* Residence Information Card */}
+			{stats.residence && (
+				<motion.div variants={item}>
+					<Card className="border-none shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
+						<CardHeader className="px-6 py-6">
+							<div className="flex items-start justify-between">
+								<div>
+									<CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
+										<Building2 className="h-6 w-6 text-indigo-600" />
+										Informations de la Résidence
+									</CardTitle>
+									<p className="text-sm text-gray-500 mt-1">Détails de votre résidence</p>
+								</div>
+								<Badge className="bg-indigo-100 text-indigo-700 border-0">
+									Syndic
+								</Badge>
+							</div>
+						</CardHeader>
+						<CardContent className="px-6 pb-6">
+							<div className="space-y-4">
+								<div className="flex items-start gap-3 p-4 bg-white rounded-xl">
+									<div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+										<Building2 className="h-5 w-5 text-indigo-600" />
+									</div>
+									<div className="flex-1">
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Nom de la résidence</p>
+										<p className="text-sm font-semibold text-gray-900">{stats.residence.name}</p>
+									</div>
+								</div>
+
+								<div className="flex items-start gap-3 p-4 bg-white rounded-xl">
+									<div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+										<svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+										</svg>
+									</div>
+									<div className="flex-1">
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Adresse</p>
+										<p className="text-sm font-semibold text-gray-900">{stats.residence.address}</p>
+									</div>
+								</div>
+
+								<div className="flex items-start gap-3 p-4 bg-white rounded-xl">
+									<div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+										<svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+										</svg>
+									</div>
+									<div className="flex-1">
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Ville</p>
+										<p className="text-sm font-semibold text-gray-900">{stats.residence.city}</p>
+									</div>
+								</div>
+
+								<div className="flex items-start gap-3 p-4 bg-white rounded-xl">
+									<div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+										<Users className="h-5 w-5 text-blue-600" />
+									</div>
+									<div className="flex-1">
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Nombre de résidents</p>
+										<p className="text-sm font-semibold text-gray-900">{stats.totalResidents} résidents actifs</p>
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				</motion.div>
+			)}
+
 			{/* Content Section */}
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 				{/* Recent Activity */}
