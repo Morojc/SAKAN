@@ -120,7 +120,7 @@ export async function middleware(req: NextRequest) {
 		
 		const { data: profile } = await supabase
 			.from('profiles')
-			.select('role, email_verified, verified, residence_id')
+			.select('role, email_verified, verified')
 			.eq('id', userId)
 			.maybeSingle();
 		
@@ -155,10 +155,29 @@ export async function middleware(req: NextRequest) {
 					// If approved, verified should be true, but if not, allow access (admin will set it)
 				}
 				
-				// Check if syndic has been assigned a residence
-				if (profile.verified && !profile.residence_id) {
-					// Document approved but no residence assigned yet
-					return NextResponse.redirect(new URL("/app/waiting-residence", req.url));
+				// Check if syndic has been assigned a residence (using the new schema)
+				if (profile.verified) {
+					const { data: residence, error: residenceError } = await supabase
+						.from('residences')
+						.select('id, name, syndic_user_id')
+						.eq('syndic_user_id', userId)
+						.maybeSingle();
+					
+					console.log('[Middleware] Syndic residence check:', { 
+						userId, 
+						verified: profile.verified,
+						residence, 
+						error: residenceError,
+						pathname 
+					});
+					
+					if (!residence) {
+						console.log('[Middleware] No residence found, redirecting to waiting-residence');
+						// Document approved but no residence assigned yet
+						return NextResponse.redirect(new URL("/app/waiting-residence", req.url));
+					} else {
+						console.log('[Middleware] Residence found, allowing access:', residence.name);
+					}
 				}
 			}
 		}

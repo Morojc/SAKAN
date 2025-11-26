@@ -139,9 +139,9 @@ export default function AddResidentDialog({
       }
     }
 
-    // Apartment number validation
-    if (!apartmentNumber.trim()) {
-      newErrors.apartmentNumber = 'Apartment number is required';
+    // Apartment number validation (only required for residents, not guards)
+    if (role === 'resident' && !apartmentNumber.trim()) {
+      newErrors.apartmentNumber = 'Apartment number is required for residents';
     }
 
     // Residence validation
@@ -189,7 +189,7 @@ export default function AddResidentDialog({
           phone_number: result.resident.phone_number,
           role: result.resident.role,
           created_at: result.resident.created_at,
-          residence_id: result.resident.residence_id,
+          residence_id: Number(residenceId),
           email: email.trim(),
           fees: [],
           outstandingFees: 0,
@@ -323,7 +323,7 @@ export default function AddResidentDialog({
             {/* Apartment Number */}
             <div className="grid gap-2">
               <Label htmlFor="apartmentNumber">
-                Apartment Number <span className="text-destructive">*</span>
+                Apartment Number {role === 'resident' && <span className="text-destructive">*</span>}
               </Label>
               <Input
                 id="apartmentNumber"
@@ -334,7 +334,8 @@ export default function AddResidentDialog({
                     setErrors({ ...errors, apartmentNumber: undefined });
                   }
                 }}
-                placeholder="Enter apartment/unit number"
+                placeholder={role === 'guard' ? 'Not applicable for guards' : 'Enter apartment/unit number'}
+                disabled={role === 'guard'}
                 aria-invalid={!!errors.apartmentNumber}
                 aria-describedby={errors.apartmentNumber ? 'apartmentNumber-error' : undefined}
                 className={errors.apartmentNumber ? 'border-destructive' : ''}

@@ -9,6 +9,7 @@ interface CreateResidenceData {
   address: string
   city: string
   bank_account_rib?: string
+  syndic_user_id?: string
 }
 
 export async function createResidence(data: CreateResidenceData) {
@@ -64,6 +65,37 @@ export async function createResidence(data: CreateResidenceData) {
       }
     }
 
+    // Validate syndic if provided
+    if (data.syndic_user_id) {
+      const { data: syndic } = await supabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', data.syndic_user_id)
+        .eq('role', 'syndic')
+        .maybeSingle()
+
+      if (!syndic) {
+        return {
+          success: false,
+          error: 'Le syndic sélectionné n\'existe pas ou n\'est pas valide',
+        }
+      }
+
+      // Check if syndic is already assigned to another residence
+      const { data: existingResidence } = await supabase
+        .from('residences')
+        .select('id, name')
+        .eq('syndic_user_id', data.syndic_user_id)
+        .maybeSingle()
+
+      if (existingResidence) {
+        return {
+          success: false,
+          error: `Ce syndic est déjà assigné à la résidence "${existingResidence.name}"`,
+        }
+      }
+    }
+
     // Create residence
     const { data: residence, error: residenceError } = await supabase
       .from('residences')
@@ -72,7 +104,7 @@ export async function createResidence(data: CreateResidenceData) {
         address: data.address.trim(),
         city: data.city.trim(),
         bank_account_rib: data.bank_account_rib?.trim() || null,
-        syndic_user_id: null, // Will be assigned when approving syndic documents
+        syndic_user_id: data.syndic_user_id || null,
       })
       .select()
       .single()
@@ -86,6 +118,23 @@ export async function createResidence(data: CreateResidenceData) {
     }
 
     console.log('[Admin Residences] Residence created successfully:', residence.id)
+    
+    // If a syndic was assigned, update their profile to mark as verified
+    if (data.syndic_user_id) {
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          verified: true,
+        })
+        .eq('id', data.syndic_user_id)
+
+      if (profileUpdateError) {
+        console.error('[Admin Residences] Error updating syndic profile:', profileUpdateError)
+        // Don't fail the whole operation, but log it
+      } else {
+        console.log('[Admin Residences] Syndic profile verified:', data.syndic_user_id)
+      }
+    }
     
     // Revalidate paths
     revalidatePath('/admin/residences')

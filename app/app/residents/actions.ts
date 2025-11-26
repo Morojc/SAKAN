@@ -29,6 +29,31 @@ interface UpdateResidentData {
 }
 
 /**
+ * Helper to get the current user's managed residence ID
+ */
+async function getManagedResidenceId(userId: string, supabase: any) {
+  // Check if syndic
+  const { data: syndicResidence } = await supabase
+    .from('residences')
+    .select('id')
+    .eq('syndic_user_id', userId)
+    .maybeSingle();
+  
+  if (syndicResidence) return syndicResidence.id;
+
+  // Check if guard
+  const { data: guardResidence } = await supabase
+    .from('residences')
+    .select('id')
+    .eq('guard_user_id', userId)
+    .maybeSingle();
+
+  if (guardResidence) return guardResidence.id;
+
+  return null;
+}
+
+/**
  * Create a new resident
  */
 export async function createResident(data: CreateResidentData) {
@@ -50,7 +75,6 @@ export async function createResident(data: CreateResidentData) {
       };
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(data.email)) {
       return {
@@ -59,8 +83,8 @@ export async function createResident(data: CreateResidentData) {
       };
     }
 
-    // Ensure role is not 'syndic' when adding a resident
-    const finalRole = (data.role && data.role !== 'syndic') ? data.role : 'resident';
+    // Validate role - only 'resident' or 'guard' are allowed when adding via this form
+    // Syndics cannot be added as residents - they must be assigned to residences via syndic_user_id
     if (data.role === 'syndic') {
       return {
         success: false,
@@ -68,34 +92,22 @@ export async function createResident(data: CreateResidentData) {
       };
     }
 
-    const supabase = await getSupabaseClient();
+    // Default to 'resident' if no role provided or invalid role
+    const finalRole = (data.role === 'resident' || data.role === 'guard') ? data.role : 'resident';
+
     const adminSupabase = createSupabaseAdminClient();
 
-    // Fetch current user's role and residence_id to enforce permissions
-    const { data: currentUserProfile } = await adminSupabase
-      .from('profiles')
-      .select('role, residence_id')
-      .eq('id', userId)
-      .single();
-
-    // If current user is a syndic, enforce residence_id to be their own
-    if (currentUserProfile?.role === 'syndic') {
-      if (!currentUserProfile.residence_id) {
+    // Verify permissions: Current user must be the manager (syndic) of the target residence
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
+    
+    if (!managedResidenceId || managedResidenceId !== data.residence_id) {
         return {
           success: false,
-          error: 'You must have a residence assigned to add residents.',
+        error: 'You are not authorized to add residents to this residence.',
         };
-      }
-      // Override residence_id with the syndic's residence_id
-      data.residence_id = currentUserProfile.residence_id;
-      console.log('[Residents Actions] Enforcing syndic residence_id:', data.residence_id);
     }
 
-    // Note: finalRole is guaranteed to be 'resident' or 'guard', never 'syndic'
-    // (enforced above with validation)
-
     // Check if user with this email already exists
-    // Use admin client to check users table (bypasses RLS)
     const { data: existingUser } = await adminSupabase
       .from('users')
       .select('id')
@@ -105,218 +117,138 @@ export async function createResident(data: CreateResidentData) {
     let finalUserId: string;
 
     if (existingUser) {
-      // Use existing user ID
       finalUserId = existingUser.id;
       console.log('[Residents Actions] Using existing user:', finalUserId);
-      
-      // Check if profile already exists for this user
-      const { data: existingProfile } = await adminSupabase
-        .from('profiles')
-        .select('id')
-        .eq('id', finalUserId)
-        .maybeSingle();
-      
-      if (existingProfile) {
-        console.log('[Residents Actions] Profile already exists, updating instead of creating');
-        
-        // Profile exists, update it instead of creating a new one
-        // Auto-verify residents
-        const { data: currentProfile } = await adminSupabase
-          .from('profiles')
-          .select('verified')
-          .eq('id', finalUserId)
-          .maybeSingle();
-
-        const updateData: any = {
-          full_name: data.full_name,
-          phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
-          apartment_number: data.apartment_number,
-          residence_id: data.residence_id,
-          role: finalRole,
-        };
-
-        // Only update verification if not already verified
-        if (!currentProfile?.verified) {
-          updateData.verified = true;
-        }
-
-        // Note: finalRole is guaranteed to be 'resident' or 'guard', never 'syndic'
-        const { data: profile, error: profileError } = await adminSupabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', finalUserId)
-          .select(`
-            id,
-            full_name,
-            apartment_number,
-            phone_number,
-            role,
-            created_at,
-            residence_id,
-            residences (
-              id,
-              name,
-              address
-            )
-          `)
-          .single();
-
-        if (profileError) {
-          console.error('[Residents Actions] Error updating profile:', profileError);
-          return {
-            success: false,
-            error: profileError.message || 'Failed to update resident profile',
-          };
-        }
-
-        console.log('[Residents Actions] Resident profile updated successfully:', profile?.id);
-        
-        // Revalidate residents page
-        revalidatePath('/app/residents');
-        
-        return {
-          success: true,
-          resident: profile,
-          message: 'Resident updated successfully.',
-        };
-      }
     } else {
-      // Generate a new unique user ID (using timestamp and random string)
-      // For NextAuth, we need a text ID
+      // Create new user
       finalUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-
-      // Create new user in NextAuth users table using admin client to bypass RLS
-      const { data: userData, error: userError } = await adminSupabase
+      const { error: userError } = await adminSupabase
         .from('users')
         .insert({
           id: finalUserId,
           email: data.email,
           name: data.full_name,
-        })
-        .select()
-        .single();
+        });
 
       if (userError) {
         console.error('[Residents Actions] Error creating user:', userError);
-        return {
-          success: false,
-          error: userError.message || 'Failed to create user account',
-        };
+        return { success: false, error: 'Failed to create user account' };
       }
-
-      console.log('[Residents Actions] New user created:', finalUserId);
     }
 
-    // Create profile - managed entirely by code, not database triggers
-    // Use admin client directly to avoid RLS infinite recursion issues
-    const { data: profile, error: profileError } = await adminSupabase
+    // Ensure profile exists with 'resident' role
+    const { data: existingProfile } = await adminSupabase
       .from('profiles')
-      .insert({
+      .select('id, verified, role')
+      .eq('id', finalUserId)
+      .maybeSingle();
+
+    // Use upsert to handle both new profiles and existing profiles (from trigger)
+    // Set role based on what was selected in the form (resident or guard)
+    const { error: profileError } = await adminSupabase
+      .from('profiles')
+      .upsert({
         id: finalUserId,
         full_name: data.full_name.trim(),
-        phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
-        apartment_number: data.apartment_number.trim(),
-        residence_id: data.residence_id,
-        role: finalRole,
-        verified: true, // Auto-verify residents
-      })
-      .select(`
-        id,
-        full_name,
-        apartment_number,
-        phone_number,
-        role,
-        created_at,
-        residence_id,
-        verified,
-        residences (
-          id,
-          name,
-          address
-        )
-      `)
-      .single();
+        phone_number: data.phone_number?.trim() || null,
+        role: finalRole, // Use the role selected in the form (resident or guard)
+        verified: existingProfile?.verified !== undefined ? existingProfile.verified : true, // Preserve existing verified status or auto-verify new
+        onboarding_completed: existingProfile?.onboarding_completed !== undefined ? existingProfile.onboarding_completed : false,
+      }, {
+        onConflict: 'id'
+      });
 
     if (profileError) {
-      console.error('[Residents Actions] Error creating profile:', profileError);
-      
-      // If it's a duplicate key error, profile might have been created by NextAuth callback
-      // or in a race condition - update it with the correct role and data
-      if (profileError.code === '23505') {
-        console.log('[Residents Actions] Duplicate key detected, profile already exists. Updating with correct role and data.');
-        
-        // Check if already verified
-        const { data: existingProfile } = await adminSupabase
-          .from('profiles')
-          .select('verified')
-          .eq('id', finalUserId)
-          .maybeSingle();
-
-        const updateData: any = {
-          full_name: data.full_name.trim(),
-          phone_number: data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null,
-          apartment_number: data.apartment_number.trim(),
-          residence_id: data.residence_id,
-          role: finalRole, // Ensure role is set correctly (not 'syndic')
-        };
-
-        // Auto-verify residents
-        updateData.verified = true;
-
-        const { data: updatedProfile, error: updateError } = await adminSupabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', finalUserId)
-          .select(`
-            id,
-            full_name,
-            apartment_number,
-            phone_number,
-            role,
-            created_at,
-            residence_id,
-            residences (
-              id,
-              name,
-              address
-            )
-          `)
-          .single();
-        
-        if (!updateError && updatedProfile) {
-          console.log('[Residents Actions] Profile updated successfully with correct role:', updatedProfile.role);
-          
-          revalidatePath('/app/residents');
-          return {
-            success: true,
-            resident: updatedProfile,
-            message: 'Resident updated successfully.',
-          };
-        } else if (updateError) {
-          console.error('[Residents Actions] Error updating profile:', updateError);
-          return {
-            success: false,
-            error: updateError.message || 'Failed to update resident profile',
-          };
-        }
-      }
-      
-      return {
-        success: false,
-        error: profileError.message || 'Failed to create resident profile',
-      };
+      console.error('[Residents Actions] Error creating/updating profile:', profileError);
+      return { success: false, error: 'Failed to create resident profile' };
     }
 
-    console.log('[Residents Actions] Resident created successfully:', profile?.id);
+    // Handle role-specific assignment
+    if (finalRole === 'guard') {
+      // Guards are assigned via residences.guard_user_id (1:1 relationship)
+      // Check if residence already has a guard
+      const { data: existingResidence } = await adminSupabase
+        .from('residences')
+        .select('id, guard_user_id')
+        .eq('id', data.residence_id)
+          .single();
+        
+      if (existingResidence?.guard_user_id) {
+          return {
+            success: false,
+          error: 'This residence already has a guard assigned. Only one guard per residence is allowed.',
+        };
+      }
 
-    // Revalidate residents page
+      // Assign guard to residence
+      const { error: guardError } = await adminSupabase
+        .from('residences')
+        .update({ guard_user_id: finalUserId })
+        .eq('id', data.residence_id);
+
+      if (guardError) {
+        console.error('[Residents Actions] Error assigning guard:', guardError);
+        return { success: false, error: 'Failed to assign guard to residence' };
+      }
+    } else {
+      // Residents are assigned via profile_residences (M:N relationship)
+      // Check if already in residence
+      const { data: existingLink } = await adminSupabase
+        .from('profile_residences')
+        .select('id')
+        .eq('profile_id', finalUserId)
+        .eq('residence_id', data.residence_id)
+        .maybeSingle();
+
+      if (existingLink) {
+        return { success: false, error: 'User is already a resident of this residence.' };
+      }
+
+      const { error: linkError } = await adminSupabase
+        .from('profile_residences')
+        .insert({
+          profile_id: finalUserId,
+          residence_id: data.residence_id,
+          apartment_number: data.apartment_number.trim(),
+          verified: true
+        });
+
+      if (linkError) {
+        console.error('[Residents Actions] Error linking resident:', linkError);
+        return { success: false, error: 'Failed to assign resident to residence' };
+      }
+    }
+
     revalidatePath('/app/residents');
+
+    // Fetch complete profile data to return for optimistic update
+    const { data: fullProfile } = await adminSupabase
+        .from('profiles')
+        .select('id, full_name, phone_number, role, created_at')
+        .eq('id', finalUserId)
+        .single();
+    
+    const { data: residence } = await adminSupabase
+        .from('residences')
+        .select('id, name, address')
+        .eq('id', data.residence_id)
+        .single();
+
+    // For guards, apartment_number is not applicable (they're assigned via guard_user_id)
+    // For residents, apartment_number is from profile_residences
+    const returnedResident = {
+        ...fullProfile,
+        apartment_number: finalRole === 'guard' ? null : data.apartment_number,
+        residence_id: data.residence_id,
+        residences: residence ? [residence] : []
+    };
 
     return {
       success: true,
-      resident: profile,
+      resident: returnedResident,
       message: 'Resident added successfully.',
     };
+
   } catch (error: any) {
     console.error('[Residents Actions] Error creating resident:', error);
     return {
@@ -336,188 +268,105 @@ export async function updateResident(data: UpdateResidentData) {
     const session = await auth();
     const userId = session?.user?.id;
 
-    if (!userId) {
-      throw new Error('User not authenticated');
-    }
+    if (!userId) throw new Error('User not authenticated');
+    if (!data.id) return { success: false, error: 'Resident ID is required' };
 
-    if (!data.id) {
-      return {
-        success: false,
-        error: 'Resident ID is required',
-      };
-    }
-
-    const supabase = await getSupabaseClient();
     const adminSupabase = createSupabaseAdminClient();
 
-    // Get current user's residence_id to verify ownership
-    const { data: currentUserProfile } = await adminSupabase
-      .from('profiles')
-      .select('residence_id, role')
-      .eq('id', userId)
-      .single();
-
-    if (!currentUserProfile?.residence_id) {
-      return {
-        success: false,
-        error: 'You must have a residence assigned to update residents',
-      };
+    // Verify permissions
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
+    if (!managedResidenceId) {
+        return { success: false, error: 'You do not manage any residence.' };
     }
 
-    // Verify the resident being updated belongs to the user's residence
-    const { data: targetResident } = await adminSupabase
-      .from('profiles')
-      .select('residence_id, role')
-      .eq('id', data.id)
-      .single();
-
-    if (!targetResident) {
-      return {
-        success: false,
-        error: 'Resident not found',
-      };
+    // Verify target user is in this residence
+    const { data: link } = await adminSupabase
+        .from('profile_residences')
+        .select('id')
+        .eq('profile_id', data.id)
+        .eq('residence_id', managedResidenceId)
+        .maybeSingle();
+    
+    if (!link) {
+        return { success: false, error: 'Resident not found in your residence.' };
     }
 
-    // Syndics can only update residents from their own residence
-    if (currentUserProfile.role === 'syndic' && targetResident.residence_id !== currentUserProfile.residence_id) {
-      return {
-        success: false,
-        error: 'You can only update residents from your own residence',
-      };
-    }
-
-    // Validate email if provided
+    // Update User Email
     if (data.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(data.email)) {
-        return {
-          success: false,
-          error: 'Invalid email format',
-        };
-      }
-
-      // Update user email if provided - use admin client to bypass RLS
       const { error: userError } = await adminSupabase
         .from('users')
-        .update({ email: data.email, name: data.full_name || undefined })
+            .update({ email: data.email, name: data.full_name })
         .eq('id', data.id);
-
-      if (userError) {
-        console.error('[Residents Actions] Error updating user:', userError);
-        // Continue even if user update fails
-      }
+        if (userError) console.error('Error updating email:', userError);
     }
 
-    // Build update object - ensure all fields are updated properly
-    const updateData: any = {};
-    if (data.full_name !== undefined) updateData.full_name = data.full_name.trim();
-    if (data.phone_number !== undefined) {
-      // Convert empty string to null for phone_number
-      updateData.phone_number = data.phone_number && data.phone_number.trim() ? data.phone_number.trim() : null;
+    // Update Profile (Global info)
+    const profileUpdates: any = {};
+    if (data.full_name) profileUpdates.full_name = data.full_name.trim();
+    if (data.phone_number !== undefined) profileUpdates.phone_number = data.phone_number?.trim() || null;
+    if (data.role) profileUpdates.role = data.role;
+
+    if (Object.keys(profileUpdates).length > 0) {
+        await adminSupabase.from('profiles').update(profileUpdates).eq('id', data.id);
     }
-    if (data.apartment_number !== undefined) updateData.apartment_number = data.apartment_number.trim();
-    // Check if user is a syndic before allowing residence_id changes
-    const { data: currentProfile } = await adminSupabase
+
+    // Update Residence Link (Apartment Number)
+    if (data.apartment_number) {
+        await adminSupabase
+            .from('profile_residences')
+            .update({ apartment_number: data.apartment_number.trim() })
+            .eq('profile_id', data.id)
+            .eq('residence_id', managedResidenceId);
+    }
+
+    revalidatePath('/app/residents');
+
+    // Fetch complete resident data to return for optimistic update
+    const { data: fullProfile } = await adminSupabase
       .from('profiles')
-      .select('role, residence_id')
+        .select('id, full_name, phone_number, role, created_at')
       .eq('id', data.id)
-      .maybeSingle();
-    
-    const isSyndic = currentProfile?.role === 'syndic';
-    
-    // Prevent syndics from changing their residence_id (one syndic = one residence)
-    if (isSyndic && data.residence_id !== undefined && data.residence_id !== currentProfile?.residence_id) {
-      return {
-        success: false,
-        error: 'Un syndic ne peut pas changer de résidence. Un syndic ne peut gérer qu\'une seule résidence.',
-      };
-    }
-    
-    if (data.residence_id !== undefined) updateData.residence_id = data.residence_id;
-    
-    // Validate role: prevent setting role to 'syndic' if there's already a syndic in the residence
-    // But allow preserving syndic role if the user is already a syndic
-    if (data.role !== undefined) {
-      // Use the profile we already fetched above
-      const isCurrentlySyndic = isSyndic;
-      
-      // Only validate if trying to SET role to syndic (not preserving it)
-      if (data.role === 'syndic' && !isCurrentlySyndic) {
-        // Get the residence_id (either from update data or from existing profile)
-        const residenceIdToCheck = data.residence_id || currentProfile?.residence_id;
-        
-        if (residenceIdToCheck) {
-          const { data: existingSyndic } = await adminSupabase
-            .from('profiles')
-            .select('id')
-            .eq('residence_id', residenceIdToCheck)
-            .eq('role', 'syndic')
-            .neq('id', data.id) // Exclude current user
-            .maybeSingle();
-          
-          if (existingSyndic) {
-            return {
-              success: false,
-              error: 'This residence already has a syndic. Only one syndic per residence is allowed.',
-            };
-          }
-        }
-      }
-      
-      // Allow updating role (including preserving syndic role)
-      updateData.role = data.role;
-    }
-
-    // Update profile - use admin client to bypass RLS and avoid infinite recursion
-    const { data: profile, error: profileError } = await adminSupabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', data.id)
-      .select(`
-        id,
-        full_name,
-        apartment_number,
-        phone_number,
-        role,
-        created_at,
-        residence_id,
-        residences (
-          id,
-          name,
-          address
-        )
-      `)
       .single();
 
-    if (profileError) {
-      console.error('[Residents Actions] Error updating profile:', profileError);
-      return {
-        success: false,
-        error: profileError.message || 'Failed to update resident',
-      };
+    // Get apartment number (either updated or existing)
+    let apartmentNumber = data.apartment_number;
+    if (!apartmentNumber) {
+        const { data: pr } = await adminSupabase
+            .from('profile_residences')
+            .select('apartment_number')
+            .eq('profile_id', data.id)
+            .eq('residence_id', managedResidenceId)
+            .single();
+        apartmentNumber = pr?.apartment_number;
     }
 
-    console.log('[Residents Actions] Resident updated successfully:', profile.id);
+    const { data: residence } = await adminSupabase
+        .from('residences')
+        .select('id, name, address')
+        .eq('id', managedResidenceId)
+        .single();
 
-    // Revalidate residents page
-    revalidatePath('/app/residents');
+    const returnedResident = {
+        ...fullProfile,
+        apartment_number: apartmentNumber,
+        residence_id: managedResidenceId,
+        residences: residence ? [residence] : []
+    };
 
     return {
       success: true,
-      resident: profile,
+        resident: returnedResident
     };
+
   } catch (error: any) {
     console.error('[Residents Actions] Error updating resident:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to update resident',
-    };
+    return { success: false, error: error.message || 'Failed to update resident' };
   }
 }
 
 /**
  * Delete a resident
- * Prevents deletion of syndic accounts unless it's the user's own account
+ * Removes them from the residence and deletes their account from the database
  */
 export async function deleteResident(residentId: string) {
   console.log('[Residents Actions] Deleting resident:', residentId);
@@ -525,187 +374,206 @@ export async function deleteResident(residentId: string) {
   try {
     const session = await auth();
     const userId = session?.user?.id;
+    if (!userId) throw new Error('User not authenticated');
 
-    if (!userId) {
-      throw new Error('User not authenticated');
-    }
-
-    if (!residentId) {
-      return {
-        success: false,
-        error: 'Resident ID is required',
-      };
-    }
-
-    const supabase = await getSupabaseClient();
     const adminSupabase = createSupabaseAdminClient();
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
 
-    // Get current user's residence_id to verify ownership
-    const { data: currentUserProfile } = await adminSupabase
-      .from('profiles')
-      .select('residence_id, role')
-      .eq('id', userId)
+    if (!managedResidenceId) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    // Get resident's profile to check role
+    const { data: residentProfile, error: profileError } = await adminSupabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', residentId)
+        .maybeSingle();
+
+    if (profileError) {
+        console.error('[Residents Actions] Error fetching resident profile:', profileError);
+        return { success: false, error: 'Failed to fetch resident information' };
+    }
+
+    if (!residentProfile) {
+        return { success: false, error: 'Resident not found' };
+    }
+
+    // Check if resident is a guard assigned to this residence
+    if (residentProfile.role === 'guard') {
+        const { data: residence } = await adminSupabase
+            .from('residences')
+            .select('guard_user_id')
+            .eq('id', managedResidenceId)
       .single();
 
-    if (!currentUserProfile?.residence_id) {
-      return {
-        success: false,
-        error: 'You must have a residence assigned to delete residents',
-      };
+        if (residence?.guard_user_id === residentId) {
+            // Unlink guard from residence
+            await adminSupabase
+                .from('residences')
+                .update({ guard_user_id: null })
+                .eq('id', managedResidenceId);
+        }
+    } else {
+        // For residents: Remove from profile_residences for this residence
+        const { error: linkError } = await adminSupabase
+            .from('profile_residences')
+            .delete()
+            .eq('profile_id', residentId)
+            .eq('residence_id', managedResidenceId);
+
+        if (linkError) {
+            console.error('[Residents Actions] Error removing resident link:', linkError);
+            return { success: false, error: 'Failed to remove resident from residence' };
+        }
+
+        // Check if resident is in other residences
+        const { data: otherResidences } = await adminSupabase
+            .from('profile_residences')
+            .select('id')
+            .eq('profile_id', residentId)
+            .neq('residence_id', managedResidenceId);
+
+        // If resident is in other residences, don't delete their account
+        if (otherResidences && otherResidences.length > 0) {
+            console.log('[Residents Actions] Resident is in other residences, only removing from this residence');
+            revalidatePath('/app/residents');
+            return { success: true };
+        }
     }
 
-    // Get the resident being deleted to check their role and residence
-    // Use admin client to bypass RLS and avoid infinite recursion
-    const { data: residentToDelete, error: residentError } = await adminSupabase
-      .from('profiles')
-      .select('id, role, full_name, residence_id')
-      .eq('id', residentId)
-      .single();
+    // Create dbasakan client for comprehensive cleanup (same as account deletion)
+    const { createClient } = await import('@supabase/supabase-js');
+    const dbasakanClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SECRET_KEY!,
+        {
+            db: { schema: 'dbasakan' },
+            auth: { persistSession: false },
+        }
+    );
 
-    if (residentError || !residentToDelete) {
-      console.error('[Residents Actions] Error fetching resident:', residentError);
-      return {
-        success: false,
-        error: 'Resident not found',
-      };
+    // Get user email for cleanup
+    const { data: userData } = await dbasakanClient
+        .from('users')
+        .select('email')
+        .eq('id', residentId)
+        .maybeSingle();
+
+    const userEmail = userData?.email || null;
+
+    // Delete user-related data (similar to account deletion but for residents)
+    console.log('[Residents Actions] Deleting resident account and all related data:', residentId);
+
+    // 1. Delete dependent data where user is the "subject"
+    await dbasakanClient.from('profile_residences').delete().eq('profile_id', residentId);
+    await dbasakanClient.from('notifications').delete().eq('user_id', residentId);
+    await dbasakanClient.from('poll_votes').delete().eq('user_id', residentId);
+    if (userEmail) {
+        await dbasakanClient.from('verification_tokens').delete().eq('identifier', userEmail);
     }
 
-    // Syndics can only delete residents from their own residence
-    if (currentUserProfile.role === 'syndic' && residentToDelete.residence_id !== currentUserProfile.residence_id) {
-      return {
-        success: false,
-        error: 'You can only delete residents from your own residence',
-      };
+    // 2. Nullify references where user was creator/actor
+    await dbasakanClient.from('announcements').update({ created_by: null }).eq('created_by', residentId);
+    await dbasakanClient.from('expenses').update({ created_by: null }).eq('created_by', residentId);
+    await dbasakanClient.from('polls').update({ created_by: null }).eq('created_by', residentId);
+    await dbasakanClient.from('balance_snapshots').update({ created_by: null }).eq('created_by', residentId);
+    await dbasakanClient.from('payments').update({ verified_by: null }).eq('verified_by', residentId);
+    await dbasakanClient.from('incidents').update({ assigned_to: null }).eq('assigned_to', residentId);
+
+    // 3. Delete data where user is required (NOT NULL FK)
+    await dbasakanClient.from('deliveries').delete().eq('logged_by', residentId);
+    await dbasakanClient.from('deliveries').delete().eq('recipient_id', residentId);
+    await dbasakanClient.from('payments').delete().eq('user_id', residentId);
+    await dbasakanClient.from('fees').delete().eq('user_id', residentId);
+    await dbasakanClient.from('incidents').delete().eq('user_id', residentId);
+    await dbasakanClient.from('access_logs').delete().eq('generated_by', residentId);
+    await dbasakanClient.from('access_logs').update({ scanned_by: null }).eq('scanned_by', residentId);
+
+    // 4. Delete document submissions and files
+    const { data: submissions } = await dbasakanClient
+        .from('syndic_document_submissions')
+        .select('document_url, id_card_url')
+        .eq('user_id', residentId);
+
+    if (submissions && submissions.length > 0) {
+        const filesToDelete: string[] = [];
+        for (const submission of submissions) {
+            if (submission.document_url) {
+                const documentPath = submission.document_url.split('/syndic-documents/')[1];
+                if (documentPath) filesToDelete.push(`syndic-documents/${documentPath}`);
+            }
+            if (submission.id_card_url) {
+                const idCardPath = submission.id_card_url.split('/syndic-documents/')[1];
+                if (idCardPath) filesToDelete.push(`syndic-documents/${idCardPath}`);
+            }
+        }
+
+        if (filesToDelete.length > 0) {
+            await adminSupabase.storage.from('SAKAN').remove(filesToDelete);
+        }
+
+        await dbasakanClient.from('syndic_document_submissions').delete().eq('user_id', residentId);
     }
 
-    // Check if the resident being deleted is a syndic
-    if (residentToDelete.role === 'syndic') {
-      // Only allow deletion if it's the user's own account
-      if (residentId !== userId) {
-        console.log('[Residents Actions] Attempt to delete syndic account blocked:', {
-          currentUser: userId,
-          targetResident: residentId,
-          targetRole: residentToDelete.role,
-        });
-        return {
-          success: false,
-          error: 'Cannot delete syndic accounts. Syndics can only delete their own account.',
-        };
-      }
-      // Allow deletion of own account with warning
-      console.log('[Residents Actions] User deleting their own syndic account:', userId);
+    // 5. Delete stripe customer if exists
+    await adminSupabase.from('stripe_customers').delete().eq('user_id', residentId);
+
+    // 6. Delete profile
+    await dbasakanClient.from('profiles').delete().eq('id', residentId);
+
+    // 7. Delete from users (NextAuth)
+    const { error: deleteUserError } = await dbasakanClient.from('users').delete().eq('id', residentId);
+    if (deleteUserError) {
+        console.error('[Residents Actions] Error deleting from dbasakan.users:', deleteUserError);
+        // Fallback to public schema
+        await adminSupabase.from('users').delete().eq('id', residentId);
     }
 
-    // Delete profile (this will cascade to related records due to foreign key constraints)
-    // Use admin client to bypass RLS and avoid infinite recursion
-    // For syndics, ensure we only delete from their residence
-    let deleteQuery = adminSupabase
-      .from('profiles')
-      .delete()
-      .eq('id', residentId);
-    
-    // Additional security: if user is syndic, ensure residence matches
-    if (currentUserProfile.role === 'syndic') {
-      deleteQuery = deleteQuery.eq('residence_id', currentUserProfile.residence_id);
-    }
-    
-    const { error: deleteError } = await deleteQuery;
+    // 8. Delete accounts and sessions (using dbasakan client)
+    await dbasakanClient.from('accounts').delete().eq('user_id', residentId);
+    await dbasakanClient.from('sessions').delete().eq('user_id', residentId);
 
-    if (deleteError) {
-      console.error('[Residents Actions] Error deleting profile:', deleteError);
-      return {
-        success: false,
-        error: deleteError.message || 'Failed to delete resident',
-      };
-    }
+    console.log('[Residents Actions] Resident account deleted successfully:', residentId);
 
-    console.log('[Residents Actions] Resident deleted successfully:', residentId);
-
-    // Revalidate residents page
     revalidatePath('/app/residents');
+    return { success: true };
 
-    return {
-      success: true,
-    };
   } catch (error: any) {
     console.error('[Residents Actions] Error deleting resident:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to delete resident',
-    };
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * Get residences for dropdown - only returns the user's own residence
+ * Get residences for dropdown
  */
 export async function getResidences() {
-  console.log('[Residents Actions] Fetching residences');
-
   try {
     const session = await auth();
     const userId = session?.user?.id;
+    if (!userId) throw new Error('User not authenticated');
 
-    if (!userId) {
-      throw new Error('User not authenticated');
+    const adminSupabase = createSupabaseAdminClient();
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
+
+    if (!managedResidenceId) {
+        return { success: true, residences: [] };
     }
 
-    // Use admin client to bypass RLS policy recursion issues
-    const supabase = createSupabaseAdminClient();
-
-    // Get user's profile to get their residence_id
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('residence_id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error('[Residents Actions] Error fetching user profile:', profileError);
-      return {
-        success: false,
-        error: profileError.message || 'Failed to fetch user profile',
-        residences: [],
-      };
-    }
-
-    if (!profile?.residence_id) {
-      console.warn('[Residents Actions] User has no residence_id');
-      return {
-        success: true,
-        residences: [],
-      };
-    }
-
-    // Fetch only the user's residence
-    const { data: residences, error } = await supabase
+    const { data: residence } = await adminSupabase
       .from('residences')
       .select('id, name, address, city')
-      .eq('id', profile.residence_id)
-      .order('name', { ascending: true });
-
-    if (error) {
-      console.error('[Residents Actions] Error fetching residences:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to fetch residences',
-        residences: [],
-      };
-    }
-
-    console.log('[Residents Actions] Fetched', residences?.length || 0, 'residences for residence_id:', profile.residence_id);
+        .eq('id', managedResidenceId)
+        .single();
 
     return {
       success: true,
-      residences: residences || [],
+        residences: residence ? [residence] : []
     };
+
   } catch (error: any) {
     console.error('[Residents Actions] Error fetching residences:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to fetch residences',
-      residences: [],
-    };
+    return { success: false, residences: [] };
   }
 }
-

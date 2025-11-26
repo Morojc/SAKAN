@@ -14,8 +14,7 @@ export default async function AdminDocumentsPage() {
       profiles:user_id (
         id,
         full_name,
-        phone_number,
-        apartment_number
+        phone_number
       ),
       assigned_residence:assigned_residence_id (
         id,

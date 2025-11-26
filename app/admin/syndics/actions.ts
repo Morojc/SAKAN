@@ -72,19 +72,19 @@ export async function deleteSyndic(syndicId: string) {
       }
     }
 
-    // 4. Get residence_id if assigned
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('residence_id')
-      .eq('id', syndicId)
+    // 4. Get residence where syndic is assigned
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', syndicId)
       .maybeSingle()
 
     // 5. If residence assigned, unassign it
-    if (profile?.residence_id) {
+    if (residence) {
       const { error: residenceError } = await supabase
         .from('residences')
         .update({ syndic_user_id: null })
-        .eq('id', profile.residence_id)
+        .eq('id', residence.id)
 
       if (residenceError) {
         console.error('[Admin Delete Syndic] Error unassigning residence:', residenceError)

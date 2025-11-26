@@ -6,18 +6,10 @@ export const dynamic = 'force-dynamic'
 export default async function AdminSyndicsPage() {
   const supabase = createSupabaseAdminClient()
 
-  // Fetch all syndics with their residence info
+  // Fetch all syndics (without residence join since the relationship is inverted)
   const { data: syndics, error } = await supabase
     .from('profiles')
-    .select(`
-      *,
-      residences:residence_id (
-        id,
-        name,
-        address,
-        city
-      )
-    `)
+    .select('*')
     .eq('role', 'syndic')
     .order('created_at', { ascending: false })
 
@@ -41,10 +33,19 @@ export default async function AdminSyndicsPage() {
 
   const usersMap = new Map(users?.map(u => [u.id, u]) || [])
 
-  // Combine syndic and user data
+  // Fetch residences for each syndic (using the new schema where residences.syndic_user_id references the syndic)
+  const { data: residences } = await supabase
+    .from('residences')
+    .select('id, name, address, city, syndic_user_id')
+    .in('syndic_user_id', userIds)
+
+  const residencesMap = new Map(residences?.map(r => [r.syndic_user_id, r]) || [])
+
+  // Combine syndic, user, and residence data
   const syndicsWithEmail = syndics?.map(syndic => ({
     ...syndic,
     email: usersMap.get(syndic.id)?.email || '',
+    residences: residencesMap.get(syndic.id) || null, // Match the expected interface shape
   })) || []
 
   return (

@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { Building2, UserCog } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getUserResidenceId } from '@/lib/residence-utils';
 
 /**
  * Server component to fetch residences with their syndics
@@ -19,10 +20,10 @@ async function ResidencesData() {
 
     const supabase = createSupabaseAdminClient();
 
-    // Get current user's profile to get their residence_id
+    // Get current user's profile to get their role
     const { data: currentUserProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, role, residence_id')
+      .select('id, role')
       .eq('id', userId)
       .maybeSingle();
 
@@ -35,12 +36,12 @@ async function ResidencesData() {
       throw new Error('User profile not found');
     }
 
-    const userResidenceId = currentUserProfile.residence_id;
+    const userResidenceId = await getUserResidenceId(supabase, userId, currentUserProfile.role);
 
     // Build query - filter by user's residence_id if they have one
     let residencesQuery = supabase
       .from('residences')
-      .select('id, name, address, city, created_at')
+      .select('id, name, address, city, created_at, syndic_user_id')
       .order('name', { ascending: true });
 
     // All users (including syndics) only see their own residence
@@ -71,27 +72,45 @@ async function ResidencesData() {
     // For each residence, fetch the syndic(s) associated with it
     const residencesWithSyndics = await Promise.all(
       residences.map(async (residence) => {
-        // Fetch all syndics for this residence
-        const { data: syndics, error: syndicsError } = await supabase
-          .from('profiles')
-          .select(`
-            id,
-            full_name,
-            apartment_number,
-            phone_number,
-            role,
-            created_at
-          `)
-          .eq('residence_id', residence.id)
-          .eq('role', 'syndic')
-          .order('full_name', { ascending: true });
+        let syndics = [];
+        
+        if (residence.syndic_user_id) {
+            // Fetch syndic profile
+            const { data: syndicProfile, error: syndicError } = await supabase
+              .from('profiles')
+              .select(`
+                id,
+                full_name,
+                apartment_number,
+                phone_number,
+                role,
+                created_at
+              `)
+              .eq('id', residence.syndic_user_id)
+              .maybeSingle();
 
-        if (syndicsError) {
-          console.error(`[ResidencesPage] Error fetching syndics for residence ${residence.id}:`, syndicsError);
+            if (syndicError) {
+              console.error(`[ResidencesPage] Error fetching syndic for residence ${residence.id}:`, syndicError);
+            } else if (syndicProfile) {
+                // If apartment_number is needed, we might need to fetch it from profile_residences if the syndic lives there
+                // But for now, let's use what's on the profile or fetch from profile_residences if null
+                
+                // Check if syndic has residence entry for apartment number
+                const { data: pr } = await supabase.from('profile_residences')
+                    .select('apartment_number')
+                    .eq('profile_id', residence.syndic_user_id)
+                    .eq('residence_id', residence.id)
+                    .maybeSingle();
+                
+                syndics.push({
+                    ...syndicProfile,
+                    apartment_number: pr?.apartment_number || syndicProfile.apartment_number // Fallback to profile just in case
+                });
+            }
         }
 
         // Fetch user emails separately (since the join might not work)
-        const syndicIds = syndics?.map(s => s.id).filter(Boolean) || [];
+        const syndicIds = syndics.map(s => s.id).filter(Boolean);
         let userEmails: { id: string; email: string | null }[] = [];
         
         if (syndicIds.length > 0) {
@@ -104,7 +123,7 @@ async function ResidencesData() {
         }
 
         // Combine syndics with their emails and mark current user
-        const syndicsWithEmails = (syndics || []).map(syndic => {
+        const syndicsWithEmails = syndics.map(syndic => {
           const userEmail = userEmails.find(u => u.id === syndic.id)?.email || null;
           const isCurrentUser = syndic.id === userId;
           return {
@@ -269,4 +288,3 @@ export default function ResidencesPage() {
     </div>
   );
 }
-

@@ -5,13 +5,21 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, User } from 'lucide-react'
 import { createResidence } from '@/app/admin/residences/actions'
 
-export function CreateResidenceForm() {
+interface Syndic {
+  id: string
+  full_name: string
+  email: string
+}
+
+export function CreateResidenceForm({ availableSyndics }: { availableSyndics: Syndic[] }) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [selectedSyndicId, setSelectedSyndicId] = useState<string>('')
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -24,6 +32,7 @@ export function CreateResidenceForm() {
       address: formData.get('address') as string,
       city: formData.get('city') as string,
       bank_account_rib: formData.get('bank_account_rib') as string,
+      syndic_user_id: selectedSyndicId || undefined,
     }
 
     try {
@@ -104,6 +113,35 @@ export function CreateResidenceForm() {
         />
         <p className="text-xs text-gray-500 mt-1">
           Compte bancaire de la résidence pour les paiements
+        </p>
+      </div>
+
+      {/* Syndic Assignment */}
+      <div>
+        <Label htmlFor="syndic">
+          Assigner un syndic (optionnel)
+        </Label>
+        <Select value={selectedSyndicId} onValueChange={setSelectedSyndicId} disabled={isSubmitting}>
+          <SelectTrigger className="mt-2">
+            <SelectValue placeholder="Sélectionnez un syndic" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Aucun syndic (assigner plus tard)</SelectItem>
+            {availableSyndics.map((syndic) => (
+              <SelectItem key={syndic.id} value={syndic.id}>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <div>
+                    <p className="font-medium">{syndic.full_name}</p>
+                    <p className="text-xs text-gray-500">{syndic.email}</p>
+                  </div>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-gray-500 mt-1">
+          Vous pouvez assigner un syndic maintenant ou plus tard
         </p>
       </div>
 

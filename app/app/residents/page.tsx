@@ -23,20 +23,15 @@ async function ResidentsData() {
     // Use admin client to bypass RLS policy recursion issues
     const supabase = createSupabaseAdminClient();
     
-    // Get user's profile and residence_id
+    // Get user's profile
     const { data: userProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('residence_id, role, id')
+      .select('role, id')
       .eq('id', userId)
       .maybeSingle();
 
     if (profileError) {
-      console.error('[ResidentsPage] Error fetching user profile:', {
-        message: profileError.message,
-        code: profileError.code,
-        details: profileError.details,
-        hint: profileError.hint,
-      });
+      console.error('[ResidentsPage] Error fetching user profile:', profileError);
       throw new Error(`Failed to fetch user profile: ${profileError.message}`);
     }
 
@@ -44,8 +39,21 @@ async function ResidentsData() {
       throw new Error('User profile not found');
     }
 
-    const residenceId = userProfile.residence_id;
     const userRole = userProfile.role;
+    let residenceId = null;
+
+    // Resolve Residence ID based on role
+    if (userRole === 'syndic') {
+        const { data: res } = await supabase.from('residences').select('id').eq('syndic_user_id', userId).maybeSingle();
+        residenceId = res?.id;
+    } else if (userRole === 'guard') {
+        const { data: res } = await supabase.from('residences').select('id').eq('guard_user_id', userId).maybeSingle();
+        residenceId = res?.id;
+    } else {
+        // Resident - fetch from profile_residences
+        const { data: pr } = await supabase.from('profile_residences').select('residence_id').eq('profile_id', userId).limit(1).maybeSingle();
+        residenceId = pr?.residence_id;
+    }
 
     // All users (including syndics) must have a residence_id to view residents
     if (!residenceId) {
@@ -62,134 +70,115 @@ async function ResidentsData() {
       );
     }
 
-    console.log('[ResidentsPage] Fetching residents for residence_id:', residenceId || 'ALL (syndic)');
+    console.log('[ResidentsPage] Fetching residents and guards for residence_id:', residenceId);
 
-    // Build query - filter by residence_id for all users (including syndics)
-    // Include all profiles including syndics, but only from the user's residence
-    // Only show verified residents (verified = true)
-    let profilesQuery = supabase
-      .from('profiles')
-      .select(`
-        id,
-        full_name,
-        apartment_number,
-        phone_number,
-        role,
-        created_at,
-        residence_id,
-        verified,
-        residences (
-          id,
-          name,
-          address
-        )
-      `)
-      .eq('verified', true) // Only show verified residents
-      .order('full_name', { ascending: true });
+    // Fetch residents via junction table
+    const { data: residentLinks, error: linkError } = await supabase
+        .from('profile_residences')
+        .select(`
+            apartment_number,
+            verified,
+            profiles (
+                id,
+                full_name,
+                phone_number,
+                role,
+                created_at,
+                verified
+            )
+        `)
+        .eq('residence_id', residenceId)
+        .eq('verified', true); // Only verified residents?
 
-    // All users (including syndics) only see profiles from their own residence
-    if (residenceId) {
-      profilesQuery = profilesQuery.eq('residence_id', residenceId);
-      console.log('[ResidentsPage] Showing verified profiles with residence_id =', residenceId, '(including syndics)');
-    } else {
-      // User has no residence_id - should not reach here for syndics (handled by earlier check)
-      console.log('[ResidentsPage] Warning: User has no residence_id');
+    if (linkError) {
+        console.error('[ResidentsPage] Error fetching residents:', linkError);
+        throw new Error('Failed to fetch residents');
     }
 
-    // Fetch all profiles (no limit) to ensure we get all residents
-    const { data: profiles, error: profilesError, count } = await profilesQuery;
+    // Transform residents to flat profile structure expected by UI
+    const residentProfiles = residentLinks?.map(link => {
+        const p = link.profiles as any; // Cast because nested type inference might be tricky
+        return {
+            ...p,
+            apartment_number: link.apartment_number,
+            residence_id: residenceId, // Synthesize this for UI compatibility
+        };
+    }) || [];
 
-    if (profilesError) {
-      console.error('[ResidentsPage] Error fetching profiles:', {
-        message: profilesError.message,
-        code: profilesError.code,
-        details: profilesError.details,
-        hint: profilesError.hint,
-      });
-      throw new Error(`Failed to fetch residents: ${profilesError.message || 'Unknown error'}`);
+    // Fetch guard for this residence (if exists)
+    // Guards are assigned via residences.guard_user_id (1:1 relationship)
+    let guardProfile = null;
+    const { data: residenceData, error: residenceError } = await supabase
+        .from('residences')
+        .select('id, guard_user_id')
+        .eq('id', residenceId)
+        .maybeSingle();
+
+    if (residenceError) {
+        console.warn('[ResidentsPage] Error fetching residence:', residenceError);
+    } else if (residenceData?.guard_user_id) {
+        // Fetch guard's profile
+        const { data: guardProfileData, error: guardError } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone_number, role, created_at, verified')
+            .eq('id', residenceData.guard_user_id)
+            .maybeSingle();
+
+        if (guardError) {
+            console.warn('[ResidentsPage] Error fetching guard profile:', guardError);
+        } else if (guardProfileData) {
+            guardProfile = {
+                ...guardProfileData,
+                apartment_number: null, // Guards don't have apartment numbers
+                residence_id: residenceId,
+            };
+        }
     }
 
-    console.log('[ResidentsPage] Fetched', profiles?.length || 0, 'profiles', {
-      residenceId: residenceId || 'ALL',
-      userRole,
-      profilesCount: profiles?.length,
-      sampleIds: profiles?.slice(0, 3).map(p => ({ id: p.id, name: p.full_name, residence_id: p.residence_id })),
-    });
+    // Combine residents and guard
+    const profiles = guardProfile 
+        ? [...residentProfiles, guardProfile]
+        : residentProfiles;
 
-    // Build fees query - filter by residence_id for all users (including syndics)
-    let feesQuery = supabase
+    // Fetch residence details for UI context
+    const { data: residence } = await supabase
+        .from('residences')
+        .select('id, name, address')
+        .eq('id', residenceId)
+        .single();
+
+    // Fetch fees
+    const { data: fees, error: feesError } = await supabase
       .from('fees')
-      .select(`
-        id,
-        user_id,
-        title,
-        amount,
-        due_date,
-        status,
-        created_at,
-        residence_id
-      `)
+      .select('*')
+      .eq('residence_id', residenceId)
       .order('created_at', { ascending: false });
 
-    // All users (including syndics) only see fees from their own residence
-    if (residenceId) {
-      feesQuery = feesQuery.eq('residence_id', residenceId);
-    }
-
-    const { data: fees, error: feesError } = await feesQuery;
-
-    if (feesError) {
-      console.error('[ResidentsPage] Error fetching fees:', {
-        message: feesError.message,
-        code: feesError.code,
-        details: feesError.details,
-        hint: feesError.hint,
-      });
-      // Continue without fees - they're not critical
-      console.warn('[ResidentsPage] Continuing without fees data');
-    }
-
-    console.log('[ResidentsPage] Fetched', fees?.length || 0, 'fees');
+    if (feesError) console.warn('[ResidentsPage] Error fetching fees:', feesError);
 
     // Fetch user emails from users table (NextAuth)
-    const userIds = profiles?.map(p => p.id).filter(Boolean) || [];
+    const userIds = profiles.map(p => p.id).filter(Boolean);
     let users: { id: string; email: string | null }[] | null = null;
     
     if (userIds.length > 0) {
       try {
-        const { data: usersData, error: usersError } = await supabase
+        const { data: usersData } = await supabase
           .from('users')
           .select('id, email')
           .in('id', userIds);
-
-        if (usersError) {
-          console.warn('[ResidentsPage] Could not fetch user emails:', {
-            message: usersError.message,
-            code: usersError.code,
-          });
-          // Email is optional - continue without it
-        } else {
-          users = usersData;
-          console.log('[ResidentsPage] Fetched', users?.length || 0, 'user emails');
-        }
-      } catch (error: any) {
-        console.warn('[ResidentsPage] Error fetching user emails:', error.message);
-        // Email is optional - continue without it
+        users = usersData;
+      } catch (error) {
+        console.warn('Error fetching emails');
       }
     }
 
-    // Combine profiles with user emails and calculate outstanding fees
-    const residentsWithFees = profiles?.map(profile => {
+    // Combine data
+    const residentsWithFees = profiles.map(profile => {
       const userEmail = users?.find(u => u.id === profile.id)?.email || null;
       const residentFees = fees?.filter(f => f.user_id === profile.id) || [];
       const outstandingFees = residentFees
         .filter(f => f.status === 'unpaid' || f.status === 'overdue')
         .reduce((sum, f) => sum + Number(f.amount), 0);
-
-      // Handle residences - it might be an array or single object from Supabase
-      const residence = Array.isArray(profile.residences) 
-        ? profile.residences[0] || null
-        : profile.residences || null;
 
       return {
         id: profile.id,
@@ -198,7 +187,7 @@ async function ResidentsData() {
         phone_number: profile.phone_number,
         role: profile.role,
         created_at: profile.created_at,
-        residence_id: profile.residence_id,
+        residence_id: residenceId,
         email: userEmail,
         fees: residentFees,
         outstandingFees,
@@ -210,33 +199,25 @@ async function ResidentsData() {
           address: residence.address,
         } : null,
       };
-    }) || [];
-
-        console.log('[ResidentsPage] Data normalized. Total residents:', residentsWithFees.length);
-
-        return (
-          <ResidentsContent 
-            initialResidents={residentsWithFees} 
-            initialFees={fees || []}
-            currentUserId={userId}
-            currentUserRole={userProfile?.role}
-            currentUserResidenceId={residenceId}
-          />
-        );
-  } catch (error: any) {
-    console.error('[ResidentsPage] Fatal error:', {
-      message: error.message,
-      stack: error.stack,
-      error: error,
     });
+
+    return (
+      <ResidentsContent 
+        initialResidents={residentsWithFees} 
+        initialFees={fees || []}
+        currentUserId={userId}
+        currentUserRole={userProfile?.role}
+        currentUserResidenceId={residenceId}
+      />
+    );
+
+  } catch (error: any) {
+    console.error('[ResidentsPage] Fatal error:', error);
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
           <h2 className="font-semibold mb-2">Error Loading Residents</h2>
           <p className="mb-2">{error.message || 'Failed to load residents data'}</p>
-          <p className="text-sm opacity-75">
-            Please check your authentication and try refreshing the page. If the problem persists, contact your administrator.
-          </p>
         </div>
       </div>
     );

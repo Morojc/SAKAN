@@ -26,30 +26,16 @@ export async function getDashboardStats() {
 
 		const supabase = createSupabaseAdminClient();
 
-		// Get user's profile and residence info
+		// Get user's profile
 		const { data: profile, error: profileError } = await supabase
 			.from('profiles')
-			.select(`
-				id,
-				full_name,
-				role,
-				residence_id,
-				onboarding_completed,
-				residences (
-					id,
-					name,
-					address,
-					city
-				)
-			`)
+			.select('id, full_name, role, onboarding_completed')
 			.eq('id', userId)
 			.maybeSingle();
 
-		// Handle case where profile doesn't exist or has no residence
-		if (profileError) {
-			console.error('[Dashboard Actions] Error getting profile:', profileError);
-			// Return empty stats with success: true to avoid showing error
-			// The onboarding guard will handle showing the onboarding wizard
+		// Handle case where profile doesn't exist
+		if (profileError || !profile) {
+			console.error('[Dashboard Actions] Error getting profile or not found:', profileError);
 			const { data: userData } = await supabase
 				.from('users')
 				.select('email, name, image')
@@ -82,44 +68,40 @@ export async function getDashboardStats() {
 			};
 		}
 
-		if (!profile) {
-			console.log('[Dashboard Actions] Profile not found for user - returning empty stats for onboarding');
-			// Get user email for display
-			const { data: userData } = await supabase
-				.from('users')
-				.select('email, name, image')
-				.eq('id', userId)
-				.maybeSingle();
-			
-			// Return success: true with empty stats - onboarding guard will handle the rest
-			return {
-				success: true,
-				stats: {
-					totalResidents: 0,
-					cashOnHand: 0,
-					bankBalance: 0,
-					outstandingFees: 0,
-					openIncidents: 0,
-					recentAnnouncementsCount: 0,
-					todayPayments: 0,
-					monthlyPayments: 0,
-					fillRate: 100,
-					residentsChange: 0,
-					topResidents: [],
-					user: {
-						name: userData?.name || 'User',
-						email: userData?.email || '',
-						image: userData?.image || null,
-						role: 'syndic',
-					},
-					residence: null,
-					onboardingCompleted: false,
-				},
-			};
-		}
+        // Determine Residence ID based on role
+        let residenceId = null;
+        let residenceData = null;
 
-		// If user has no residence_id, return empty stats (likely in onboarding)
-		if (!profile.residence_id) {
+        if (profile.role === 'syndic') {
+            const { data: res } = await supabase.from('residences').select('id, name, address, city').eq('syndic_user_id', userId).maybeSingle();
+            if (res) {
+                residenceId = res.id;
+                residenceData = res;
+            }
+        } else if (profile.role === 'guard') {
+            const { data: res } = await supabase.from('residences').select('id, name, address, city').eq('guard_user_id', userId).maybeSingle();
+            if (res) {
+                residenceId = res.id;
+                residenceData = res;
+            }
+        } else {
+            // Resident
+            const { data: prLink } = await supabase
+                .from('profile_residences')
+                .select('residence_id, residences(id, name, address, city)')
+                .eq('profile_id', userId)
+                .limit(1)
+                .maybeSingle();
+            
+            if (prLink && prLink.residences) {
+                residenceId = prLink.residence_id;
+                residenceData = prLink.residences; // Join returns object or array? Assuming object if singular relation, but types say array usually.
+                if (Array.isArray(residenceData)) residenceData = residenceData[0];
+            }
+        }
+
+		// If user has no residence assigned, return empty stats (likely in onboarding)
+		if (!residenceId) {
 			console.log('[Dashboard Actions] User has no residence assigned - returning empty stats');
 			
 			// Get user email for display
@@ -155,26 +137,12 @@ export async function getDashboardStats() {
 			};
 		}
 
-		const residenceId = profile.residence_id;
-
 		// Get user email from users table
 		const { data: userData } = await supabase
 			.from('users')
 			.select('email, name, image')
 			.eq('id', userId)
 			.maybeSingle();
-
-		// Fetch residence data explicitly to ensure all fields are available
-		let residenceData = null;
-		if (residenceId) {
-			const { data: residence } = await supabase
-				.from('residences')
-				.select('id, name, address, city')
-				.eq('id', residenceId)
-				.maybeSingle();
-			
-			residenceData = residence;
-		}
 
 		// Fetch all stats in parallel
 		const [
@@ -189,29 +157,28 @@ export async function getDashboardStats() {
 		] = await Promise.all([
 			// Total verified residents
 			supabase
-				.from('profiles')
+				.from('profile_residences')
 				.select('id', { count: 'exact', head: true })
 				.eq('residence_id', residenceId)
-				.eq('role', 'resident')
 				.eq('verified', true),
 
 			// All verified residents with fees for top residents calculation
+            // We join profile_residences -> profiles -> fees
+            // Note: fees are related to profiles (user_id), but we should filter fees by residence_id as well?
+            // Since fees table has residence_id, we can just fetch fees separately or trust the join.
+            // But Supabase simple joins might be tricky for "fees where residence_id = X".
+            // Let's fetch profiles first, then we can match fees if needed, or rely on the fact that we fetch all fees for the residence below.
 			supabase
-				.from('profiles')
+				.from('profile_residences')
 				.select(`
-					id,
-					full_name,
-					apartment_number,
-					fees (
-						id,
-						amount,
-						status
-					)
+                    apartment_number,
+                    profiles (
+                        id,
+                        full_name
+                    )
 				`)
 				.eq('residence_id', residenceId)
-				.eq('role', 'resident')
-				.eq('verified', true) // Only verified residents
-				.order('full_name', { ascending: true }),
+				.eq('verified', true),
 
 			// Outstanding fees
 			supabase
@@ -223,10 +190,10 @@ export async function getDashboardStats() {
 			// All fees for payment rate calculation
 			supabase
 				.from('fees')
-				.select('amount, status')
+				.select('id, amount, status, user_id')
 				.eq('residence_id', residenceId),
 
-			// Open incidents (if incidents table exists)
+			// Open incidents
 			Promise.resolve(
 				supabase
 					.from('incidents')
@@ -235,7 +202,7 @@ export async function getDashboardStats() {
 					.in('status', ['open', 'in_progress'])
 			).catch(() => ({ count: 0, error: null, data: null } as any)),
 
-			// Recent announcements (if announcements table exists)
+			// Recent announcements
 			Promise.resolve(
 				supabase
 					.from('announcements')
@@ -282,20 +249,23 @@ export async function getDashboardStats() {
 		const monthlyPayments = recentPayments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
 		// Calculate top residents with payment compliance
-		const allResidents = allResidentsResult.data || [];
-		const allFees = allFeesResult.data || [];
-		
+		const residentLinks = allResidentsResult.data || [];
+        const allFeesData = allFeesResult.data || [];
+
 		// Calculate payment compliance for each resident
-		const residentsWithCompliance = allResidents.map((resident: any) => {
-			const residentFees = resident.fees || [];
+		const residentsWithCompliance = residentLinks.map((link: any) => {
+            const profile = link.profiles;
+            // Filter fees for this user
+            const residentFees = allFeesData.filter((f: any) => f.user_id === profile.id);
+            
 			const totalFees = residentFees.length;
 			const paidFees = residentFees.filter((f: any) => f.status === 'paid').length;
 			const complianceRate = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 100;
 			
 			return {
-				id: resident.id,
-				full_name: resident.full_name,
-				apartment_number: resident.apartment_number,
+				id: profile.id,
+				full_name: profile.full_name,
+				apartment_number: link.apartment_number,
 				complianceRate,
 				totalFees,
 				paidFees,
@@ -304,12 +274,12 @@ export async function getDashboardStats() {
 
 		// Sort by compliance rate and get top 3
 		const topResidents = residentsWithCompliance
-			.sort((a, b) => b.complianceRate - a.complianceRate)
+			.sort((a: any, b: any) => b.complianceRate - a.complianceRate)
 			.slice(0, 3);
 
 		// Calculate payment rate (percentage of fees paid)
-		const totalFeesAmount = allFees.reduce((sum: number, fee: any) => sum + Number(fee.amount), 0);
-		const paidFeesAmount = allFees
+		const totalFeesAmount = allFeesData.reduce((sum: number, fee: any) => sum + Number(fee.amount), 0);
+		const paidFeesAmount = allFeesData
 			.filter((fee: any) => fee.status === 'paid')
 			.reduce((sum: number, fee: any) => sum + Number(fee.amount), 0);
 		const fillRate = totalFeesAmount > 0 
@@ -338,6 +308,7 @@ export async function getDashboardStats() {
 				role: profile.role || 'syndic',
 			},
 			residence: residenceData,
+            onboardingCompleted: profile.onboarding_completed || false,
 		};
 
 		console.log('[Dashboard Actions] Stats loaded:', {

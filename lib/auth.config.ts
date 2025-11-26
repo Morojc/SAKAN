@@ -30,6 +30,49 @@ const authConfig = {
 				session.user.id = user.id
 			}
 
+            // Fetch residence info based on role
+            const { createSupabaseAdminClient } = await import('@/lib/supabase/server');
+            const supabase = createSupabaseAdminClient();
+            
+            // Get user role
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .maybeSingle();
+            
+            if (profile) {
+                session.user.role = profile.role;
+                
+                let residenceId = null;
+                
+                if (profile.role === 'syndic') {
+                    const { data: residence } = await supabase
+                        .from('residences')
+                        .select('id')
+                        .eq('syndic_user_id', user.id)
+                        .maybeSingle();
+                    residenceId = residence?.id;
+                } else if (profile.role === 'guard') {
+                    const { data: residence } = await supabase
+                        .from('residences')
+                        .select('id')
+                        .eq('guard_user_id', user.id)
+                        .maybeSingle();
+                    residenceId = residence?.id;
+                } else if (profile.role === 'resident') {
+                    const { data: pr } = await supabase
+                        .from('profile_residences')
+                        .select('residence_id')
+                        .eq('profile_id', user.id)
+                        .limit(1)
+                        .maybeSingle();
+                    residenceId = pr?.residence_id;
+                }
+                
+                session.user.residenceId = residenceId;
+            }
+
 			const signingSecret = process.env.SUPABASE_JWT_SECRET
 
 			if (signingSecret) {
@@ -60,7 +103,7 @@ const authConfig = {
 				// Check if profile already exists (e.g. created manually or by trigger)
 				const { data: existingProfile } = await dbasakanClient
 					.from('profiles')
-					.select('role, residence_id, onboarding_completed, verified, email_verified')
+					.select('role, onboarding_completed, verified, email_verified')
 					.eq('id', user.id)
 					.maybeSingle();
 
@@ -75,7 +118,6 @@ const authConfig = {
 					full_name: fullName,
 					role: existingProfile?.role || 'syndic', // Default to syndic for new signups
 					onboarding_completed: existingProfile?.onboarding_completed || false,
-					residence_id: existingProfile?.residence_id || null,
 					verified: existingProfile?.verified !== undefined ? existingProfile.verified : false, // Require verification for new signups
 					email_verified: existingProfile?.email_verified !== undefined ? existingProfile.email_verified : false, // Require email verification
 				};
@@ -132,7 +174,7 @@ const authConfig = {
 
 				const { data: existingProfile } = await dbasakanClient
 					.from('profiles')
-					.select('id, residence_id, role, full_name, verified')
+					.select('id, role, full_name, verified')
 					.eq('id', user.id)
 					.maybeSingle();
 
@@ -146,10 +188,9 @@ const authConfig = {
 							full_name: fullName,
 							role: 'syndic',
 							onboarding_completed: false,
-							residence_id: null,
 						});
 				} else {
-					// Profile exists - preserve residence_id and other important fields
+					// Profile exists - preserve important fields
 					// Only update fields that might have changed from Google OAuth
 					const updateData: any = {};
 					
@@ -166,7 +207,7 @@ const authConfig = {
 							.update(updateData)
 							.eq('id', user.id);
 					} else {
-						console.log('[NextAuth] Profile exists, preserving all fields including residence_id:', existingProfile.residence_id);
+						console.log('[NextAuth] Profile exists, preserving all fields');
 					}
 				}
 			} catch (error) {

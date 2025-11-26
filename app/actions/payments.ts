@@ -2,6 +2,7 @@
 
 import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
+import { getUserResidenceId } from '@/lib/residence-utils';
 
 /**
  * Payment Server Actions
@@ -28,16 +29,10 @@ export async function getBalances(residenceId?: bigint) {
 		// Get user's residence if not provided
 		let targetResidenceId = residenceId;
 		if (!targetResidenceId) {
-			const { data: profile } = await supabase
-				.from('profiles')
-				.select('residence_id')
-				.eq('id', userId)
-				.single();
-
-			if (!profile?.residence_id) {
+            targetResidenceId = await getUserResidenceId(supabase, userId) as any;
+			if (!targetResidenceId) {
 				throw new Error('User has no residence assigned');
 			}
-			targetResidenceId = profile.residence_id;
 		}
 
 		// Calculate cash on hand: cash payments - cash expenses
@@ -135,16 +130,10 @@ export async function createCashPayment(data: {
 		// Get residence ID if not provided
 		let targetResidenceId = data.residenceId;
 		if (!targetResidenceId) {
-			const { data: profile } = await supabase
-				.from('profiles')
-				.select('residence_id')
-				.eq('id', currentUserId)
-				.single();
-
-			if (!profile?.residence_id) {
+            targetResidenceId = await getUserResidenceId(supabase, currentUserId) as any;
+			if (!targetResidenceId) {
 				throw new Error('User has no residence assigned');
 			}
-			targetResidenceId = profile.residence_id;
 		}
 
 		// Create payment record
@@ -215,24 +204,25 @@ export async function getResidents(residenceId?: bigint) {
 		// Get user's residence if not provided
 		let targetResidenceId = residenceId;
 		if (!targetResidenceId) {
-			const { data: profile } = await supabase
-				.from('profiles')
-				.select('residence_id')
-				.eq('id', userId)
-				.single();
-
-			if (!profile?.residence_id) {
+            targetResidenceId = await getUserResidenceId(supabase, userId) as any;
+			if (!targetResidenceId) {
 				throw new Error('User has no residence assigned');
 			}
-			targetResidenceId = profile.residence_id;
 		}
 
-		// Get all verified residents for the residence
-		const { data: residents, error: residentsError } = await supabase
-			.from('profiles')
-			.select('id, full_name, apartment_number, role')
+		// Get all verified residents for the residence via profile_residences
+		const { data: residentsLinks, error: residentsError } = await supabase
+			.from('profile_residences')
+			.select(`
+                apartment_number,
+                verified,
+                profiles (
+                    id,
+                    full_name,
+                    role
+                )
+            `)
 			.eq('residence_id', targetResidenceId)
-			.eq('role', 'resident')
 			.eq('verified', true) // Only show verified residents
 			.order('apartment_number', { ascending: true });
 
@@ -241,11 +231,19 @@ export async function getResidents(residenceId?: bigint) {
 			throw residentsError;
 		}
 
-		console.log('[Payments Actions] Residents fetched:', residents?.length);
+        // Transform to flat structure
+        const residents = residentsLinks?.map((link: any) => ({
+            id: link.profiles.id,
+            full_name: link.profiles.full_name,
+            role: link.profiles.role,
+            apartment_number: link.apartment_number
+        })) || [];
+
+		console.log('[Payments Actions] Residents fetched:', residents.length);
 
 		return {
 			success: true,
-			residents: residents || [],
+			residents,
 		};
 	} catch (error: any) {
 		console.error('[Payments Actions] Error getting residents:', error);
@@ -256,4 +254,3 @@ export async function getResidents(residenceId?: bigint) {
 		};
 	}
 }
-

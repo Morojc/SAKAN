@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { FileText, Check, X, Eye, Building2, User, Phone, Calendar, Download, Search } from 'lucide-react'
+import { FileText, Check, X, Eye, Building2, User, Phone, Calendar, Download, Search, GripVertical, Clock } from 'lucide-react'
 import { DocumentReviewModal } from './DocumentReviewModal'
+import { reviewDocument } from '@/app/admin/documents/actions'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 interface Submission {
   id: string
@@ -25,7 +27,6 @@ interface Submission {
     id: string
     full_name: string
     phone_number: string | null
-    apartment_number: string | null
   }
   assigned_residence: {
     id: number
@@ -53,10 +54,15 @@ interface DocumentReviewListProps {
   residences: Residence[]
 }
 
+type ColumnType = 'pending' | 'approved' | 'rejected'
+
 export function DocumentReviewList({ submissions, residences }: DocumentReviewListProps) {
+  const router = useRouter()
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [draggedSubmission, setDraggedSubmission] = useState<Submission | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<ColumnType | null>(null)
 
   // Filter submissions by search query
   const filteredSubmissions = submissions.filter(submission => {
@@ -71,28 +77,6 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
   const pendingSubmissions = filteredSubmissions.filter(s => s.status === 'pending')
   const approvedSubmissions = filteredSubmissions.filter(s => s.status === 'approved')
   const rejectedSubmissions = filteredSubmissions.filter(s => s.status === 'rejected')
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">En attente</Badge>
-      case 'approved':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approuvé</Badge>
-      case 'rejected':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejeté</Badge>
-      default:
-        return null
-    }
-  }
-
-  const getDocumentTypeBadge = (type: string) => {
-    const labels: Record<string, string> = {
-      'proces_verbal': 'Procès Verbal',
-      'id_card': 'Carte d\'identité',
-      'other': 'Autre'
-    }
-    return labels[type] || type
-  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -109,171 +93,268 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     setIsModalOpen(true)
   }
 
-  const renderSubmissionCard = (submission: any) => {
-    // Debug: Log ALL submission properties
-    console.log('[renderSubmissionCard] Full submission:', submission)
-    console.log('[renderSubmissionCard] id_card_url value:', submission.id_card_url)
-    console.log('[renderSubmissionCard] id_card_url exists:', submission.id_card_url !== null && submission.id_card_url !== undefined)
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, submission: Submission) => {
+    setDraggedSubmission(submission)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', e.currentTarget.innerHTML)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedSubmission(null)
+    setDragOverColumn(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent, column: ColumnType) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverColumn(column)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: ColumnType) => {
+    e.preventDefault()
+    setDragOverColumn(null)
+
+    if (!draggedSubmission || draggedSubmission.status === targetStatus) {
+      setDraggedSubmission(null)
+      return
+    }
+
+    // If dropping to approved, check if syndic already has a residence
+    if (targetStatus === 'approved') {
+      // Check if syndic already has a residence assigned
+      const syndicResidence = residences.find(r => r.syndic_user_id === draggedSubmission.user_id)
+      
+      if (syndicResidence) {
+        // Syndic already has a residence - approve directly without modal
+        try {
+          const result = await reviewDocument({
+            submissionId: draggedSubmission.id,
+            userId: draggedSubmission.user_id,
+            action: 'approve',
+            // No newResidence needed - will use existing residence
+          })
+
+          if (result.success) {
+            toast.success('Document approuvé (résidence existante utilisée)')
+            router.refresh()
+          } else {
+            toast.error(result.error || 'Erreur lors de l\'approbation')
+          }
+        } catch (error) {
+          toast.error('Une erreur est survenue')
+        }
+        setDraggedSubmission(null)
+        return
+      } else {
+        // Syndic doesn't have a residence - open modal to create one
+        setSelectedSubmission(draggedSubmission)
+        setIsModalOpen(true)
+        setDraggedSubmission(null)
+        return
+      }
+    }
+
+    // If dropping to rejected, open modal for rejection reason
+    if (targetStatus === 'rejected') {
+      setSelectedSubmission(draggedSubmission)
+      setIsModalOpen(true)
+      setDraggedSubmission(null)
+      return
+    }
+
+    // If moving back to pending, just update status
+    if (targetStatus === 'pending') {
+      try {
+        const result = await reviewDocument({
+          submissionId: draggedSubmission.id,
+          userId: draggedSubmission.user_id,
+          action: 'pending',
+        })
+
+        if (result.success) {
+          toast.success('Document remis en attente')
+          router.refresh()
+        } else {
+          toast.error(result.error || 'Erreur lors de la mise à jour')
+        }
+      } catch (error) {
+        toast.error('Une erreur est survenue')
+      }
+    }
+
+    setDraggedSubmission(null)
+  }
+
+  const renderSubmissionCard = (submission: Submission) => {
+    const isDragging = draggedSubmission?.id === submission.id
     
     return (
-    <Card key={submission.id} className="hover:shadow-md transition-shadow">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-600" />
+      <div
+        key={submission.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, submission)}
+        onDragEnd={handleDragEnd}
+        className={`cursor-move transition-all ${
+          isDragging ? 'opacity-50 scale-95' : 'opacity-100'
+        }`}
+      >
+        <Card className="hover:shadow-lg transition-shadow border-2 hover:border-primary/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                <GripVertical className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-sm truncate">{submission.profiles.full_name}</CardTitle>
+                    <CardDescription className="flex items-center gap-1 text-xs mt-0.5">
+                      <Calendar className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{formatDate(submission.submitted_at)}</span>
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base">{submission.profiles.full_name}</CardTitle>
-              <CardDescription className="flex items-center gap-2 mt-1">
-                <Calendar className="h-3 w-3" />
-                Soumis le {formatDate(submission.submitted_at)}
-              </CardDescription>
-            </div>
-          </div>
-          {getStatusBadge(submission.status)}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Document Info */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Type de document</p>
-            <p className="font-medium">{getDocumentTypeBadge(submission.document_type)}</p>
-          </div>
-          {submission.profiles.phone_number && (
-            <div>
-              <p className="text-gray-500 flex items-center gap-1">
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {/* Contact Info */}
+            {submission.profiles.phone_number && (
+              <div className="flex items-center gap-2 text-xs text-gray-600">
                 <Phone className="h-3 w-3" />
-                Téléphone
-              </p>
-              <p className="font-medium">{submission.profiles.phone_number}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Assigned Residence */}
-        {submission.assigned_residence && (
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-600 font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Résidence assignée
-            </p>
-            <p className="text-sm font-medium mt-1">{submission.assigned_residence.name}</p>
-            <p className="text-xs text-gray-600">
-              {submission.assigned_residence.address}, {submission.assigned_residence.city}
-            </p>
-          </div>
-        )}
-
-        {/* Rejection Reason */}
-        {submission.status === 'rejected' && submission.rejection_reason && (
-          <div className="p-3 bg-red-50 rounded-lg">
-            <p className="text-sm text-red-600 font-medium">Raison du rejet</p>
-            <p className="text-sm text-gray-700 mt-1">{submission.rejection_reason}</p>
-          </div>
-        )}
-
-        {/* Reviewer Info */}
-        {submission.reviewer && submission.reviewed_at && (
-          <div className="text-xs text-gray-500">
-            Vérifié par {submission.reviewer.full_name} le {formatDate(submission.reviewed_at)}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="space-y-2">
-          {/* Document Viewing Buttons */}
-          <div className="flex gap-2 flex-wrap">
-            {submission.document_url ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(submission.document_url, '_blank')}
-                  className="flex-1"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Voir PV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const link = document.createElement('a')
-                    link.href = submission.document_url
-                    link.download = `PV-${submission.profiles.full_name}-${new Date().toISOString()}.pdf`
-                    link.click()
-                  }}
-                  title="Télécharger procès verbal"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <div className="flex-1 text-xs text-gray-400 p-2 border border-dashed rounded">
-                Pas de PV
+                <span className="truncate">{submission.profiles.phone_number}</span>
               </div>
             )}
-          </div>
-          
-          <div className="flex gap-2 flex-wrap">
-            {(submission.id_card_url && submission.id_card_url !== 'null' && submission.id_card_url !== '') ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(submission.id_card_url, '_blank')}
-                  className="flex-1"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Voir ID
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const link = document.createElement('a')
-                    link.href = submission.id_card_url
-                    link.download = `ID-${submission.profiles.full_name}-${new Date().toISOString()}.pdf`
-                    link.click()
-                  }}
-                  title="Télécharger carte d'identité"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <div className="flex-1 text-xs text-gray-400 p-2 border border-dashed rounded">
-                Pas de carte ID
+
+            {/* Assigned Residence */}
+            {submission.assigned_residence && (
+              <div className="p-2 bg-blue-50 rounded-md">
+                <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  <span className="truncate">{submission.assigned_residence.name}</span>
+                </p>
               </div>
             )}
-          </div>
-          
-          {/* Debug Info (remove after testing) */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="text-xs text-gray-400 font-mono">
-              PV: {submission.document_url ? '✓' : '✗'} | 
-              ID: {submission.id_card_url ? '✓' : '✗'}
+
+            {/* Rejection Reason */}
+            {submission.status === 'rejected' && submission.rejection_reason && (
+              <div className="p-2 bg-red-50 rounded-md">
+                <p className="text-xs text-red-600 font-medium">Raison:</p>
+                <p className="text-xs text-gray-700 mt-0.5 line-clamp-2">{submission.rejection_reason}</p>
+              </div>
+            )}
+
+            {/* Document Actions */}
+            <div className="flex gap-1.5">
+              {submission.document_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(submission.document_url, '_blank')
+                  }}
+                  className="flex-1 h-8 text-xs"
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  PV
+                </Button>
+              )}
+              {submission.id_card_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(submission.id_card_url, '_blank')
+                  }}
+                  className="flex-1 h-8 text-xs"
+                >
+                  <Eye className="h-3 w-3 mr-1" />
+                  ID
+                </Button>
+              )}
             </div>
-          )}
-          
-          {/* Verification Button */}
-          {submission.status === 'pending' && (
-            <Button
-              size="sm"
-              onClick={() => handleReview(submission)}
-              className="w-full bg-green-600 hover:bg-green-700"
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Vérifier
-            </Button>
-          )}
+
+            {/* Review Button for Pending */}
+            {submission.status === 'pending' && (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleReview(submission)
+                }}
+                className="w-full h-8 text-xs bg-green-600 hover:bg-green-700"
+              >
+                <Check className="h-3 w-3 mr-1" />
+                Vérifier
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const renderColumn = (
+    title: string,
+    status: ColumnType,
+    submissions: Submission[],
+    icon: React.ReactNode,
+    colorClass: string
+  ) => {
+    const isOver = dragOverColumn === status
+    const canDrop = draggedSubmission && draggedSubmission.status !== status
+
+    return (
+      <div
+        className="flex-1 min-w-0"
+        onDragOver={(e) => handleDragOver(e, status)}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(e, status)}
+      >
+        <div className={`rounded-lg border-2 transition-all ${
+          isOver && canDrop
+            ? 'border-primary bg-primary/5 shadow-lg'
+            : 'border-gray-200 bg-gray-50'
+        }`}>
+          {/* Column Header */}
+          <div className={`p-4 border-b ${colorClass}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {icon}
+                <h3 className="font-semibold text-gray-900">{title}</h3>
+              </div>
+              <Badge variant="secondary" className="bg-white">
+                {submissions.length}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Column Content */}
+          <div className="p-3 space-y-3 min-h-[400px] max-h-[calc(100vh-300px)] overflow-y-auto">
+            {submissions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                {icon}
+                <p className="text-sm mt-2">Aucun document</p>
+                {isOver && canDrop && (
+                  <p className="text-xs text-primary mt-1">Déposer ici</p>
+                )}
+              </div>
+            ) : (
+              submissions.map(renderSubmissionCard)
+            )}
+          </div>
         </div>
-      </CardContent>
-    </Card>
-  )
-}
+      </div>
+    )
+  }
 
   return (
     <>
@@ -282,73 +363,44 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           type="text"
-          placeholder="Rechercher par nom, email ou téléphone..."
+          placeholder="Rechercher par nom ou téléphone..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
         />
       </div>
 
-      <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="pending" className="relative">
-            En attente
-            {pendingSubmissions.length > 0 && (
-              <Badge className="ml-2 bg-orange-500" variant="secondary">
-                {pendingSubmissions.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="approved">
-            Approuvés ({approvedSubmissions.length})
-          </TabsTrigger>
-          <TabsTrigger value="rejected">
-            Rejetés ({rejectedSubmissions.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Info Banner */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-800">
+          💡 <strong>Astuce:</strong> Glissez-déposez les cartes entre les colonnes pour changer leur statut
+        </p>
+      </div>
 
-        <TabsContent value="pending" className="space-y-4">
-          {pendingSubmissions.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center text-gray-500">
-                Aucun document en attente de vérification
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pendingSubmissions.map(renderSubmissionCard)}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="approved" className="space-y-4">
-          {approvedSubmissions.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center text-gray-500">
-                Aucun document approuvé
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {approvedSubmissions.map(renderSubmissionCard)}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="rejected" className="space-y-4">
-          {rejectedSubmissions.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center text-gray-500">
-                Aucun document rejeté
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {rejectedSubmissions.map(renderSubmissionCard)}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* Kanban Board */}
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {renderColumn(
+          'En attente',
+          'pending',
+          pendingSubmissions,
+          <Clock className="h-5 w-5 text-orange-600" />,
+          'bg-orange-50'
+        )}
+        {renderColumn(
+          'Approuvé',
+          'approved',
+          approvedSubmissions,
+          <Check className="h-5 w-5 text-green-600" />,
+          'bg-green-50'
+        )}
+        {renderColumn(
+          'Rejeté',
+          'rejected',
+          rejectedSubmissions,
+          <X className="h-5 w-5 text-red-600" />,
+          'bg-red-50'
+        )}
+      </div>
 
       {selectedSubmission && (
         <DocumentReviewModal
@@ -364,4 +416,3 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     </>
   )
 }
-

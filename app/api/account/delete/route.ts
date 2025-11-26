@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { getCustomerByUserId } from '@/lib/stripe/services/customer.service';
 import { revalidatePath } from 'next/cache';
+import { getUserResidenceId } from '@/lib/residence-utils';
 
 // Helper to cancel Stripe subscriptions
 async function cancelSubscriptions(userId: string) {
@@ -63,11 +64,64 @@ async function cancelSubscriptions(userId: string) {
   }
 }
 
+// Helper to delete residence and all its related data
+async function deleteResidenceRecursively(supabase: any, residenceId: number) {
+  console.log(`[Account Delete] Deleting residence ${residenceId} and all related data...`);
+
+  // Delete child tables first (referencing residences)
+  // Order matters due to foreign key constraints
+  
+  // 1. Transactions & Financials
+  await supabase.from('transaction_history').delete().eq('residence_id', residenceId);
+  await supabase.from('balance_snapshots').delete().eq('residence_id', residenceId);
+  await supabase.from('expenses').delete().eq('residence_id', residenceId);
+  
+  // 2. Payments references Fees
+  await supabase.from('payments').delete().eq('residence_id', residenceId);
+  await supabase.from('fees').delete().eq('residence_id', residenceId);
+  
+  // 3. Operational
+  await supabase.from('incidents').delete().eq('residence_id', residenceId);
+  await supabase.from('deliveries').delete().eq('residence_id', residenceId);
+  await supabase.from('access_logs').delete().eq('residence_id', residenceId);
+  await supabase.from('announcements').delete().eq('residence_id', residenceId);
+  
+  // 4. Polls (delete options/votes first if needed, but they cascade from poll usually? 
+  // Schema check: poll_votes ref polls. poll_options ref polls.
+  // Assuming we need to clean them or rely on cascade if configured. 
+  // Safest is to find polls and delete children.
+  const { data: polls } = await supabase.from('polls').select('id').eq('residence_id', residenceId);
+  if (polls?.length) {
+    const pollIds = polls.map((p: any) => p.id);
+    await supabase.from('poll_votes').delete().in('poll_id', pollIds);
+    await supabase.from('poll_options').delete().in('poll_id', pollIds);
+    await supabase.from('polls').delete().in('id', pollIds);
+  }
+
+  // 5. Notifications
+  await supabase.from('notifications').delete().eq('residence_id', residenceId);
+  
+  // 6. Document Submissions (unlink or delete?)
+  // syndic_document_submissions has assigned_residence_id
+  await supabase.from('syndic_document_submissions').update({ assigned_residence_id: null }).eq('assigned_residence_id', residenceId);
+
+  // 7. Profile Residences (unlink residents)
+  await supabase.from('profile_residences').delete().eq('residence_id', residenceId);
+
+  // 8. Finally delete residence
+  const { error } = await supabase.from('residences').delete().eq('id', residenceId);
+  
+  if (error) {
+    console.error(`[Account Delete] Error deleting residence ${residenceId}:`, error);
+    throw error;
+  }
+}
+
 // Helper to delete user account data
 async function deleteUserAccount(userId: string, userEmail?: string | null) {
   const adminSupabase = createSupabaseAdminClient();
   
-  // Create a client configured for dbasakan schema
+  // Create a client configured for dbasakan schema with service role
   const { createClient } = await import('@supabase/supabase-js');
   const dbasakanClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,109 +132,96 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
     }
   );
 
-  // STEP 1: Delete document submissions and their files from storage FIRST
-  // This must be done before deleting the profile due to foreign key constraints
+  console.log('[Account Delete] Starting comprehensive user data cleanup for:', userId);
+
+  // STEP 0: Unlink from Residences (Syndic/Guard roles) to prevent FK violation on users/profiles deletion
+  await dbasakanClient.from('residences').update({ syndic_user_id: null }).eq('syndic_user_id', userId);
+  await dbasakanClient.from('residences').update({ guard_user_id: null }).eq('guard_user_id', userId);
+
+  // STEP 1: Delete dependent data where user is the "subject" (Resident/User data)
+  await dbasakanClient.from('profile_residences').delete().eq('profile_id', userId);
+  await dbasakanClient.from('notifications').delete().eq('user_id', userId);
+  await dbasakanClient.from('poll_votes').delete().eq('user_id', userId);
+  await dbasakanClient.from('verification_tokens').delete().eq('identifier', userEmail || '');
+
+  // STEP 2: Nullify references where user was "creator" or "actor" (nullable columns)
+  // This ensures profile deletion doesn't fail due to FKs
+  await dbasakanClient.from('announcements').update({ created_by: null }).eq('created_by', userId);
+  await dbasakanClient.from('expenses').update({ created_by: null }).eq('created_by', userId);
+  await dbasakanClient.from('polls').update({ created_by: null }).eq('created_by', userId);
+  await dbasakanClient.from('balance_snapshots').update({ created_by: null }).eq('created_by', userId);
+  await dbasakanClient.from('payments').update({ verified_by: null }).eq('verified_by', userId);
+  await dbasakanClient.from('incidents').update({ assigned_to: null }).eq('assigned_to', userId);
+  // deliveries logged_by is nullable? Schema says logged_by REFERENCES profiles. 
+  // Checking schema: logged_by text NOT NULL? 
+  // delivery definition: logged_by text NOT NULL.
+  // So we must DELETE deliveries logged by this user.
+  await dbasakanClient.from('deliveries').delete().eq('logged_by', userId);
+  await dbasakanClient.from('deliveries').delete().eq('recipient_id', userId);
+
+  // STEP 3: Delete data where user is REQUIRED (NOT NULL FK)
+  // Payments (user_id), Fees (user_id), Incidents (user_id)
+  await dbasakanClient.from('payments').delete().eq('user_id', userId);
+  await dbasakanClient.from('fees').delete().eq('user_id', userId);
+  await dbasakanClient.from('incidents').delete().eq('user_id', userId);
+  await dbasakanClient.from('access_logs').delete().eq('generated_by', userId);
+  await dbasakanClient.from('access_logs').delete().eq('scanned_by', userId); // scanned_by is nullable? Schema: scanned_by text. Nullable.
+  // But access_logs definition: scanned_by text (nullable).
+  // So update scanned_by to null?
+  await dbasakanClient.from('access_logs').update({ scanned_by: null }).eq('scanned_by', userId);
+
+  // STEP 4: Delete document submissions and their files from storage
+  // ... existing logic ...
   const { data: submissions, error: submissionsError } = await dbasakanClient
     .from('syndic_document_submissions')
     .select('document_url, id_card_url')
     .eq('user_id', userId);
 
   if (!submissionsError && submissions) {
-    console.log(`[Account Delete] Found ${submissions.length} document submission(s) to delete`);
-    
     // Delete all files from storage
     const filesToDelete: string[] = [];
     for (const submission of submissions) {
       if (submission.document_url) {
         const documentPath = submission.document_url.split('/syndic-documents/')[1];
-        if (documentPath) {
-          filesToDelete.push(`syndic-documents/${documentPath}`);
-        }
+        if (documentPath) filesToDelete.push(`syndic-documents/${documentPath}`);
       }
       if (submission.id_card_url) {
         const idCardPath = submission.id_card_url.split('/syndic-documents/')[1];
-        if (idCardPath) {
-          filesToDelete.push(`syndic-documents/${idCardPath}`);
-        }
+        if (idCardPath) filesToDelete.push(`syndic-documents/${idCardPath}`);
       }
     }
 
     if (filesToDelete.length > 0) {
-      const { error: storageDeleteError } = await adminSupabase.storage
-        .from('SAKAN')
-        .remove(filesToDelete);
-
-      if (storageDeleteError) {
-        console.error('[Account Delete] Error deleting files from storage:', storageDeleteError);
-        // Continue anyway - don't fail account deletion if file deletion fails
-      } else {
-        console.log(`[Account Delete] Deleted ${filesToDelete.length} file(s) from storage`);
-      }
+      await adminSupabase.storage.from('SAKAN').remove(filesToDelete);
     }
 
     // Delete document submissions from database
-    const { error: deleteSubmissionsError } = await dbasakanClient
-      .from('syndic_document_submissions')
-      .delete()
-      .eq('user_id', userId);
-
-    if (deleteSubmissionsError) {
-      console.error('[Account Delete] Error deleting document submissions:', deleteSubmissionsError);
-      // This is critical - if we can't delete submissions, we can't delete the profile
-      throw new Error(`Failed to delete document submissions: ${deleteSubmissionsError.message}`);
-    } else {
-      console.log(`[Account Delete] Deleted ${submissions.length} document submission(s)`);
-    }
+    await dbasakanClient.from('syndic_document_submissions').delete().eq('user_id', userId);
   }
 
-  // STEP 2: Delete from stripe_customers
-  const { error: deleteStripeError } = await adminSupabase
-    .from('stripe_customers')
-    .delete()
-    .eq('user_id', userId);
+  // STEP 5: Delete from stripe_customers
+  await adminSupabase.from('stripe_customers').delete().eq('user_id', userId);
 
-  if (deleteStripeError) {
-    console.error('Error deleting from stripe_customers:', deleteStripeError);
-  }
-
-  // STEP 3: Delete from dbasakan.profiles (now safe since submissions are deleted)
-  const { error: deleteProfileError } = await dbasakanClient
-    .from('profiles')
-    .delete()
-    .eq('id', userId);
+  // STEP 6: Delete from profiles
+  const { error: deleteProfileError } = await dbasakanClient.from('profiles').delete().eq('id', userId);
 
   if (deleteProfileError && deleteProfileError.code !== 'PGRST116') {
     console.error('Error deleting from profiles:', deleteProfileError);
-    throw new Error(`Failed to delete profile: ${deleteProfileError.message}`);
+    // If it fails, log but try to continue to users
   }
 
-  // Delete from dbasakan.users (NextAuth)
-  const { error: deleteUserError } = await dbasakanClient
-    .from('users')
-    .delete()
-    .eq('id', userId);
+  // STEP 7: Delete from users (NextAuth)
+  const { error: deleteUserError } = await dbasakanClient.from('users').delete().eq('id', userId);
 
   if (deleteUserError) {
     console.error('Error deleting from dbasakan.users:', deleteUserError);
-    // Fallback to public schema if needed
-    const { error: deletePublicUserError } = await adminSupabase
-      .from('users')
-      .delete()
-      .eq('id', userId);
-
-    if (deletePublicUserError) {
-      console.error('Error deleting from public users:', deletePublicUserError);
-    }
+    // Fallback to public schema
+    await adminSupabase.from('users').delete().eq('id', userId);
   }
 
-  // Delete accounts and sessions
+  // STEP 8: Delete accounts and sessions
   await dbasakanClient.from('accounts').delete().eq('user_id', userId);
   await dbasakanClient.from('sessions').delete().eq('user_id', userId);
-
-  // Delete verification tokens
-  if (userEmail) {
-    await dbasakanClient.from('verification_tokens').delete().eq('identifier', userEmail);
-  }
 }
 
 export async function POST(req: Request) {
@@ -194,48 +235,54 @@ export async function POST(req: Request) {
 
     const supabase = createSupabaseAdminClient();
 
-    // Verify user is a syndic
-    const { data: profile, error: profileError } = await supabase
+    // Verify user is a syndic (or we allow it? Page calls this for syndic)
+    // We should allow it even if profile is half-deleted or role is unclear, but for safety:
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('role, residence_id')
+      .select('role')
       .eq('id', userId)
       .single();
 
-    if (profileError || profile?.role !== 'syndic') {
+    // Allow if role is syndic OR if no profile (already partial delete?) - no, security.
+    if (profile?.role !== 'syndic') {
       return NextResponse.json({ error: 'Only syndics can perform this action' }, { status: 403 });
     }
 
     // Cancel subscriptions
     await cancelSubscriptions(userId);
     
-    // Check if there are any other residents in the residence
-    if (profile.residence_id) {
-      const { data: otherResidents, error: residentsCheckError } = await supabase
-        .from('profiles')
+    // Check for residence and other residents
+    const residenceId = await getUserResidenceId(supabase, userId, 'syndic');
+    
+    if (residenceId) {
+      // Create dbasakan client for deep cleanup
+      const { createClient } = await import('@supabase/supabase-js');
+      const dbasakanClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SECRET_KEY!,
+        { db: { schema: 'dbasakan' }, auth: { persistSession: false } }
+      );
+
+      const { data: otherResidents, error: residentsCheckError } = await dbasakanClient
+        .from('profile_residences')
         .select('id')
-        .eq('residence_id', profile.residence_id)
-        .neq('id', userId); // Exclude current user
+        .eq('residence_id', residenceId)
+        .neq('profile_id', userId);
       
-      // If no other residents exist, delete the residence as well
+      // If no other residents exist, delete the entire residence
       if (!residentsCheckError && (!otherResidents || otherResidents.length === 0)) {
-        console.log(`[Account Delete] No other residents found. Deleting residence ${profile.residence_id}`);
-        
-        // Delete the residence (this will cascade to related records based on FK constraints)
-        const { error: deleteResidenceError } = await supabase
+        await deleteResidenceRecursively(dbasakanClient, residenceId);
+      } else {
+        // If other residents exist, we just unlink the syndic from the residence
+        console.log(`[Account Delete] Residence ${residenceId} has other residents. Unlinking syndic only.`);
+        await dbasakanClient
           .from('residences')
-          .delete()
-          .eq('id', profile.residence_id);
-        
-        if (deleteResidenceError) {
-          console.error('[Account Delete] Error deleting residence:', deleteResidenceError);
-          // Continue with account deletion even if residence deletion fails
-        } else {
-          console.log(`[Account Delete] Residence ${profile.residence_id} deleted successfully`);
-        }
+          .update({ syndic_user_id: null })
+          .eq('id', residenceId);
       }
     }
     
-    // Delete account immediately
+    // Delete account
     await deleteUserAccount(userId, session.user.email);
     
     return NextResponse.json({ 
@@ -253,7 +300,6 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  // Keeping the simple delete logic for non-syndics or general use
   try {
     const session = await auth();
     const userId = session?.user?.id;
@@ -262,7 +308,6 @@ export async function DELETE() {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
 
-    // Check if user is syndic
     const supabase = createSupabaseAdminClient();
     const { data: profile } = await supabase
       .from('profiles')

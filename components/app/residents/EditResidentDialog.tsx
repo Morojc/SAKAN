@@ -190,7 +190,7 @@ export default function EditResidentDialog({
           apartment_number: result.resident.apartment_number,
           phone_number: result.resident.phone_number,
           role: result.resident.role,
-          residence_id: result.resident.residence_id,
+          residence_id: Number(residenceId),
           email: email.trim(),
           residences: Array.isArray(result.resident.residences) && result.resident.residences.length > 0 ? {
             id: result.resident.residences[0].id,

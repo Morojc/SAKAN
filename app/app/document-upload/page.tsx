@@ -63,6 +63,14 @@ export default function DocumentUploadPage() {
 		const result = await getDocumentStatus();
 		if (result.success && result.submission) {
 			setSubmission(result.submission);
+			
+			// If document is already approved, redirect to dashboard immediately
+			if (result.submission.status === 'approved') {
+				console.log('[DocumentUpload] Document already approved, redirecting to dashboard');
+				// Use replace to prevent back navigation
+				window.location.replace('/app');
+				return;
+			}
 		}
 		setIsLoadingStatus(false);
 	};
@@ -169,6 +177,20 @@ export default function DocumentUploadPage() {
 				<Card className="w-full max-w-2xl">
 					<CardContent className="flex items-center justify-center py-12">
 						<Loader2 className="h-8 w-8 animate-spin text-primary" />
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
+	// If document is approved, don't render the page (redirect is happening)
+	if (submission?.status === 'approved') {
+		return (
+			<div className="min-h-screen flex items-center justify-center bg-gray-50">
+				<Card className="w-full max-w-2xl">
+					<CardContent className="flex items-center justify-center py-12">
+						<Loader2 className="h-8 w-8 animate-spin text-primary" />
+						<p className="ml-3 text-gray-600">Redirection vers le tableau de bord...</p>
 					</CardContent>
 				</Card>
 			</div>

@@ -44,74 +44,147 @@ export async function reviewDocument({
     const supabase = createSupabaseAdminClient()
 
     if (action === 'approve') {
-      // Validate new residence data
-      if (!newResidence?.name || !newResidence?.address || !newResidence?.city) {
-        return {
-          success: false,
-          error: 'Les informations de la résidence sont requises',
-        }
-      }
-
-      // Create new residence
-      const { data: createdResidence, error: residenceCreateError } = await supabase
+      // Check if syndic already has a residence assigned
+      const { data: existingResidence, error: residenceCheckError } = await supabase
         .from('residences')
-        .insert({
-          name: newResidence.name,
-          address: newResidence.address,
-          city: newResidence.city,
-          bank_account_rib: newResidence.bank_account_rib || null,
-          syndic_user_id: userId,
-        })
-        .select()
-        .single()
+        .select('id, name, address, city')
+        .eq('syndic_user_id', userId)
+        .maybeSingle()
 
-      if (residenceCreateError || !createdResidence) {
-        console.error('[Admin Review] Error creating residence:', residenceCreateError)
+      if (residenceCheckError) {
+        console.error('[Admin Review] Error checking existing residence:', residenceCheckError)
         return {
           success: false,
-          error: 'Erreur lors de la création de la résidence',
+          error: 'Erreur lors de la vérification de la résidence',
         }
       }
 
-      const newResidenceId = createdResidence.id
+      let finalResidenceId: number
 
-      // Update document submission
-      const { error: submissionError } = await supabase
-        .from('syndic_document_submissions')
-        .update({
-          status: 'approved',
-          reviewed_by: adminId,
-          reviewed_at: new Date().toISOString(),
-          assigned_residence_id: newResidenceId,
+      if (existingResidence) {
+        // Syndic already has a residence - just update document status
+        console.log('[Admin Review] Syndic already has residence:', {
+          residenceId: existingResidence.id,
+          name: existingResidence.name,
+          userId
         })
-        .eq('id', submissionId)
 
-      if (submissionError) {
-        console.error('[Admin Review] Error updating submission:', submissionError)
-        return {
-          success: false,
-          error: 'Erreur lors de la mise à jour du document',
+        finalResidenceId = existingResidence.id
+
+        // Update document submission
+        const { error: submissionError } = await supabase
+          .from('syndic_document_submissions')
+          .update({
+            status: 'approved',
+            reviewed_by: adminId,
+            reviewed_at: new Date().toISOString(),
+            assigned_residence_id: finalResidenceId,
+          })
+          .eq('id', submissionId)
+
+        if (submissionError) {
+          console.error('[Admin Review] Error updating submission:', submissionError)
+          return {
+            success: false,
+            error: 'Erreur lors de la mise à jour du document',
+          }
         }
-      }
 
-      // Update profile: mark as verified and assign residence
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          verified: true,
-          residence_id: newResidenceId,
+        // Update profile: mark as verified
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            verified: true,
+          })
+          .eq('id', userId)
+
+        if (profileError) {
+          console.error('[Admin Review] Error updating profile:', profileError)
+          return {
+            success: false,
+            error: 'Erreur lors de la mise à jour du profil',
+          }
+        }
+
+        console.log('[Admin Review] Document approved, using existing residence:', { userId, residenceId: finalResidenceId })
+      } else {
+        // Syndic doesn't have a residence - create new one
+        // Validate new residence data
+        if (!newResidence?.name || !newResidence?.address || !newResidence?.city) {
+          return {
+            success: false,
+            error: 'Les informations de la résidence sont requises',
+          }
+        }
+
+        // Create new residence
+        console.log('[Admin Review] Creating residence for syndic:', userId, 'with data:', newResidence)
+        
+        const { data: createdResidence, error: residenceCreateError } = await supabase
+          .from('residences')
+          .insert({
+            name: newResidence.name,
+            address: newResidence.address,
+            city: newResidence.city,
+            bank_account_rib: newResidence.bank_account_rib || null,
+            syndic_user_id: userId,
+          })
+          .select()
+          .single()
+
+        if (residenceCreateError || !createdResidence) {
+          console.error('[Admin Review] Error creating residence:', residenceCreateError)
+          return {
+            success: false,
+            error: 'Erreur lors de la création de la résidence',
+          }
+        }
+
+        console.log('[Admin Review] Residence created successfully:', {
+          residenceId: createdResidence.id,
+          name: createdResidence.name,
+          syndic_user_id: createdResidence.syndic_user_id
         })
-        .eq('id', userId)
 
-      if (profileError) {
-        console.error('[Admin Review] Error updating profile:', profileError)
-        return {
-          success: false,
-          error: 'Erreur lors de la mise à jour du profil',
+        finalResidenceId = createdResidence.id
+
+        // Update document submission
+        const { error: submissionError } = await supabase
+          .from('syndic_document_submissions')
+          .update({
+            status: 'approved',
+            reviewed_by: adminId,
+            reviewed_at: new Date().toISOString(),
+            assigned_residence_id: finalResidenceId,
+          })
+          .eq('id', submissionId)
+
+        if (submissionError) {
+          console.error('[Admin Review] Error updating submission:', submissionError)
+          return {
+            success: false,
+            error: 'Erreur lors de la mise à jour du document',
+          }
         }
-      }
 
-      console.log('[Admin Review] Document approved, residence created and assigned:', { userId, residenceId: newResidenceId })
+        // Update profile: mark as verified
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            verified: true,
+          })
+          .eq('id', userId)
+
+        if (profileError) {
+          console.error('[Admin Review] Error updating profile:', profileError)
+          return {
+            success: false,
+            error: 'Erreur lors de la mise à jour du profil',
+          }
+        }
+
+        console.log('[Admin Review] Document approved, residence created and assigned:', { userId, residenceId: finalResidenceId })
+      }
     } else if (action === 'reject') {
       // Reject
       if (!rejectionReason?.trim()) {
@@ -176,12 +249,11 @@ export async function reviewDocument({
         }
       }
 
-      // Update profile: remove residence assignment if exists
+      // Update profile: remove verification
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
           verified: false,
-          residence_id: null
         })
         .eq('id', userId)
 

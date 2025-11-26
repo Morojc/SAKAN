@@ -8,6 +8,8 @@ declare module 'next-auth' {
 		supabaseAccessToken?: string
 		user: {
 			id: string
+			role?: string
+			residenceId?: string | null
 		} & DefaultSession["user"]
 	}
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,8 +9,45 @@ import { Button } from "@/components/ui/button"
 import { AuthNavigationManager } from '@/lib/auth-navigation'
 
 export default function WaitingResidencePage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
+  const [isChecking, setIsChecking] = useState(false)
+
+  // Handle authentication redirect
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/api/auth/signin')
+    }
+  }, [status, router])
+
+  // Check for residence assignment
+  const checkResidenceAssignment = async () => {
+    if (!session?.user?.id || isChecking) {
+      console.log('[Waiting Page] Skipping check:', { hasUser: !!session?.user?.id, isChecking })
+      return
+    }
+    
+    console.log('[Waiting Page] Checking residence assignment for user:', session.user.id)
+    setIsChecking(true)
+    try {
+      const response = await fetch('/api/check-residence-assignment')
+      const data = await response.json()
+      
+      console.log('[Waiting Page] API Response:', data)
+      
+      if (data.hasResidence) {
+        console.log('[Waiting Page] Residence found! Redirecting to dashboard...')
+        // Residence assigned! Redirect to dashboard
+        window.location.href = '/app'
+      } else {
+        console.log('[Waiting Page] No residence yet, will check again in 10 seconds')
+      }
+    } catch (error) {
+      console.error('[Waiting Page] Error checking residence:', error)
+    } finally {
+      setIsChecking(false)
+    }
+  }
 
   // Prevent back navigation
   useEffect(() => {
@@ -30,14 +67,18 @@ export default function WaitingResidencePage() {
     }
   }, [])
 
-  // Auto-refresh to check for residence assignment
+  // Auto-check for residence assignment every 10 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      router.refresh()
-    }, 30000) // Check every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [router])
+    if (status === 'authenticated') {
+      // Check immediately on mount
+      checkResidenceAssignment()
+      
+      // Then check every 10 seconds
+      const interval = setInterval(checkResidenceAssignment, 10000)
+      return () => clearInterval(interval)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session?.user?.id])
 
   const handleSignOut = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -49,8 +90,13 @@ export default function WaitingResidencePage() {
     window.location.replace('/api/auth/signout?callbackUrl=/')
   }
 
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+    </div>
+  }
+
   if (!session?.user) {
-    router.push('/api/auth/signin')
     return null
   }
 
