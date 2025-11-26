@@ -66,6 +66,22 @@ export function DocumentReviewModal({
   // Filter residences that don't have a syndic or only show all for now
   const availableResidences = residences.filter(r => !r.syndic_user_id || r.syndic_user_id === submission.user_id)
 
+  // Check if syndic already has a residence
+  const existingSyndicResidence = residences.find(r => r.syndic_user_id === submission.user_id)
+
+  const handleActionChange = (newAction: 'approve' | 'reject' | 'pending') => {
+    setAction(newAction)
+    
+    // Pre-fill residence data if approving and syndic has existing residence
+    if (newAction === 'approve' && existingSyndicResidence) {
+      setResidenceName(existingSyndicResidence.name)
+      setResidenceAddress(existingSyndicResidence.address)
+      setResidenceCity(existingSyndicResidence.city)
+      // Note: we don't have bank_account_rib in the Residence interface currently being passed,
+      // so we can't pre-fill it unless we update the interface and parent query
+    }
+  }
+
   const handleSubmit = async () => {
     setError('')
 
@@ -185,14 +201,14 @@ export function DocumentReviewModal({
           {!action && (
             <div className="flex gap-4">
               <Button
-                onClick={() => setAction('approve')}
+                onClick={() => handleActionChange('approve')}
                 className="flex-1 bg-green-600 hover:bg-green-700"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Approuver
               </Button>
               <Button
-                onClick={() => setAction('reject')}
+                onClick={() => handleActionChange('reject')}
                 variant="destructive"
                 className="flex-1"
               >
@@ -201,7 +217,7 @@ export function DocumentReviewModal({
               </Button>
               {submission.status !== 'pending' && (
                 <Button
-                  onClick={() => setAction('pending')}
+                  onClick={() => handleActionChange('pending')}
                   variant="outline"
                   className="flex-1"
                 >
@@ -218,9 +234,15 @@ export function DocumentReviewModal({
                 <p className="text-sm font-medium text-green-800">
                   Approbation du document
                 </p>
-                <p className="text-sm text-green-700 mt-1">
-                  Remplissez les informations de la résidence pour ce syndic
-                </p>
+                {existingSyndicResidence ? (
+                  <p className="text-sm text-green-700 mt-1">
+                    Ce syndic a déjà une résidence assignée. Vous pouvez mettre à jour les informations ci-dessous.
+                  </p>
+                ) : (
+                  <p className="text-sm text-green-700 mt-1">
+                    Remplissez les informations de la résidence pour ce syndic
+                  </p>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -334,6 +356,11 @@ export function DocumentReviewModal({
                   setSelectedResidenceId('')
                   setRejectionReason('')
                   setError('')
+                  // Clear form
+                  setResidenceName('')
+                  setResidenceAddress('')
+                  setResidenceCity('')
+                  setResidenceBankRib('')
                 }}
                 disabled={isSubmitting}
                 className="flex-1"

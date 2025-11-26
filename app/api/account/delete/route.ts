@@ -210,7 +210,16 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
     // If it fails, log but try to continue to users
   }
 
-  // STEP 7: Delete from users (NextAuth)
+  // STEP 7.5: Delete accounts and sessions (before deleting users)
+  // This is critical because `accounts` table often has FK to `users` table
+  // The error "violates foreign key constraint accounts_userid_fkey" confirms this dependency
+  await dbasakanClient.from('accounts').delete().eq('userId', userId); // NextAuth usually uses userId (camelCase) or user_id (snake_case)
+  // Let's try both common column names for NextAuth accounts table to be safe or check schema if possible
+  await dbasakanClient.from('accounts').delete().eq('user_id', userId); 
+  await dbasakanClient.from('sessions').delete().eq('userId', userId);
+  await dbasakanClient.from('sessions').delete().eq('user_id', userId);
+
+  // STEP 8: Delete from users (NextAuth)
   const { error: deleteUserError } = await dbasakanClient.from('users').delete().eq('id', userId);
 
   if (deleteUserError) {
@@ -218,10 +227,6 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
     // Fallback to public schema
     await adminSupabase.from('users').delete().eq('id', userId);
   }
-
-  // STEP 8: Delete accounts and sessions
-  await dbasakanClient.from('accounts').delete().eq('user_id', userId);
-  await dbasakanClient.from('sessions').delete().eq('user_id', userId);
 }
 
 export async function POST(req: Request) {

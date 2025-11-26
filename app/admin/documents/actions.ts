@@ -62,12 +62,34 @@ export async function reviewDocument({
       let finalResidenceId: number
 
       if (existingResidence) {
-        // Syndic already has a residence - just update document status
+        // Syndic already has a residence
         console.log('[Admin Review] Syndic already has residence:', {
           residenceId: existingResidence.id,
           name: existingResidence.name,
           userId
         })
+
+        // If new residence data is provided, update the existing residence
+        if (newResidence?.name && newResidence?.address && newResidence?.city) {
+          console.log('[Admin Review] Updating existing residence with new data:', newResidence)
+          const { error: updateResidenceError } = await supabase
+            .from('residences')
+            .update({
+              name: newResidence.name,
+              address: newResidence.address,
+              city: newResidence.city,
+              bank_account_rib: newResidence.bank_account_rib || null,
+            })
+            .eq('id', existingResidence.id)
+
+          if (updateResidenceError) {
+            console.error('[Admin Review] Error updating existing residence:', updateResidenceError)
+            return {
+              success: false,
+              error: 'Erreur lors de la mise à jour de la résidence existante',
+            }
+          }
+        }
 
         finalResidenceId = existingResidence.id
 
