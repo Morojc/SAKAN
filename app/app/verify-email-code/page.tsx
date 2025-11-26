@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { CheckCircle2, XCircle, Loader2, AlertCircle, Mail, KeyRound, RefreshCw, X } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 import config from '@/config';
 import { AuthNavigationManager } from '@/lib/auth-navigation';
 
@@ -181,8 +182,11 @@ export default function VerifyEmailCodePage() {
 								AuthNavigationManager.markLogout();
 								AuthNavigationManager.clearAuthState();
 								
-								// Sign out and redirect to sign in page
-								window.location.replace('/api/auth/signout?callbackUrl=/api/auth/signin');
+								// Sign out directly without confirmation
+								await signOut({ redirect: false });
+								
+								// Redirect to sign in page
+								window.location.replace('/api/auth/signin');
 							}}
 							className="text-gray-400 hover:text-gray-600"
 							title="Quitter"
