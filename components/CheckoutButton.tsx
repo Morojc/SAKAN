@@ -257,10 +257,10 @@ export default function CheckoutButton({ priceId, productId, className }: Checko
 				title={showWarning ? 'Click to see error - Price ID needs to be updated in config.ts' : undefined}
 			>
 				{isLoading 
-					? 'Processing...' 
+					? 'Traitement...' 
 					: !priceId 
-						? 'Get Started' 
-						: 'Buy Now'}
+						? 'Commencer' 
+						: 'Acheter Maintenant'}
 			</button>
 			{showWarning && (
 				<p className="text-xs text-amber-600 mt-1 text-center font-medium">
