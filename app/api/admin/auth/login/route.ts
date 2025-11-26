@@ -67,6 +67,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if user has an active NextAuth session (prevent dual authentication)
+    const cookieStore = await cookies()
+    const nextAuthSessionToken = cookieStore.get('next-auth.session-token')?.value || 
+                                  cookieStore.get('__Secure-next-auth.session-token')?.value
+    
+    if (nextAuthSessionToken) {
+      // Verify the session exists in database
+      const { data: nextAuthSession } = await supabase
+        .from('sessions')
+        .select('id, expires')
+        .eq('sessionToken', nextAuthSessionToken)
+        .maybeSingle()
+      
+      // If session exists and is not expired, reject admin login
+      if (nextAuthSession && new Date(nextAuthSession.expires) > new Date()) {
+        console.log('[Admin Login] Rejected: User has active NextAuth session')
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Vous êtes déjà connecté en tant qu\'utilisateur. Veuillez vous déconnecter avant de vous connecter en tant qu\'administrateur.' 
+          },
+          { status: 403 }
+        )
+      }
+    }
+
     // Generate session token
     const sessionToken = crypto.randomUUID()
 
@@ -107,8 +133,7 @@ export async function POST(request: NextRequest) {
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', admin.admin_id)
 
-    // Set cookie with session token
-    const cookieStore = await cookies()
+    // Set cookie with session token (reuse cookieStore from above)
     cookieStore.set('admin_session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
