@@ -139,6 +139,19 @@ export default function DocumentUploadPage() {
 		}
 	};
 
+	const handleSignOut = async (e: React.MouseEvent) => {
+		// Prevent any default behavior or confirmation
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Mark logout as user action (not browser navigation)
+		AuthNavigationManager.markLogout();
+		AuthNavigationManager.clearAuthState();
+		
+		// Sign out and use replace to prevent back button issues
+		await signOut({ callbackUrl: '/', redirect: true });
+	};
+
 	const handleDeleteAccount = async () => {
 		setIsCanceling(true);
 		try {
@@ -215,7 +228,7 @@ export default function DocumentUploadPage() {
 									type="button"
 									variant="outline"
 									size="sm"
-									onClick={() => window.location.href = '/api/auth/signout'}
+									onClick={handleSignOut}
 									disabled={isCanceling || isUploading}
 									className="border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50"
 								>
