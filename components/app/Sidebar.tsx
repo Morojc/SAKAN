@@ -59,15 +59,19 @@ export function Sidebar() {
         { href: "/app/residences", label: "Residences & Syndics", icon: Building2 },
         { href: "/app/expenses", label: "Expenses", icon: Receipt },
         { href: "/app/incidents", label: "Incidents", icon: AlertCircle },
-        { href: "/app/announcements", label: "Announcements", icon: Megaphone },
-        { href: "/app/calendar", label: "Calendar", icon: Calendar },
+        // TODO: Task 4 - Announcements page
+        // { href: "/app/announcements", label: "Announcements", icon: Megaphone },
+        // TODO: Calendar page - not yet implemented
+        // { href: "/app/calendar", label: "Calendar", icon: Calendar },
       ]
     },
     {
       category: "System",
       items: [
-        { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
-        { href: "/app/settings", label: "Settings", icon: Settings },
+        // TODO: Analytics page - not yet implemented
+        // { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
+        // Settings redirects to profile for now
+        { href: "/app/profile", label: "Settings", icon: Settings },
       ]
     }
   ];
