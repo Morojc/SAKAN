@@ -163,21 +163,17 @@ export async function middleware(req: NextRequest) {
 						.eq('syndic_user_id', userId)
 						.maybeSingle();
 					
-					console.log('[Middleware] Syndic residence check:', { 
-						userId, 
-						verified: profile.verified,
-						residence, 
-						error: residenceError,
-						pathname 
-					});
+					// Only log if there's an error or no residence found (for debugging)
+					if (residenceError) {
+						console.error('[Middleware] Error checking syndic residence:', residenceError);
+					}
 					
 					if (!residence) {
-						console.log('[Middleware] No residence found, redirecting to waiting-residence');
+						console.log('[Middleware] No residence found for syndic, redirecting to waiting-residence');
 						// Document approved but no residence assigned yet
 						return NextResponse.redirect(new URL("/app/waiting-residence", req.url));
-					} else {
-						console.log('[Middleware] Residence found, allowing access:', residence.name);
 					}
+					// Residence found - allow access (no need to log every successful check)
 				}
 			}
 		}

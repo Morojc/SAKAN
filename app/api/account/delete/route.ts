@@ -118,7 +118,7 @@ async function deleteResidenceRecursively(supabase: any, residenceId: number) {
 }
 
 // Helper to delete user account data
-async function deleteUserAccount(userId: string, userEmail?: string | null) {
+export async function deleteUserAccount(userId: string, userEmail?: string | null, skipDeletionRequestCheck: boolean = false) {
   const adminSupabase = createSupabaseAdminClient();
   
   // Create a client configured for dbasakan schema with service role
@@ -131,6 +131,28 @@ async function deleteUserAccount(userId: string, userEmail?: string | null) {
       auth: { persistSession: false },
     }
   );
+
+  // Check if this is a syndic with a pending deletion request (unless skipDeletionRequestCheck is true, which means it's from the approval flow)
+  if (!skipDeletionRequestCheck) {
+    const { data: profile } = await dbasakanClient
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profile?.role === 'syndic') {
+      const { data: deletionRequest } = await dbasakanClient
+        .from('syndic_deletion_requests')
+        .select('id, status')
+        .eq('syndic_user_id', userId)
+        .in('status', ['pending', 'approved'])
+        .maybeSingle();
+
+      if (deletionRequest) {
+        throw new Error(`Cannot delete syndic with a ${deletionRequest.status} deletion request. Please process the deletion request through the admin approval flow.`);
+      }
+    }
+  }
 
   console.log('[Account Delete] Starting comprehensive user data cleanup for:', userId);
 
@@ -256,54 +278,253 @@ export async function POST(req: Request) {
     // Cancel subscriptions
     await cancelSubscriptions(userId);
     
-    // Check for residence and other residents
-    const residenceId = await getUserResidenceId(supabase, userId, 'syndic');
+    // Create dbasakan client first for consistent schema usage
+    const { createClient } = await import('@supabase/supabase-js');
+    const dbasakanClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SECRET_KEY!,
+      { db: { schema: 'dbasakan' }, auth: { persistSession: false } }
+    );
+
+    // Check for residence - try dbasakan schema first
+    let residenceId: number | null = null;
+    const { data: dbasakanResidence } = await dbasakanClient
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
+    
+    residenceId = dbasakanResidence?.id || null;
+    
+    // Fallback to public schema if not found in dbasakan
+    if (!residenceId) {
+      residenceId = await getUserResidenceId(supabase, userId, 'syndic');
+    }
+    
+    console.log('[Account Delete] Found residenceId:', residenceId, '(from dbasakan:', !!dbasakanResidence, ')');
     
     if (residenceId) {
-      // Create dbasakan client for deep cleanup
-      const { createClient } = await import('@supabase/supabase-js');
-      const dbasakanClient = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SECRET_KEY!,
-        { db: { schema: 'dbasakan' }, auth: { persistSession: false } }
-      );
 
+      // Parse request body for successorId
+      const body = await req.json().catch(() => ({}));
+      const { successorId } = body;
+
+      // Query residents from profile_residences in dbasakan schema
       const { data: otherResidents, error: residentsCheckError } = await dbasakanClient
         .from('profile_residences')
-        .select('id')
+        .select('profile_id')
         .eq('residence_id', residenceId)
         .neq('profile_id', userId);
       
-      // If no other residents exist, delete the entire residence
-      if (!residentsCheckError && (!otherResidents || otherResidents.length === 0)) {
+      console.log('[Account Delete] Query result - otherResidents from dbasakan:', otherResidents, 'error:', residentsCheckError);
+      
+      // Also try querying from public schema as fallback
+      let otherResidentIds = otherResidents?.map((r: any) => r.profile_id) || [];
+      
+      // If no residents found in dbasakan schema, try public schema
+      if (otherResidentIds.length === 0) {
+        console.log('[Account Delete] No residents in dbasakan schema, trying public schema...');
+        const { data: publicResidents, error: publicError } = await supabase
+          .from('profile_residences')
+          .select('profile_id')
+          .eq('residence_id', residenceId)
+          .neq('profile_id', userId);
+        
+        console.log('[Account Delete] Public schema residents:', publicResidents, 'error:', publicError);
+        if (publicResidents && publicResidents.length > 0) {
+          otherResidentIds = publicResidents.map((r: any) => r.profile_id);
+        }
+      }
+      
+      // Additional check: Query all profiles with role='resident' that might be in this residence
+      // This is a fallback in case profile_residences doesn't have the data
+      if (otherResidentIds.length === 0) {
+        console.log('[Account Delete] Trying alternative query: checking all residents in profiles table...');
+        // This is a less precise query but might catch residents that aren't in profile_residences
+        const { data: allResidents } = await dbasakanClient
+          .from('profiles')
+          .select('id')
+          .eq('role', 'resident')
+          .neq('id', userId);
+        
+        console.log('[Account Delete] All residents in dbasakan profiles:', allResidents);
+        // Note: We can't directly verify they're in this residence without profile_residences,
+        // but this at least shows there are residents in the system
+      }
+
+      // If no other residents exist, delete the entire residence immediately
+      if (!residentsCheckError && otherResidentIds.length === 0) {
         await deleteResidenceRecursively(dbasakanClient, residenceId);
       } else {
-        // If other residents exist, we just unlink the syndic from the residence
-        console.log(`[Account Delete] Residence ${residenceId} has other residents. Unlinking syndic only.`);
-        await dbasakanClient
-          .from('residences')
-          .update({ syndic_user_id: null })
-          .eq('id', residenceId);
+        // If other residents exist, require successor selection before creating deletion request
+        // Use the body that was already parsed at line 287
+        const { successorId } = body;
+
+        // If no successorId provided, return eligible successors for selection
+        if (!successorId) {
+          // Check if a deletion request already exists
+          const { data: existingRequest } = await dbasakanClient
+            .from('syndic_deletion_requests')
+            .select('id, status')
+            .eq('syndic_user_id', userId)
+            .eq('residence_id', residenceId)
+            .in('status', ['pending', 'approved'])
+            .maybeSingle();
+
+          if (existingRequest) {
+            return NextResponse.json({ 
+              error: 'A deletion request is already pending or approved for this account.',
+              code: 'REQUEST_ALREADY_EXISTS',
+              requestId: existingRequest.id
+            }, { status: 409 });
+          }
+
+          // Fetch eligible successors for selection
+          let eligibleSuccessors: any[] = [];
+          
+          if (otherResidentIds.length > 0) {
+            // Fetch profiles and emails
+            const { data: dbasakanProfiles } = await dbasakanClient
+              .from('profiles')
+              .select('id, full_name, phone_number, role')
+              .in('id', otherResidentIds);
+
+            eligibleSuccessors = dbasakanProfiles || [];
+
+            // Get emails from users table
+            const { data: users } = await dbasakanClient
+              .from('users')
+              .select('id, email')
+              .in('id', otherResidentIds);
+
+            if (users && users.length > 0) {
+              eligibleSuccessors = otherResidentIds.map((id: string) => {
+                const profile = eligibleSuccessors.find((p: any) => p.id === id);
+                const user = users.find((u: any) => u.id === id);
+                
+                return {
+                  id,
+                  full_name: profile?.full_name || null,
+                  phone_number: profile?.phone_number || null,
+                  email: user?.email || null,
+                  role: profile?.role || null
+                };
+              });
+            }
+
+            // Filter out syndics and residents with the same email as the syndic
+            const syndicEmail = session.user?.email;
+            const filteredSuccessors = eligibleSuccessors.filter((successor: any) => {
+              if (successor.role === 'syndic') return false;
+              if (!syndicEmail || !successor.email) return true;
+              return successor.email.toLowerCase() !== syndicEmail.toLowerCase();
+            });
+
+            return NextResponse.json({ 
+              error: 'Please select a successor to take over the Syndic role before submitting the deletion request.',
+              code: 'RESIDENCE_HAS_RESIDENTS',
+              eligibleSuccessors: filteredSuccessors
+            }, { status: 403 });
+          }
+        }
+
+        // SuccessorId is provided - validate and create deletion request
+        if (!successorId) {
+          return NextResponse.json({ 
+            error: 'Successor selection is required. Please select a resident to become the new syndic.',
+            code: 'SUCCESSOR_REQUIRED'
+          }, { status: 400 });
+        }
+
+        // Verify successor is a valid resident of this residence
+        if (!otherResidentIds.includes(successorId)) {
+          return NextResponse.json({ 
+            error: 'Invalid successor selected',
+          }, { status: 400 });
+        }
+
+        // Verify successor is not already a syndic
+        const { data: successorProfile } = await dbasakanClient
+          .from('profiles')
+          .select('role')
+          .eq('id', successorId)
+          .maybeSingle();
+
+        // Fallback to public schema if not found
+        const profileToCheck = successorProfile || await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', successorId)
+          .maybeSingle()
+          .then(({ data }) => data);
+
+        if (profileToCheck?.role === 'syndic') {
+          return NextResponse.json({ 
+            error: 'Cannot select a syndic as a successor. Syndics cannot be added as residents.',
+          }, { status: 400 });
+        }
+
+        // Check if a deletion request already exists
+        const { data: existingRequest } = await dbasakanClient
+          .from('syndic_deletion_requests')
+          .select('id, status')
+          .eq('syndic_user_id', userId)
+          .eq('residence_id', residenceId)
+          .in('status', ['pending', 'approved'])
+          .maybeSingle();
+
+        if (existingRequest) {
+          return NextResponse.json({ 
+            error: 'A deletion request is already pending or approved for this account.',
+            code: 'REQUEST_ALREADY_EXISTS',
+            requestId: existingRequest.id
+          }, { status: 409 });
+        }
+
+        // Create a new deletion request with the selected successor
+        const { data: newRequest, error: requestError } = await dbasakanClient
+          .from('syndic_deletion_requests')
+          .insert({
+            syndic_user_id: userId,
+            residence_id: residenceId,
+            successor_user_id: successorId, // Include the selected successor
+            status: 'pending'
+          })
+          .select('id')
+          .single();
+
+        if (requestError) {
+          console.error('[Account Delete] Error creating deletion request:', requestError);
+          return NextResponse.json({ 
+            error: 'Failed to create deletion request',
+          }, { status: 500 });
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          message: 'Deletion request submitted successfully with selected successor. An administrator will review your request.',
+          code: 'DELETION_REQUEST_CREATED',
+          requestId: newRequest.id
+        }, { status: 200 });
       }
     }
-    
-    // Delete account
+
+    // If no residence, proceed with immediate deletion
     await deleteUserAccount(userId, session.user.email);
     
     return NextResponse.json({ 
       success: true, 
       message: 'Account deleted successfully' 
-    });
-
+    }, { status: 200 });
   } catch (error: any) {
-    console.error('Error deleting account:', error);
+    console.error('[Account Delete] Error:', error);
     return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error.message 
+      error: error.message || 'An error occurred while processing your request' 
     }, { status: 500 });
   }
 }
 
+// DELETE handler for non-syndic users (residents, guards, etc.)
 export async function DELETE() {
   try {
     const session = await auth();

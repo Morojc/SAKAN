@@ -153,3 +153,92 @@ export async function createResidence(data: CreateResidenceData) {
   }
 }
 
+interface TransferSyndicRoleParams {
+  residenceId: number
+  newSyndicId: string
+}
+
+export async function transferSyndicRole({ residenceId, newSyndicId }: TransferSyndicRoleParams) {
+  console.log('[Admin Residences] Transferring syndic role:', { residenceId, newSyndicId })
+
+  try {
+    // Verify admin authentication
+    const adminId = await getAdminId()
+    if (!adminId) {
+      return { success: false, error: 'Non authentifié' }
+    }
+
+    const supabase = createSupabaseAdminClient()
+
+    // 1. Get residence and current syndic
+    const { data: residence, error: residenceError } = await supabase
+      .from('residences')
+      .select('id, name, syndic_user_id')
+      .eq('id', residenceId)
+      .single()
+
+    if (residenceError || !residence) {
+      return { success: false, error: 'Résidence introuvable' }
+    }
+
+    const oldSyndicId = residence.syndic_user_id
+
+    // 2. Verify new syndic exists and is a resident of this residence (optional security check)
+    // We'll just check if profile exists for now
+    const { data: newSyndicProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('id', newSyndicId)
+      .single()
+
+    if (profileError || !newSyndicProfile) {
+      return { success: false, error: 'Nouvel utilisateur introuvable' }
+    }
+
+    // 3. Promote new user to syndic
+    const { error: promoteError } = await supabase
+      .from('profiles')
+      .update({ role: 'syndic', verified: true })
+      .eq('id', newSyndicId)
+
+    if (promoteError) {
+      console.error('[Admin Residences] Error promoting new syndic:', promoteError)
+      return { success: false, error: 'Erreur lors de la promotion du nouveau syndic' }
+    }
+
+    // 4. Update residence to point to new syndic
+    const { error: updateResidenceError } = await supabase
+      .from('residences')
+      .update({ syndic_user_id: newSyndicId })
+      .eq('id', residenceId)
+
+    if (updateResidenceError) {
+      console.error('[Admin Residences] Error updating residence:', updateResidenceError)
+      // Attempt rollback (partial) - revert profile role?
+      // For now, return error
+      return { success: false, error: 'Erreur lors de l\'affectation de la résidence' }
+    }
+
+    // 5. Demote old syndic if exists and different from new one
+    if (oldSyndicId && oldSyndicId !== newSyndicId) {
+      const { error: demoteError } = await supabase
+        .from('profiles')
+        .update({ role: 'resident' })
+        .eq('id', oldSyndicId)
+
+      if (demoteError) {
+        console.error('[Admin Residences] Error demoting old syndic:', demoteError)
+        // Non-critical error, log it
+      }
+    }
+
+    revalidatePath(`/admin/residences/${residenceId}`)
+    revalidatePath('/admin/residences')
+
+    return { success: true }
+  } catch (error: any) {
+    console.error('[Admin Residences] Error transferring role:', error)
+    return { success: false, error: error.message || 'Une erreur est survenue' }
+  }
+}
+

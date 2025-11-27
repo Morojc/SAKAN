@@ -6,6 +6,37 @@ import { revalidatePath } from 'next/cache'
 export async function deleteSyndic(syndicId: string) {
   console.log('[Admin Delete Syndic] Starting deletion for syndic:', syndicId)
 
+  // Check if syndic has a pending deletion request
+  const { createClient } = await import('@supabase/supabase-js')
+  const dbasakanClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!,
+    { db: { schema: 'dbasakan' }, auth: { persistSession: false } }
+  )
+
+  const { data: deletionRequest, error: requestError } = await dbasakanClient
+    .from('syndic_deletion_requests')
+    .select('id, status')
+    .eq('syndic_user_id', syndicId)
+    .in('status', ['pending', 'approved'])
+    .maybeSingle()
+
+  if (requestError) {
+    console.error('[Admin Delete Syndic] Error checking deletion request:', requestError)
+    return {
+      success: false,
+      error: 'Erreur lors de la vérification de la demande de suppression',
+    }
+  }
+
+  if (deletionRequest) {
+    const statusText = deletionRequest.status === 'pending' ? 'en attente' : 'approuvée'
+    return {
+      success: false,
+      error: `Impossible de supprimer ce syndic. Une demande de suppression est ${statusText}. Veuillez traiter la demande de suppression d'abord.`,
+    }
+  }
+
   try {
     const supabase = createSupabaseAdminClient()
 

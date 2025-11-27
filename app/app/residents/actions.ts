@@ -114,11 +114,38 @@ export async function createResident(data: CreateResidentData) {
       .eq('email', data.email)
       .maybeSingle();
 
+    // If email exists, check the user's role
+    if (existingUser) {
+      // Check if the existing user is a syndic
+      const { data: existingProfile } = await adminSupabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', existingUser.id)
+        .maybeSingle();
+
+      // If the user is a syndic, prevent adding them as a resident (even if it's the current syndic)
+      if (existingProfile?.role === 'syndic') {
+        return {
+          success: false,
+          error: 'Cannot add a syndic as a resident. Syndics cannot be added to residences as residents.',
+        };
+      }
+
+      // If email exists and doesn't belong to the current syndic, reject it
+      if (existingUser.id !== userId) {
+        return {
+          success: false,
+          error: 'This email is already registered to another user. Please use a different email address.',
+        };
+      }
+    }
+
     let finalUserId: string;
 
     if (existingUser) {
+      // Email belongs to the syndic themselves - allow it (but they won't be a syndic, they'll be a resident/guard)
       finalUserId = existingUser.id;
-      console.log('[Residents Actions] Using existing user:', finalUserId);
+      console.log('[Residents Actions] Using existing user (syndic\'s own email):', finalUserId);
     } else {
       // Create new user
       finalUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -139,7 +166,7 @@ export async function createResident(data: CreateResidentData) {
     // Ensure profile exists with 'resident' role
     const { data: existingProfile } = await adminSupabase
       .from('profiles')
-      .select('id, verified, role')
+      .select('id, verified, role, onboarding_completed')
       .eq('id', finalUserId)
       .maybeSingle();
 
@@ -293,6 +320,21 @@ export async function updateResident(data: UpdateResidentData) {
 
     // Update User Email
     if (data.email) {
+      // Check if the new email already exists and belongs to someone else
+      const { data: existingUserWithEmail } = await adminSupabase
+        .from('users')
+        .select('id')
+        .eq('email', data.email)
+        .maybeSingle();
+
+      // If email exists and doesn't belong to the resident being updated or the syndic, reject it
+      if (existingUserWithEmail && existingUserWithEmail.id !== data.id && existingUserWithEmail.id !== userId) {
+        return {
+          success: false,
+          error: 'This email is already registered to another user. Please use a different email address.',
+        };
+      }
+
       const { error: userError } = await adminSupabase
         .from('users')
             .update({ email: data.email, name: data.full_name })

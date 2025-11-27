@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { UserPlus } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { UserPlus, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -57,6 +57,13 @@ export default function AddResidentDialog({
   const [residenceId, setResidenceId] = useState<string>('');
   const [role, setRole] = useState<'resident' | 'guard'>('resident');
 
+  // Email validation state
+  const [emailChecking, setEmailChecking] = useState(false);
+  const [emailExists, setEmailExists] = useState(false);
+  const [isSyndic, setIsSyndic] = useState(false);
+  const [syndicError, setSyndicError] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
   // Validation errors
   const [errors, setErrors] = useState<{
     fullName?: string;
@@ -65,6 +72,22 @@ export default function AddResidentDialog({
     apartmentNumber?: string;
     residenceId?: string;
   }>({});
+
+  // Get current user email
+  useEffect(() => {
+    async function fetchCurrentUserEmail() {
+      try {
+        const response = await fetch('/api/auth/session');
+        const data = await response.json();
+        if (data?.user?.email) {
+          setCurrentUserEmail(data.user.email.toLowerCase());
+        }
+      } catch (error) {
+        console.error('[AddResidentDialog] Error fetching user email:', error);
+      }
+    }
+    fetchCurrentUserEmail();
+  }, []);
 
   // Fetch residences when dialog opens
   useEffect(() => {
@@ -81,6 +104,70 @@ export default function AddResidentDialog({
       }
     }
   }, [open, currentUserRole, currentUserResidenceId]);
+
+  // Debounced email check
+  const checkEmailExists = useCallback(
+    async (emailToCheck: string) => {
+      if (!emailToCheck.trim()) {
+        setEmailExists(false);
+        setEmailChecking(false);
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailToCheck.trim())) {
+        setEmailExists(false);
+        setEmailChecking(false);
+        return;
+      }
+
+      // If email matches current user's email, still check if they're a syndic
+      // (syndics cannot be added as residents even if it's the current user)
+
+      setEmailChecking(true);
+      try {
+        const response = await fetch('/api/check-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailToCheck.trim() }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          setEmailExists(data.exists && !data.belongsToCurrentUser);
+          setIsSyndic(data.isSyndic || false);
+          setSyndicError(data.isSyndic ? (data.error || 'Cannot add a syndic as a resident. Syndics cannot be added to residences as residents.') : null);
+        } else {
+          setEmailExists(false);
+          setIsSyndic(false);
+          setSyndicError(null);
+        }
+      } catch (error) {
+        console.error('[AddResidentDialog] Error checking email:', error);
+        setEmailExists(false);
+        setIsSyndic(false);
+        setSyndicError(null);
+      } finally {
+        setEmailChecking(false);
+      }
+    },
+    [currentUserEmail]
+  );
+
+  // Debounce email check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (email.trim()) {
+        checkEmailExists(email);
+      } else {
+        setEmailExists(false);
+        setEmailChecking(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [email, checkEmailExists]);
 
   async function fetchResidences() {
     setLoading(true);
@@ -109,6 +196,10 @@ export default function AddResidentDialog({
     setResidenceId('');
     setRole('resident');
     setErrors({});
+    setEmailExists(false);
+    setIsSyndic(false);
+    setSyndicError(null);
+    setEmailChecking(false);
   }
 
   function validateForm(): boolean {
@@ -128,6 +219,10 @@ export default function AddResidentDialog({
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email.trim())) {
         newErrors.email = 'Invalid email format';
+      } else if (isSyndic) {
+        newErrors.email = syndicError || 'Cannot add a syndic as a resident. Syndics cannot be added to residences as residents.';
+      } else if (emailExists) {
+        newErrors.email = 'This email is already registered to another user. Please use a different email address.';
       }
     }
 
@@ -151,6 +246,11 @@ export default function AddResidentDialog({
 
     setErrors(newErrors);
     console.log('[AddResidentDialog] Validation errors:', newErrors);
+
+    // Also check if email exists or is syndic (even if not in errors yet)
+    if (emailExists || isSyndic) {
+      return false;
+    }
 
     return Object.keys(newErrors).length === 0;
   }
@@ -273,25 +373,43 @@ export default function AddResidentDialog({
               <Label htmlFor="email">
                 Email <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email) {
-                    setErrors({ ...errors, email: undefined });
-                  }
-                }}
-                placeholder="Enter email address"
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                className={errors.email ? 'border-destructive' : ''}
-              />
-              {errors.email && (
-                <p id="email-error" className="text-sm text-destructive" role="alert">
-                  {errors.email}
-                </p>
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailExists(false); // Reset on change
+                    setIsSyndic(false);
+                    setSyndicError(null);
+                    if (errors.email) {
+                      setErrors({ ...errors, email: undefined });
+                    }
+                  }}
+                  onBlur={() => {
+                    if (email.trim()) {
+                      checkEmailExists(email);
+                    }
+                  }}
+                  placeholder="Enter email address"
+                  aria-invalid={!!errors.email || emailExists || isSyndic}
+                  aria-describedby={errors.email || emailExists || isSyndic ? 'email-error' : undefined}
+                  className={`${errors.email || emailExists || isSyndic ? 'border-destructive' : ''} ${emailChecking ? 'pr-10' : ''}`}
+                />
+                {emailChecking && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                )}
+              </div>
+              {(errors.email || emailExists || isSyndic) && (
+                <div className="flex items-start gap-2 text-sm text-destructive" role="alert">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <p id="email-error">
+                    {errors.email || syndicError || 'This email is already registered to another user. Please use a different email address.'}
+                  </p>
+                </div>
               )}
             </div>
 
@@ -418,7 +536,11 @@ export default function AddResidentDialog({
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || loading} className={`w-1/2 shadow-lg transition-all font-semibold ${'bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/10' }`}>
+            <Button 
+              type="submit" 
+              disabled={submitting || loading || emailExists || isSyndic || emailChecking} 
+              className={`w-1/2 shadow-lg transition-all font-semibold ${'bg-gray-900 hover:bg-gray-800 text-white shadow-gray-900/10' }`}
+            >
               {submitting ? 'Adding...' : 'Add Resident'}
             </Button>
           </DialogFooter>

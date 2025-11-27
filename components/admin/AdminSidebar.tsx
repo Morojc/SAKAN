@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, FileCheck, Building2, Users, Settings } from 'lucide-react'
+import { Home, FileCheck, Building2, Users, Settings, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AdminSidebarProps {
@@ -34,6 +34,12 @@ const navigation = [
     name: 'Syndics',
     href: '/admin/syndics',
     icon: Users,
+  },
+  {
+    name: 'Demandes de suppression',
+    href: '/admin/deletion-requests',
+    icon: Trash2,
+    badge: 'pending',
   },
   {
     name: 'Paramètres',
