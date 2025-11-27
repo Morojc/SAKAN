@@ -9,6 +9,7 @@ import { Sidebar } from "./Sidebar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -87,6 +88,9 @@ export function Header() {
                 </button>
               </Link>
             </div>
+
+            {/* Language Switcher */}
+            <LanguageSwitcher />
 
             {/* User Menu */}
             <UserMenu />

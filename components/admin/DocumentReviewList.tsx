@@ -66,7 +66,6 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
   const [dragOverColumn, setDragOverColumn] = useState<ColumnType | null>(null)
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const [optimisticSubmissions, setOptimisticSubmissions] = useState<Submission[]>(submissions)
-  const dragPreviewRef = useRef<HTMLDivElement>(null)
 
   // Sync optimistic updates with server data when submissions change
   useEffect(() => {
@@ -113,16 +112,21 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     setDraggedSubmission(submission)
     e.dataTransfer.effectAllowed = 'move'
     
-    // Create a custom drag image
-    if (dragPreviewRef.current) {
-      const dragImage = dragPreviewRef.current.cloneNode(true) as HTMLElement
+    // Create a custom drag image using the current target
+    const target = e.currentTarget as HTMLElement
+    if (target) {
+      const dragImage = target.cloneNode(true) as HTMLElement
       dragImage.style.transform = 'rotate(5deg)'
       dragImage.style.opacity = '0.9'
       document.body.appendChild(dragImage)
       dragImage.style.position = 'absolute'
       dragImage.style.top = '-1000px'
-      e.dataTransfer.setDragImage(dragImage, e.clientX - e.currentTarget.getBoundingClientRect().left, e.clientY - e.currentTarget.getBoundingClientRect().top)
-      setTimeout(() => document.body.removeChild(dragImage), 0)
+      e.dataTransfer.setDragImage(dragImage, e.clientX - target.getBoundingClientRect().left, e.clientY - target.getBoundingClientRect().top)
+      setTimeout(() => {
+        if (document.body.contains(dragImage)) {
+          document.body.removeChild(dragImage)
+        }
+      }, 0)
     }
   }
 
@@ -305,7 +309,6 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     return (
       <div
         key={submission.id}
-        ref={isDragging ? dragPreviewRef : undefined}
         draggable={!isProcessingCard}
         onDragStart={(e) => !isProcessingCard && handleDragStart(e, submission)}
         onDragEnd={handleDragEnd}
