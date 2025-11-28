@@ -1,0 +1,670 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Implement Residents Management UI/UX",
+        "description": "Design and develop the Residents Management page and dialogs for CRUD operations, fee management, and table interactions.",
+        "details": "Create `/app/residents` page using shadcn/ui Table, Input, Select, Badge, DropdownMenu, and Dialog components. Implement search, filter, and sorting logic. Add dialogs for Add/Edit/Delete Resident and Add Fee, with real-time validation and error handling. Fetch resident data from `dbasakan.profiles` joined with `dbasakan.users`, and fees from `dbasakan.fees`. Ensure accessibility (aria attributes, labels, keyboard navigation). Use Tailwind variable colors and Lucide icons. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test all form validation and CRUD actions. Integration test table filtering, sorting, and fee calculation. Accessibility test with keyboard and screen reader. Visual regression test for responsive layouts and dialogs.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Residents Data Fetching and State Management",
+            "description": "Implement data fetching logic for residents and fees, joining `dbasakan.profiles` with `dbasakan.users` and retrieving related fee data from `dbasakan.fees`. Establish state management for residents, fees, filters, and UI state.",
+            "dependencies": [],
+            "details": "Use server-side or client-side data fetching (e.g., React Query, SWR, or server components) to retrieve resident and fee data. Normalize and store the data in state (e.g., React context or component state). Ensure the data structure supports efficient filtering, sorting, and CRUD operations. Implement debug logging for all fetches and state changes.",
+            "status": "done",
+            "testStrategy": "Mock API responses and verify correct data normalization, error handling, and logging. Unit test state updates and data joins."
+          },
+          {
+            "id": 2,
+            "title": "Build Residents Table with Search, Filter, and Sorting",
+            "description": "Create the residents table UI using shadcn/ui Table, Input, Select, Badge, and DropdownMenu components. Implement search, filter, and sorting logic, and display fee status badges.",
+            "dependencies": [],
+            "details": "Define table columns, including resident details and fee status. Integrate search input, filter dropdowns, and sorting controls using TanStack Table and shadcn/ui components. Display badges for statuses and use DropdownMenu for row actions. Ensure responsive layout and accessibility (aria attributes, keyboard navigation). Add debug logging for all table interactions.",
+            "status": "done",
+            "testStrategy": "Integration test search, filter, and sorting. Accessibility test with keyboard and screen reader. Visual regression test for table layout."
+          },
+          {
+            "id": 3,
+            "title": "Implement Resident CRUD Dialogs with Validation",
+            "description": "Develop dialogs for adding, editing, and deleting residents using shadcn/ui Dialog, Input, and Select components. Integrate real-time validation and error handling.",
+            "dependencies": [],
+            "details": "Create Add/Edit/Delete Resident dialogs with form fields mapped to resident data. Use controlled components for real-time validation (e.g., required fields, email format). Handle API calls for CRUD actions and display errors inline. Ensure dialogs are accessible (aria labels, focus management) and use Tailwind variable colors and Lucide icons. Log all dialog actions and state changes.",
+            "status": "done",
+            "testStrategy": "Unit test form validation and error handling. Integration test CRUD flows. Accessibility test for dialogs."
+          },
+          {
+            "id": 4,
+            "title": "Develop Fee Management Dialog and Integration",
+            "description": "Add dialog for assigning and editing resident fees, integrating with the residents table and updating fee data in real time.",
+            "dependencies": [],
+            "details": "Implement Add/Edit Fee dialog using shadcn/ui Dialog and Input components. Validate fee inputs and handle API calls for fee creation and updates. Update resident fee status in the table upon changes. Ensure accessibility and consistent UI. Log all fee management actions and state changes.",
+            "status": "done",
+            "testStrategy": "Unit test fee form validation and API integration. Integration test fee assignment and table updates. Accessibility test for fee dialog."
+          },
+          {
+            "id": 5,
+            "title": "Finalize Accessibility, Theming, and Debug Logging",
+            "description": "Ensure all UI elements meet accessibility standards, apply Tailwind variable colors and Lucide icons, and verify comprehensive debug logging for all actions and state changes.",
+            "dependencies": [],
+            "details": "Audit all components for aria attributes, labels, and keyboard navigation. Apply Tailwind variable colors for consistent theming and integrate Lucide icons where appropriate. Review and enhance debug logging for all user actions, state changes, and error events. Perform a final pass for responsive design and visual consistency.",
+            "status": "done",
+            "testStrategy": "Accessibility audit (manual and automated). Visual regression test for theming and icons. Review debug logs for completeness and clarity."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Implement Expenses Management UI/UX",
+        "description": "Design and develop the Expenses Management page, including expense logging, categorization, attachments, and summary cards.",
+        "details": "Create `/app/expenses` page with shadcn/ui Table, Card, Dialog, Select, and DatePicker components. Implement Add/Edit Expense dialogs with file upload (Supabase storage), category selection, and date range filtering. Fetch data from `dbasakan.expenses` joined with `dbasakan.profiles` and `dbasakan.residences`. Display summary cards for totals and averages. Use Tailwind variable colors and Lucide icons. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test expense form validation and file upload. Integration test category/date filtering and summary calculations. Accessibility test for forms and tables. Visual regression test for responsive layouts.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Expenses Management Page Layout and Components",
+            "description": "Create the `/app/expenses` page structure using shadcn/ui Table, Card, Dialog, Select, and DatePicker components. Ensure the layout supports expense listing, summary cards, and dialogs for adding/editing expenses.",
+            "dependencies": [],
+            "details": "Set up the page scaffold with Tailwind variable colors and Lucide icons. Place summary cards at the top for totals and averages. Below, add the expenses table with category, date, and attachment columns. Reserve space for Add/Edit dialogs and filters.",
+            "status": "pending",
+            "testStrategy": "Visual regression test for layout and responsiveness. Accessibility test for navigation and component labeling."
+          },
+          {
+            "id": 2,
+            "title": "Implement Expense Data Fetching and Integration",
+            "description": "Fetch and join expense data from `dbasakan.expenses`, `dbasakan.profiles`, and `dbasakan.residences`. Ensure data is available for table display, dialogs, and summary calculations.",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "Create API hooks or data-fetching logic to retrieve and join expenses with related profile and residence data. Normalize and format data for table and summary card consumption. Add debug logging for all fetch actions and state changes.",
+            "status": "pending",
+            "testStrategy": "Integration test for data fetching, joining, and error handling. Debug log verification."
+          },
+          {
+            "id": 3,
+            "title": "Develop Add/Edit Expense Dialogs with File Upload and Validation",
+            "description": "Build dialogs for adding and editing expenses, including file upload to Supabase storage, category selection, date picker, and form validation.",
+            "dependencies": [
+              "2.2"
+            ],
+            "details": "Implement shadcn/ui Dialogs with controlled form fields for amount, category (Select), date (DatePicker), and file upload. Integrate Supabase storage for attachments. Validate required fields and file types. Log all dialog actions and state changes for debugging.",
+            "status": "pending",
+            "testStrategy": "Unit test form validation and file upload. Accessibility test for dialog controls."
+          },
+          {
+            "id": 4,
+            "title": "Implement Expense Table with Filtering, Sorting, and Debug Logging",
+            "description": "Display expenses in a shadcn/ui Table with support for category selection, date range filtering, sorting, and attachment preview. Add debug logging for all table interactions.",
+            "dependencies": [
+              "2.3"
+            ],
+            "details": "Render expenses in a paginated table. Add Select for category filter and DatePicker for date range filter. Enable sorting by amount, date, and category. Show attachment icons with preview/download. Log all filter, sort, and interaction events for debugging.",
+            "status": "pending",
+            "testStrategy": "Integration test for filtering, sorting, and attachment preview. Debug log verification."
+          },
+          {
+            "id": 5,
+            "title": "Render Summary Cards for Totals and Averages",
+            "description": "Calculate and display summary cards showing total expenses, average per category, and other key metrics using Tailwind variable colors and Lucide icons.",
+            "dependencies": [
+              "2.4"
+            ],
+            "details": "Aggregate fetched expense data to compute totals and averages. Render summary cards at the top of the page with visual indicators and icons. Ensure cards update reactively with filters. Log summary calculations and card updates for debugging.",
+            "status": "pending",
+            "testStrategy": "Unit test summary calculations. Visual regression test for card display and responsiveness."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Implement Incidents Management UI/UX",
+        "description": "Design and develop the Incidents Management page, including incident reporting, assignment, status tracking, and photo uploads.",
+        "details": "Create `/app/incidents` page with shadcn/ui Table, Dialog, ToggleGroup, and Badge components. Implement incident reporting dialog with photo upload (Supabase storage), status and assignment management, and list/kanban view toggle. Fetch data from `dbasakan.incidents` joined with `dbasakan.profiles` and `dbasakan.residences`. Ensure role-based access (residents, syndics, guards). Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test incident form validation and photo upload. Integration test status/assignment changes and role-based filtering. Accessibility test for dialogs and tables. Visual regression test for responsive layouts.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Incidents page structure and data fetching",
+            "description": "Create the `/app/incidents` page component with initial layout structure. Implement data fetching from `dbasakan.incidents` table joined with `dbasakan.profiles` and `dbasakan.residences`. Set up role-based access control to filter incidents based on user role (residents, syndics, guards). Initialize state management for incidents list and implement debug logging for data fetching operations.",
+            "dependencies": [],
+            "details": "Create a new file at `/app/incidents/page.tsx`. Use Supabase client to query incidents with proper joins. Implement role-based filtering logic based on user's role from session. Set up useState hooks for incidents data, loading state, and error handling. Add console.log statements for debugging data fetching, filtering logic, and role-based access decisions. Create a utility function to handle the complex join query and filtering logic.",
+            "status": "pending",
+            "testStrategy": "Unit test the role-based filtering logic with different user roles. Integration test the data fetching with mock Supabase responses. Verify debug logs appear for all data operations."
+          },
+          {
+            "id": 2,
+            "title": "Implement incident reporting dialog with photo upload",
+            "description": "Build the incident reporting dialog component using shadcn/ui Dialog component. Implement form validation for incident details (title, description, location). Create photo upload functionality using Supabase storage with file type and size validation. Handle upload progress and error states. Add debug logging for form submission, validation errors, and upload operations.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Create a separate component `IncidentReportDialog.tsx` that exports a Dialog with form fields. Use React Hook Form for form management and validation. Implement file input with preview functionality. Create an async function to upload photos to Supabase storage with error handling. Add loading states during upload. Include debug logs for form validation steps, file selection, upload progress, and completion. Handle edge cases like network failures and file size limits.",
+            "status": "pending",
+            "testStrategy": "Unit test form validation with various inputs. Unit test photo upload with different file types and sizes. Integration test the complete dialog flow from opening to submission. Test error handling for failed uploads."
+          },
+          {
+            "id": 3,
+            "title": "Build incidents table with status and assignment management",
+            "description": "Create the incidents table using shadcn/ui Table component to display all incidents. Implement columns for incident ID, title, status, assigned user, date, and actions. Add inline status and assignment updates using shadcn/ui Select components. Implement Badge components for visual status indicators. Add debug logging for all status and assignment changes.",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Create `IncidentsTable.tsx` component using shadcn/ui Table. Define table columns with proper TypeScript types. Implement inline editing for status and assignment fields using Select dropdowns. Create update functions that call Supabase to persist changes. Add visual feedback during updates (loading states). Include debug logs for every status change, assignment change, and update operation. Use Lucide icons for action buttons (edit, delete, view details).",
+            "status": "pending",
+            "testStrategy": "Unit test status update logic. Unit test assignment update logic. Integration test table rendering with sample data. Test that debug logs capture all state changes. Accessibility test for table navigation and select interactions."
+          },
+          {
+            "id": 4,
+            "title": "Implement list and kanban view toggle with ToggleGroup",
+            "description": "Create a view toggle using shadcn/ui ToggleGroup component to switch between list view (table) and kanban view. Implement kanban board layout with columns for different incident statuses (e.g., Open, In Progress, Resolved). Implement drag-and-drop functionality for moving incidents between status columns. Add debug logging for view changes and kanban operations.",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Create a `ViewToggle.tsx` component with ToggleGroup for list/kanban selection. Create a `KanbanBoard.tsx` component that renders incident cards grouped by status. Implement drag-and-drop using a library like react-beautiful-dnd or native HTML5 drag-and-drop API. Each kanban card should display incident summary with status badge. Add state management to track current view. Include debug logs for view toggle events, drag-and-drop operations, and status updates from kanban interactions.",
+            "status": "pending",
+            "testStrategy": "Unit test view toggle state changes. Integration test switching between list and kanban views. Test drag-and-drop functionality and status updates. Verify debug logs for all view and kanban operations. Accessibility test for keyboard navigation in kanban view."
+          },
+          {
+            "id": 5,
+            "title": "Integrate all components and add comprehensive debug logging",
+            "description": "Combine all incident management components (page structure, reporting dialog, table, and view toggle) into a cohesive page. Implement comprehensive debug logging throughout the entire page for all user actions, state changes, and data operations. Add error boundaries and user-friendly error messages. Ensure role-based access is enforced at the component level. Test the complete workflow end-to-end.",
+            "dependencies": [
+              "3.2",
+              "3.4"
+            ],
+            "details": "Update `/app/incidents/page.tsx` to import and compose all components. Implement a context or state management solution to share data between components. Add debug logging middleware/utility that logs: page load, user role verification, data fetches, dialog opens/closes, form submissions, photo uploads, status changes, assignment changes, view toggles, and errors. Create a debug panel or console output that shows all operations with timestamps. Implement error boundaries to catch and log component errors. Add role-based conditional rendering for features (e.g., only syndics can assign incidents).",
+            "status": "pending",
+            "testStrategy": "Integration test the complete incidents page workflow. Test all user interactions generate appropriate debug logs. Verify role-based access restrictions work correctly. Test error scenarios and error logging. Accessibility test the entire page with keyboard navigation and screen reader. Visual regression test responsive layouts on different screen sizes."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Announcements UI/UX",
+        "description": "Design and develop the Announcements page for posting, viewing, editing, and deleting building-wide notices.",
+        "details": "Create `/app/announcements` page with shadcn/ui Card, Dialog, and Select components. Implement New/Edit Announcement dialogs with file attachment (Supabase storage), residence filtering, and list/card view toggle. Fetch data from `dbasakan.announcements` joined with `dbasakan.profiles` and `dbasakan.residences`. Ensure role-based access (syndic create/edit/delete, resident view). Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test announcement form validation and file upload. Integration test residence filtering and role-based access. Accessibility test for dialogs and cards. Visual regression test for responsive layouts.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Announcements page structure and data fetching",
+            "description": "Create the `/app/announcements` page component with initial layout structure. Implement data fetching from `dbasakan.announcements` table joined with `dbasakan.profiles` and `dbasakan.residences`. Set up state management for announcements list, loading states, and error handling. Implement role-based access control to determine if user is syndic or resident.",
+            "dependencies": [],
+            "details": "Create a new file at `/app/announcements/page.tsx`. Use React hooks (useState, useEffect) to manage announcements data. Implement Supabase query to fetch announcements with user and residence information. Add role detection logic based on user session. Include debug logging for data fetching operations and role determination. Handle loading and error states appropriately.",
+            "status": "pending",
+            "testStrategy": "Unit test data fetching logic with mock Supabase responses. Integration test role-based access by testing with different user roles. Verify debug logs are output correctly for all data operations."
+          },
+          {
+            "id": 2,
+            "title": "Build Announcements list/card view with shadcn/ui components",
+            "description": "Implement the announcements display using shadcn/ui Card components. Create a toggle mechanism to switch between list view and card view layouts. Display announcement details including title, content, author, date, and residence information. Add visual indicators for announcement status and importance.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Use shadcn/ui Card, CardHeader, CardContent, CardFooter components for announcement display. Implement a ToggleGroup component to switch between list and card views. Style cards with Tailwind CSS using variable colors. Add Lucide icons for visual enhancement. Include responsive design for mobile and desktop. Add debug logging for view toggle actions.",
+            "status": "pending",
+            "testStrategy": "Visual regression test for both list and card view layouts on different screen sizes. Unit test toggle functionality between views. Accessibility test for card content readability and keyboard navigation."
+          },
+          {
+            "id": 3,
+            "title": "Implement New/Edit Announcement dialogs with form validation",
+            "description": "Create Dialog components for creating and editing announcements. Build forms with title, content, residence filter (Select component), and file attachment fields. Implement form validation for required fields and content length. Add file upload handling for Supabase storage integration. Ensure dialogs are only accessible to syndics.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create separate Dialog components for New and Edit announcements. Use shadcn/ui Dialog, Input, Textarea, Select, and Button components. Implement form validation using a validation library or custom logic. Add file input with preview capability. Integrate Supabase storage for file uploads with error handling. Include debug logging for form submissions, validations, and file uploads. Add accessibility attributes (aria-labels, aria-describedby) to form fields.",
+            "status": "pending",
+            "testStrategy": "Unit test form validation for all fields including required fields and content length limits. Unit test file upload logic with mock Supabase storage. Integration test dialog open/close behavior. Accessibility test for form labels, error messages, and keyboard navigation in dialogs."
+          },
+          {
+            "id": 4,
+            "title": "Implement residence filtering and role-based access control",
+            "description": "Add residence filtering functionality using shadcn/ui Select component to filter announcements by specific residences. Implement role-based access control where syndics can create, edit, and delete announcements, while residents can only view. Add appropriate UI elements (buttons, menu items) based on user role. Ensure delete functionality is only available to syndics.",
+            "dependencies": [
+              "4.2",
+              "4.3"
+            ],
+            "details": "Add a Select component to filter announcements by residence. Implement conditional rendering of action buttons (Edit, Delete) based on user role. Create a helper function to check user permissions. Add Edit and Delete buttons to announcement cards/list items for syndics only. Implement delete confirmation dialog. Include debug logging for all access control checks and filter changes. Handle edge cases where user role changes during session.",
+            "status": "pending",
+            "testStrategy": "Integration test residence filtering with different residence selections. Integration test role-based button visibility for syndic and resident users. Unit test permission checking logic. Test delete confirmation flow and actual deletion for syndics."
+          },
+          {
+            "id": 5,
+            "title": "Add debug logging and comprehensive error handling",
+            "description": "Implement detailed debug logging throughout the announcements page for all user actions, state changes, data fetching, and error conditions. Add comprehensive error handling with user-friendly error messages. Implement loading states and skeleton screens for better UX. Add console logging for troubleshooting and monitoring.",
+            "dependencies": [
+              "4.1",
+              "4.2",
+              "4.3",
+              "4.4"
+            ],
+            "details": "Add console.log statements for all major operations: data fetching, role checks, filter changes, form submissions, file uploads, and CRUD operations. Implement error boundaries and try-catch blocks around async operations. Create user-friendly error messages for common failures (network errors, file upload failures, permission denied). Add loading skeletons using shadcn/ui Skeleton component. Log state changes for debugging. Include timestamps in debug logs. Create a logging utility function for consistent formatting.",
+            "status": "pending",
+            "testStrategy": "Verify debug logs appear in console for all actions and state changes. Test error handling by simulating network failures and permission errors. Verify user-friendly error messages display correctly. Test loading states and skeleton screens during data fetching. Integration test complete user workflows with logging enabled."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Implement Transaction History & Export UI/UX",
+        "description": "Design and develop the Transaction History page for unified payments/expenses view, filtering, and CSV export.",
+        "details": "Create `/app/transactions` page with shadcn/ui Table, Card, Dialog, and DatePicker components. Implement filtering by type, method, status, date range, and search. Add Export CSV functionality using filtered data. Fetch and combine data from `dbasakan.payments` and `dbasakan.expenses`, joined with `dbasakan.profiles` and `dbasakan.residences`. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test filter logic and CSV export. Integration test data combination and summary calculations. Accessibility test for tables and dialogs. Visual regression test for responsive layouts.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Design Unified Transaction Data Model & Fetch Logic",
+            "description": "Define a unified data model for transactions by combining payments and expenses, joined with profiles and residences. Implement server-side logic to fetch and merge data from `dbasakan.payments`, `dbasakan.expenses`, `dbasakan.profiles`, and `dbasakan.residences`.",
+            "dependencies": [],
+            "details": "Create a TypeScript interface representing a unified transaction. Write server-side code (e.g., in Next.js API route or server component) to query and join the necessary tables. Ensure the merged data includes all required fields for display and filtering. Add debug logging for all fetch actions and data transformations.",
+            "status": "pending",
+            "testStrategy": "Unit test data merging logic with mock data. Integration test with real database to verify correct joins and field mapping."
+          },
+          {
+            "id": 2,
+            "title": "Implement Transaction History Table UI with shadcn/ui Components",
+            "description": "Build the `/app/transactions` page using shadcn/ui Table, Card, Dialog, and DatePicker components to display the unified transaction data.",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "Use the shadcn/ui Table component to render transaction rows. Display summary cards for totals/averages using Card components. Integrate Dialog for row actions (e.g., details view). Use DatePicker for date-based filtering UI. Ensure responsive layout and accessibility. Add debug logging for all UI interactions and state changes.",
+            "status": "pending",
+            "testStrategy": "Visual regression test for layout and responsiveness. Accessibility test for tables, dialogs, and cards."
+          },
+          {
+            "id": 3,
+            "title": "Develop Filtering and Search Functionality",
+            "description": "Implement filtering by transaction type, method, status, date range, and search query, updating the displayed data in real time.",
+            "dependencies": [
+              "5.2"
+            ],
+            "details": "Add filter controls (Select, DatePicker, Input) using shadcn/ui components. Implement state management to track filter values. Filter the unified transaction data client-side or server-side as appropriate. Ensure filters are composable and performant. Add debug logging for filter changes and resulting data sets.",
+            "status": "pending",
+            "testStrategy": "Unit test filter logic with various combinations. Integration test to verify correct data display after filtering."
+          },
+          {
+            "id": 4,
+            "title": "Implement CSV Export of Filtered Transactions",
+            "description": "Add functionality to export the currently filtered transaction data to a CSV file.",
+            "dependencies": [
+              "5.3"
+            ],
+            "details": "Create an export button using shadcn/ui Button. On click, generate a CSV from the filtered transaction data using a utility function. Ensure proper CSV formatting and field mapping. Trigger file download in the browser. Add debug logging for export actions and errors.",
+            "status": "pending",
+            "testStrategy": "Unit test CSV generation with edge cases. Manual test to verify exported file contents and download behavior."
+          },
+          {
+            "id": 5,
+            "title": "Integrate Debug Logging for Actions and State Changes",
+            "description": "Ensure comprehensive debug logging is present for all key actions and state changes throughout the transaction history page.",
+            "dependencies": [
+              "5.1",
+              "5.2",
+              "5.3",
+              "5.4"
+            ],
+            "details": "Implement logging for data fetches, UI interactions, filter changes, export actions, and error states. Use a centralized logging utility or context. Ensure logs are clear, structured, and can be toggled for development/production environments.",
+            "status": "pending",
+            "testStrategy": "Manual test by triggering all major actions and verifying logs. Automated test for log output format if feasible."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Implement Polls & Voting UI/UX",
+        "description": "Design and develop the Polls page for creating polls, voting, and viewing results with data visualization.",
+        "details": "Create `/app/polls` page with shadcn/ui Card, Dialog, Select, and Tabs components. Implement Create Poll dialog with dynamic options, voting view, and results visualization (progress bars). Fetch data from `dbasakan.polls`, `dbasakan.poll_options`, and `dbasakan.poll_votes`. Enforce one vote per user per poll. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test poll creation, voting logic, and results calculation. Integration test role-based access and visualization. Accessibility test for forms and cards. Visual regression test for responsive layouts.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Polls Page Structure with shadcn/ui Components",
+            "description": "Create the `/app/polls` page using shadcn/ui Card, Dialog, Select, and Tabs components. Organize the layout for poll creation, voting, and results views.",
+            "dependencies": [],
+            "details": "Initialize the page with a Card for each poll, a Dialog for creating polls, Select for option selection, and Tabs to switch between voting and results views. Use Tailwind CSS for styling and ensure responsive layout.",
+            "status": "pending",
+            "testStrategy": "Visual regression test for responsive layouts and accessibility test for cards and dialogs."
+          },
+          {
+            "id": 2,
+            "title": "Implement Create Poll Dialog with Dynamic Options",
+            "description": "Build a dialog for creating polls with dynamic option fields, allowing users to add or remove options as needed.",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Use shadcn/ui Dialog and Input components. Implement logic to dynamically add/remove option fields. Ensure form validation and debug logging for all actions.",
+            "status": "pending",
+            "testStrategy": "Unit test form validation and dynamic option handling. Accessibility test for form fields and dialogs."
+          },
+          {
+            "id": 3,
+            "title": "Fetch and Display Poll Data from Database",
+            "description": "Connect the Polls page to the backend to fetch data from `dbasakan.polls`, `dbasakan.poll_options`, and `dbasakan.poll_votes` tables.",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Implement API calls to retrieve poll data. Display polls and their options on the page. Add debug logging for all data fetching and state changes.",
+            "status": "pending",
+            "testStrategy": "Integration test data fetching and display. Unit test API response handling."
+          },
+          {
+            "id": 4,
+            "title": "Implement Voting Logic and One-Vote Enforcement",
+            "description": "Enable users to vote on polls and enforce the rule that each user can vote only once per poll.",
+            "dependencies": [
+              "6.2",
+              "6.3"
+            ],
+            "details": "Add voting functionality with Select and Button components. Track user votes and prevent duplicate votes using backend checks. Add debug logging for voting actions and state changes.",
+            "status": "pending",
+            "testStrategy": "Unit test voting logic and one-vote enforcement. Integration test role-based access and vote tracking."
+          },
+          {
+            "id": 5,
+            "title": "Develop Results Visualization with Progress Bars",
+            "description": "Display poll results using progress bars and ensure data visualization is clear and accessible.",
+            "dependencies": [
+              "6.3",
+              "6.4"
+            ],
+            "details": "Use progress bars to visualize poll results. Update results in real-time as votes are cast. Ensure accessibility with proper ARIA attributes and keyboard navigation. Add debug logging for visualization updates.",
+            "status": "pending",
+            "testStrategy": "Unit test results calculation and visualization. Accessibility test for progress bars and data display."
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Implement Access Control (QR Code Visitor Access) UI/UX",
+        "description": "Design and develop the Access Control page for QR code generation, scanning, and access log management.",
+        "details": "Create `/app/access-control` page with shadcn/ui Card, Dialog, Tabs, and Badge components. Implement QR code generation using `qrcode` npm package, display and download QR codes, and access logs table. Create guard scanning interface with camera viewfinder and manual entry. Fetch data from `dbasakan.access_logs` joined with `dbasakan.profiles`. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test QR code generation and validation. Integration test scanning flow and access log updates. Accessibility test for dialogs and tables. Visual regression test for responsive layouts.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Access Control Page Structure and Core UI Components",
+            "description": "Create the `/app/access-control` page and lay out the main UI using shadcn/ui Card, Dialog, Tabs, and Badge components, ensuring a clear separation for QR generation, scanning, and logs.",
+            "dependencies": [],
+            "details": "Initialize the page route and import shadcn/ui components. Structure the layout with Cards for QR code generation, scanning interface, and access logs. Use Tabs to switch between visitor and guard views. Add Badges for status indicators. Ensure the UI is responsive and accessible.",
+            "status": "pending",
+            "testStrategy": "Smoke test page rendering and navigation. Accessibility test for tab and dialog navigation."
+          },
+          {
+            "id": 2,
+            "title": "Implement QR Code Generation, Display, and Download Functionality",
+            "description": "Integrate the `qrcode` npm package to generate visitor QR codes, display them within the UI, and provide download options.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Add a form for visitor details input. Use the `qrcode` package to generate QR codes based on input. Render the QR code in a Card, and provide a button to download the QR image. Ensure QR codes are styled consistently with shadcn/ui and support accessibility.",
+            "status": "pending",
+            "testStrategy": "Unit test QR code generation logic and download functionality. Visual regression test for QR display."
+          },
+          {
+            "id": 3,
+            "title": "Develop Guard Scanning Interface with Camera Viewfinder and Manual Entry",
+            "description": "Create a scanning interface for guards, including a camera viewfinder for QR scanning and a fallback manual entry form.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Integrate camera access using browser APIs. Overlay a viewfinder styled with shadcn/ui. Implement QR code scanning logic and handle scan results. Provide a manual entry form for fallback. Ensure error handling and accessibility for both input methods.",
+            "status": "pending",
+            "testStrategy": "Integration test camera access and QR scanning. Unit test manual entry validation. Accessibility test for scanning interface."
+          },
+          {
+            "id": 4,
+            "title": "Fetch and Display Access Logs with Profile Data",
+            "description": "Retrieve access logs from `dbasakan.access_logs` joined with `dbasakan.profiles` and display them in a table with filtering and status badges.",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Implement data fetching logic for access logs and profile joins. Render logs in a shadcn/ui Table, including columns for visitor, time, status, and guard. Add filtering and sorting options. Use Badges for status indicators. Ensure table accessibility and responsive design.",
+            "status": "pending",
+            "testStrategy": "Unit test data fetching and table rendering. Integration test log filtering and sorting. Accessibility test for table navigation."
+          },
+          {
+            "id": 5,
+            "title": "Integrate Debug Logging for All Actions and State Changes",
+            "description": "Add debug logging throughout the page to track QR generation, scanning, log updates, and UI state changes for troubleshooting and monitoring.",
+            "dependencies": [
+              "7.2",
+              "7.3",
+              "7.4"
+            ],
+            "details": "Implement logging hooks or utilities to capture actions such as QR code creation, scan events, log fetches, and UI state transitions. Output logs to the console or a debug panel. Ensure logs include relevant context and error details for each action.",
+            "status": "pending",
+            "testStrategy": "Unit test logging utility. Manual test log output for all major actions. Verify logs during integration and error scenarios."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Implement Deliveries Management UI/UX",
+        "description": "Design and develop the Deliveries Management page for logging, tracking, and updating package deliveries.",
+        "details": "Create `/app/deliveries` page with shadcn/ui Table, Dialog, Select, and Badge components. Implement Log Delivery dialog, status updates (mark as picked up), and role-based access (guards log, residents update, syndics view all). Fetch data from `dbasakan.deliveries` joined with `dbasakan.profiles` and `dbasakan.residences`. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test delivery logging and status updates. Integration test role-based filtering and notifications. Accessibility test for dialogs and tables. Visual regression test for responsive layouts.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Deliveries Management Page Structure",
+            "description": "Create the `/app/deliveries` page with basic layout and routing. Integrate shadcn/ui Table, Dialog, Select, and Badge components as required.",
+            "dependencies": [],
+            "details": "Initialize the page component using Next.js App Router. Import and set up shadcn/ui Table, Dialog, Select, and Badge components. Ensure Tailwind CSS and TypeScript are configured. Add placeholder content for the table and dialogs.",
+            "status": "pending",
+            "testStrategy": "Verify page renders without errors. Confirm components are imported and display correctly."
+          },
+          {
+            "id": 2,
+            "title": "Implement Data Fetching and Joins",
+            "description": "Fetch delivery data from `dbasakan.deliveries` joined with `dbasakan.profiles` and `dbasakan.residences`. Display results in the table.",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "Use Supabase client to query deliveries with profile and residence data. Map results to table columns. Implement error handling and loading states. Add debug logging for all fetch operations.",
+            "status": "pending",
+            "testStrategy": "Unit test data fetching logic. Integration test joins and ensure correct data is displayed in the table."
+          },
+          {
+            "id": 3,
+            "title": "Implement Log Delivery Dialog and Status Updates",
+            "description": "Create a dialog for logging new deliveries and updating delivery status (e.g., mark as picked up). Use shadcn/ui Dialog and Select components.",
+            "dependencies": [
+              "8.1",
+              "8.2"
+            ],
+            "details": "Build a form dialog for logging deliveries with fields for recipient, residence, and status. Add a status update button to mark deliveries as picked up. Implement debug logging for all actions and state changes.",
+            "status": "pending",
+            "testStrategy": "Unit test form validation and status update logic. Integration test dialog interactions and state updates."
+          },
+          {
+            "id": 4,
+            "title": "Implement Role-Based Access Controls",
+            "description": "Restrict actions based on user roles: guards can log deliveries, residents can update their own deliveries, syndics can view all deliveries.",
+            "dependencies": [
+              "8.2",
+              "8.3"
+            ],
+            "details": "Check user role on page load and conditionally render UI elements and actions. Use Supabase auth to get user role and apply guards. Add debug logging for access control checks.",
+            "status": "pending",
+            "testStrategy": "Integration test role-based filtering and access. Verify correct UI and actions for each role."
+          },
+          {
+            "id": 5,
+            "title": "Add Debug Logging and Accessibility Features",
+            "description": "Ensure all actions and state changes are logged for debugging. Implement accessibility features for dialogs and tables.",
+            "dependencies": [
+              "8.3",
+              "8.4"
+            ],
+            "details": "Add console logs for all user actions, state changes, and API calls. Implement aria attributes, keyboard navigation, and screen reader support for dialogs and tables. Use Tailwind variable colors and Lucide icons.",
+            "status": "pending",
+            "testStrategy": "Accessibility test with keyboard and screen reader. Visual regression test for responsive layouts and dialogs."
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement Balance Snapshots UI/UX",
+        "description": "Design and develop the Balance Snapshots page for creating and viewing historical financial snapshots.",
+        "details": "Create `/app/balance-snapshots` page with shadcn/ui Table, Dialog, Card, and DatePicker components. Implement Create Snapshot dialog with automatic calculation of cash and bank balances up to snapshot date. Fetch data from `dbasakan.balance_snapshots`, calculate balances from payments and expenses. Add debug logging for all actions and state changes.",
+        "testStrategy": "Unit test snapshot creation and balance calculation. Integration test data fetching and comparison logic. Accessibility test for dialogs and tables. Visual regression test for responsive layouts.",
+        "priority": "low",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set Up Balance Snapshots Page Structure and Routing",
+            "description": "Create the `/app/balance-snapshots` page, configure routing, and establish the foundational layout using shadcn/ui components.",
+            "dependencies": [],
+            "details": "Define the new route in your app's router configuration. Scaffold the page with a responsive layout using shadcn/ui Card and Table components as placeholders. Ensure the page is accessible and follows the design system. Prepare the structure for future integration of dialogs and data fetching.",
+            "status": "pending",
+            "testStrategy": "Verify the page renders at the correct route, is responsive, and contains placeholder components. Check accessibility with keyboard navigation and screen readers."
+          },
+          {
+            "id": 2,
+            "title": "Integrate Data Fetching and Balance Calculation Logic",
+            "description": "Fetch snapshot data from `dbasakan.balance_snapshots` and implement logic to calculate cash and bank balances from payments and expenses up to a selected date.",
+            "dependencies": [
+              "9.1"
+            ],
+            "details": "Implement data fetching hooks or utilities to retrieve snapshot records. Write functions to aggregate and calculate balances using payments and expenses data, ensuring calculations are accurate up to the specified snapshot date. Prepare the data for display in the UI.",
+            "status": "pending",
+            "testStrategy": "Unit test balance calculation functions with various input scenarios. Integration test data fetching and aggregation logic."
+          },
+          {
+            "id": 3,
+            "title": "Implement Balance Snapshots Table and Display Components",
+            "description": "Build the shadcn/ui Table to display historical snapshots, including columns for date, cash balance, bank balance, and actions.",
+            "dependencies": [
+              "9.2"
+            ],
+            "details": "Use shadcn/ui Table to render fetched snapshot data. Format columns for readability and add action buttons (e.g., view, delete) as needed. Ensure the table supports sorting and is accessible. Use Card components for summary or contextual information if required.",
+            "status": "pending",
+            "testStrategy": "Integration test table rendering with mock data. Accessibility test for table navigation and screen reader support. Visual regression test for layout."
+          },
+          {
+            "id": 4,
+            "title": "Develop Create Snapshot Dialog with DatePicker and Auto-Calculation",
+            "description": "Create a shadcn/ui Dialog for creating new snapshots, integrating a DatePicker and automatic calculation of balances up to the selected date.",
+            "dependencies": [
+              "9.3"
+            ],
+            "details": "Implement the Dialog component with a form containing a DatePicker. On date selection, trigger balance calculation logic to display computed cash and bank balances. Add form validation and submission handling to create a new snapshot record. Ensure accessibility and keyboard navigation.",
+            "status": "pending",
+            "testStrategy": "Unit test dialog form validation and balance calculation on date change. Integration test snapshot creation flow. Accessibility test for dialog interactions."
+          },
+          {
+            "id": 5,
+            "title": "Add Debug Logging for Actions and State Changes",
+            "description": "Integrate debug logging throughout the Balance Snapshots page to track all user actions and state changes for development and troubleshooting.",
+            "dependencies": [
+              "9.4"
+            ],
+            "details": "Instrument all major actions (data fetch, snapshot creation, dialog open/close, balance calculation) with debug logs using a consistent logging utility. Ensure logs include relevant context and state. Optionally, provide a toggle to enable/disable debug logging in development.",
+            "status": "pending",
+            "testStrategy": "Manually verify logs appear for all key actions and state changes. Automated test to check log output for critical flows."
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Update Sidebar Navigation and Common UI Patterns",
+        "description": "Update sidebar navigation to include all new pages and implement common UI patterns and accessibility requirements.",
+        "details": "Modify `components/app/Sidebar.tsx` to add navigation items for all new features, using Lucide icons and active route highlighting with Next.js `usePathname()`. Implement mobile sidebar with shadcn/ui Sheet component and hamburger menu. Ensure all common UI patterns (tables, forms, dialogs, badges, loading/error/empty states, toast notifications) are standardized and accessible. Add debug logging for navigation and UI state changes.",
+        "testStrategy": "Unit test navigation logic and active highlighting. Integration test sidebar responsiveness and accessibility. Regression test all common UI patterns for consistency.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Sidebar Navigation Items for New Pages",
+            "description": "Add navigation items for all new feature pages in the sidebar, ensuring each uses the correct Lucide icon and supports active route highlighting.",
+            "dependencies": [],
+            "details": "Edit `components/app/Sidebar.tsx` to define a navigation items array including all new routes. Assign each item a Lucide icon and use Next.js `usePathname()` to determine and highlight the active route. Ensure navigation uses Next.js `<Link>` components for client-side routing.",
+            "status": "pending",
+            "testStrategy": "Unit test that all new pages appear in the sidebar and that active highlighting works as expected for each route."
+          },
+          {
+            "id": 2,
+            "title": "Implement Responsive Mobile Sidebar with Sheet and Hamburger Menu",
+            "description": "Enable a mobile-friendly sidebar using the shadcn/ui Sheet component and a hamburger menu trigger.",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "Integrate the Sheet component from shadcn/ui to display the sidebar as a modal on mobile devices. Add a hamburger menu button to toggle the sidebar's visibility. Ensure the sidebar closes on navigation and is accessible via keyboard and screen readers.",
+            "status": "pending",
+            "testStrategy": "Integration test sidebar open/close behavior on mobile, keyboard navigation, and accessibility compliance."
+          },
+          {
+            "id": 3,
+            "title": "Standardize Common UI Patterns Across the Application",
+            "description": "Refactor and implement standardized versions of tables, forms, dialogs, badges, loading/error/empty states, and toast notifications using shadcn/ui components.",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "Audit existing UI patterns and replace or refactor them to use shadcn/ui components for consistency. Create shared components or utility hooks as needed. Ensure all patterns follow a unified design and interaction model.",
+            "status": "pending",
+            "testStrategy": "Regression test all affected UI patterns for visual consistency and correct behavior."
+          },
+          {
+            "id": 4,
+            "title": "Ensure Accessibility for Sidebar and Common UI Patterns",
+            "description": "Review and enhance accessibility for the sidebar and all standardized UI patterns, ensuring compliance with WCAG guidelines.",
+            "dependencies": [
+              "10.2",
+              "10.3"
+            ],
+            "details": "Use semantic HTML, ARIA attributes, and keyboard navigation support for all sidebar and UI components. Test with screen readers and ensure focus management is correct, especially for dialogs and modals.",
+            "status": "pending",
+            "testStrategy": "Accessibility test using screen readers, keyboard navigation, and automated accessibility tools."
+          },
+          {
+            "id": 5,
+            "title": "Add Debug Logging for Navigation and UI State Changes",
+            "description": "Implement debug logging for sidebar navigation actions and UI state changes to aid in development and troubleshooting.",
+            "dependencies": [
+              "10.2",
+              "10.3"
+            ],
+            "details": "Integrate logging (e.g., using `console.debug` or a custom logger) for navigation events, sidebar open/close actions, and state changes in common UI patterns. Ensure logs are descriptive and can be toggled or filtered in development mode.",
+            "status": "pending",
+            "testStrategy": "Manual test by triggering navigation and UI state changes, verifying that appropriate debug logs are emitted."
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-11-22T18:52:18.334Z",
+      "updated": "2025-11-22T18:52:18.334Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

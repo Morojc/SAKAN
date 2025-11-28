@@ -53,7 +53,7 @@ const config = {
 			description: 'Pro plan',
 		},
 	},
-	appName: "saas starter kit",
+	appName: "SAKAN",
 	socialLinks: {
 		github: "https://github.com",
 		twitter: "https://twitter.com",

@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import PortalButton from '@/components/stripe/PortalButton';
 import CheckoutButton from "@/components/CheckoutButton";
+import { PlanChangeButton } from '@/components/stripe/PlanChangeButton';
 import DeleteAccountButton from '@/components/app/profile/DeleteAccountButton';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
+import { RefreshCw } from 'lucide-react';
 
 // Helper function to get plan badge style
 function getPlanBadgeStyle(planName: string): { bgColor: string; textColor: string; borderColor: string } {
@@ -83,7 +86,6 @@ const staggerContainer = {
 };
 
 export default function ProfileAndBillingContent() {
-	const [showPricing, setShowPricing] = useState(false); // Show pricing on demand
 	const [isYearly, setIsYearly] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -93,14 +95,28 @@ export default function ProfileAndBillingContent() {
 		async function fetchProfileData() {
 			try {
 				const response = await fetch('/api/profile');
-				if (!response.ok) {
-					throw new Error('Failed to fetch profile data');
+				
+				// Handle 401 (unauthorized) - user is not authenticated
+				if (response.status === 401) {
+					// User is not authenticated, redirect to sign in silently
+					setLoading(false);
+					window.location.href = '/api/auth/signin';
+					return;
 				}
+				
+				if (!response.ok) {
+					const errorData = await response.json().catch(() => ({}));
+					throw new Error(errorData.error || 'Failed to fetch profile data');
+				}
+				
 				const data = await response.json();
 				setProfileData(data);
 			} catch (err) {
-				console.error('Error fetching profile data:', err);
-				setError('Failed to load profile data. Please try again later.');
+				// Don't show error for network issues during redirect
+				if (err instanceof Error && err.message !== 'Failed to fetch') {
+					console.error('Error fetching profile data:', err);
+					setError('Failed to load profile data. Please try again later.');
+				}
 			} finally {
 				setLoading(false);
 			}
@@ -109,42 +125,39 @@ export default function ProfileAndBillingContent() {
 		fetchProfileData();
 	}, []);
 
-	if (loading) {
-		return (
-			<div className="flex justify-center items-center py-24">
-				<div className="relative">
-					<div className="h-16 w-16 rounded-full border-t-4 border-b-4 border-[#5059FE] animate-spin"></div>
-					<div className="h-16 w-16 rounded-full border-r-4 border-l-4 border-[#5059FE]/30 animate-spin absolute top-0 left-0 animate-[spin_1.5s_linear_infinite]"></div>
-				</div>
-			</div>
-		);
-	}
+	// Extract data safely - handle undefined/null cases
+	const userData = profileData?.userData || null;
+    const userRole = profileData?.userRole || 'resident';
+	const subscriptionData = profileData?.subscriptionData || null;
+	const planName = profileData?.planName || 'Free';
+	const planInterval = profileData?.planInterval || 'month';
+	const priceData = profileData?.priceData;
+	
+	// Ensure priceData is always an array
+	const safePriceData = Array.isArray(priceData) ? priceData : [];
 
-	if (error) {
-		return (
-			<motion.div 
-				initial={{ opacity: 0, y: 10 }}
-				animate={{ opacity: 1, y: 0 }}
-				className="bg-red-50 border-l-4 border-red-500 p-5 rounded-lg shadow-md"
-				role="alert"
-			>
-				<div className="flex items-center">
-					<svg className="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<p className="font-medium text-red-800">Error</p>
-				</div>
-				<p className="mt-2 text-red-700">{error}</p>
-			</motion.div>
-		);
-	}
+	// Debug logging
+	console.log('[ProfileAndBillingContent] Subscription data:', subscriptionData);
+	console.log('[ProfileAndBillingContent] Price data:', {
+		hasPriceData: !!priceData,
+		priceDataLength: safePriceData.length,
+		priceDataTypes: safePriceData.map((p: any) => p.type),
+	});
 
-	if (!profileData) {
-		return <div>No profile data available</div>;
-	}
+	// Check if alert should show
+	const shouldShowAlert = subscriptionData?.cancel_at_period_end && 
+		subscriptionData?.plan_expires && 
+		(subscriptionData?.days_remaining !== null && subscriptionData?.days_remaining !== undefined);
 
-	const { userData, subscriptionData, planName, planInterval, priceData } = profileData;
+	console.log('[ProfileAndBillingContent] State:', {
+		loading,
+		hasError: !!error,
+		hasProfileData: !!profileData,
+		safePriceDataLength: safePriceData.length,
+		shouldShowAlert,
+	});
 
+	// Always render the full structure - "Choose Your Plan" section is always visible
 	return (
 		<motion.div 
 			className="space-y-10 pb-16 max-w-7xl mx-auto px-4 sm:px-6"
@@ -152,72 +165,132 @@ export default function ProfileAndBillingContent() {
 			animate="visible"
 			variants={staggerContainer}
 		>
-			{/* User Information */}
+			{/* Error Message - Show if there's an error */}
+			{error && (
+				<motion.div 
+					variants={fadeIn}
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					className="bg-red-50 border-l-4 border-red-500 p-5 rounded-lg shadow-md"
+					role="alert"
+				>
+					<div className="flex items-center">
+						<svg className="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+						<p className="font-medium text-red-800">Error</p>
+					</div>
+					<p className="mt-2 text-red-700">{error}</p>
+				</motion.div>
+			)}
+
+			{/* Canceled Subscription Alert - Only show when data is available */}
+			{shouldShowAlert && subscriptionData && (
+				<motion.div 
+					variants={fadeIn}
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					style={{ display: 'block', visibility: 'visible' }}
+				>
+					<CanceledSubscriptionAlert
+						planName={planName}
+						planInterval={planInterval}
+						daysRemaining={subscriptionData.days_remaining ?? 0}
+						accessUntil={new Date(subscriptionData.plan_expires)}
+						canceledAt={subscriptionData.canceled_at ? new Date(subscriptionData.canceled_at) : null}
+					/>
+				</motion.div>
+			)}
+
+			{/* User Information - Always show, with loading state */}
 			<motion.div 
-				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
+				className="bg-white shadow-lg rounded-2xl p-8 border border-gray-100 hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
 			>
 				<div className="flex items-center mb-6">
-					<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
+					<div className="bg-gradient-to-r from-gray-900 to-gray-800 p-2.5 rounded-xl mr-4 shadow-lg">
 						<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 						</svg>
 					</div>
-					<h2 className="text-xl font-bold">User Information</h2>
+					<h2 className="text-2xl font-bold text-gray-900">User Information</h2>
 				</div>
 				
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-					<div className="bg-[var(--background-subtle)] p-4 rounded-lg">
-						<label className="text-sm font-medium text-gray-500">Name</label>
-						<p className="font-semibold text-lg mt-1">{userData.name || 'Not set'}</p>
-					</div>
-
-					<div className="bg-[var(--background-subtle)] p-4 rounded-lg">
-						<label className="text-sm font-medium text-gray-500">Email</label>
-						<p className="font-semibold text-lg mt-1 break-all">{userData.email}</p>
-					</div>
-
-					{userData.image && (
-						<div className="col-span-1 md:col-span-2 flex items-center">
-							<div className="mr-4">
-								<img
-									src={userData.image}
-									alt="User avatar"
-									className="w-20 h-20 rounded-full border-4 border-[#5059FE]/20 shadow-md"
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium text-gray-500">Profile Image</label>
-								<p className="text-sm text-gray-600 mt-1">Your profile picture is visible to other users</p>
-							</div>
+				{loading ? (
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div className="bg-gray-50 p-4 rounded-xl animate-pulse">
+							<div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+							<div className="h-6 bg-gray-200 rounded w-3/4"></div>
 						</div>
-					)}
-				</div>
+						<div className="bg-gray-50 p-4 rounded-xl animate-pulse">
+							<div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+							<div className="h-6 bg-gray-200 rounded w-3/4"></div>
+						</div>
+					</div>
+				) : (
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Name</label>
+							<p className="font-semibold text-lg text-gray-900">{userData?.name || 'Not set'}</p>
+						</div>
+
+						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Email</label>
+							<p className="font-semibold text-lg text-gray-900 break-all">{userData?.email || 'Not set'}</p>
+						</div>
+
+						{userData?.image && (
+							<div className="col-span-1 md:col-span-2 flex items-center gap-4 bg-gray-50 p-5 rounded-xl border border-gray-100">
+								<div>
+									<img
+										src={userData.image}
+										alt="User avatar"
+										className="w-20 h-20 rounded-full border-4 border-gray-200 shadow-md"
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium text-gray-500 block mb-1">Profile Image</label>
+									<p className="text-sm text-gray-600">Your profile picture is visible to other users</p>
+								</div>
+							</div>
+						)}
+					</div>
+				)}
 			</motion.div>
 
-			{/* Subscription Information */}
+			{/* Subscription Information - Always show, with loading state */}
 			<motion.div 
-				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300"
+				className="bg-white shadow-lg rounded-2xl p-8 border border-gray-100 hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
 			>
 				<div className="flex items-center mb-6">
-					<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
+					<div className="bg-gradient-to-r from-gray-900 to-gray-800 p-2.5 rounded-xl mr-4 shadow-lg">
 						<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
 						</svg>
 					</div>
-					<h2 className="text-xl font-bold">Subscription Status</h2>
+					<h2 className="text-2xl font-bold text-gray-900">Subscription Status</h2>
 				</div>
 				
-				<div className="bg-[var(--background-subtle)] p-6 rounded-xl">
+				{loading ? (
+					<div className="bg-gray-50 p-6 rounded-xl border border-gray-100 animate-pulse">
+						<div className="space-y-4">
+							<div className="h-4 bg-gray-200 rounded w-32 mb-4"></div>
+							<div className="h-10 bg-gray-200 rounded w-48"></div>
+							<div className="h-4 bg-gray-200 rounded w-40"></div>
+						</div>
+					</div>
+				) : (
+				
+				<div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
 					<div className="space-y-5">
 						<div>
-							<label className="text-sm font-medium text-gray-500">Current Plan</label>
+							<label className="text-sm font-medium text-gray-500 mb-2 block">Current Plan</label>
 							{(() => {
 								const style = getPlanBadgeStyle(planName);
 								const intervalStyle = getIntervalBadgeStyle(planName);
 								return (
-									<div className="flex items-center gap-3 mt-2">
+									<div className="flex items-center gap-3 mt-2 flex-wrap">
 										<span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold border-2 ${style.bgColor} ${style.textColor} ${style.borderColor}`}>
 											{planName}
 											{planName.toLowerCase() === 'pro' && (
@@ -229,22 +302,47 @@ export default function ProfileAndBillingContent() {
 										<span className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold border ${intervalStyle.bgColor} ${intervalStyle.textColor} ${intervalStyle.borderColor}`}>
 											{planInterval === 'year' ? 'Yearly' : 'Monthly'} Plan
 										</span>
+										{subscriptionData?.cancel_at_period_end && (
+											<span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border bg-amber-100 text-amber-800 border-amber-200">
+												<svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+												Ending Soon
+											</span>
+										)}
 									</div>
 								);
 							})()}
 						</div>
 						{subscriptionData ? (
 							<>
-								<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-									<label className="text-sm font-medium text-gray-500">Subscription Status</label>
+								<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+									<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
 									<div className="mt-2">
 										{subscriptionData.plan_active ? (
 											<div className="flex items-center gap-2">
-												<span className="relative flex h-3 w-3">
-													<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-													<span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-												</span>
-												<span className="font-medium text-green-700">Active</span>
+												{subscriptionData.cancel_at_period_end ? (
+													<>
+														<span className="relative flex h-3 w-3">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+														</span>
+														<span className="font-medium text-amber-700 flex items-center gap-1.5">
+															<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+															</svg>
+															Active (Scheduled for Cancellation)
+														</span>
+													</>
+												) : (
+													<>
+														<span className="relative flex h-3 w-3">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+															<span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+														</span>
+														<span className="font-medium text-green-700">Active</span>
+													</>
+												)}
 											</div>
 										) : (
 											<div className="flex items-center gap-2">
@@ -257,8 +355,10 @@ export default function ProfileAndBillingContent() {
 									</div>
 								</div>
 								{subscriptionData.plan_expires && (
-									<div className="bg-[var(--background)] p-4 rounded-lg shadow-sm">
-										<label className="text-sm font-medium text-gray-500">Plan Expires</label>
+									<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+										<label className="text-sm font-medium text-gray-500 mb-2 block">
+											{subscriptionData.cancel_at_period_end ? 'Access Until' : 'Next Billing Date'}
+										</label>
 										<div className="mt-2">
 											<div className="flex items-center gap-2">
 												<svg className="w-5 h-5 text-[#5059FE]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -277,6 +377,11 @@ export default function ProfileAndBillingContent() {
 													}).replace(/^(\d):/, '0$1:')}
 												</time>
 											</div>
+											{subscriptionData.days_remaining !== null && subscriptionData.days_remaining !== undefined && !subscriptionData.cancel_at_period_end && (
+												<p className="text-xs text-gray-500 mt-1 ml-7">
+													{subscriptionData.days_remaining} {subscriptionData.days_remaining === 1 ? 'day' : 'days'} remaining
+												</p>
+											)}
 										</div>
 									</div>
 								)}
@@ -285,55 +390,30 @@ export default function ProfileAndBillingContent() {
 								</div>
 							</>
 						) : (
-							<div>
-								<div className="mt-6">
-									<motion.button
-										onClick={() => setShowPricing(!showPricing)}
-										className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] hover:from-[#4048ed] hover:to-[#6A55E1] text-white font-bold py-3 px-6 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5059FE] focus:ring-opacity-50 shadow-lg hover:shadow-xl transition-all duration-200 w-full sm:w-auto flex items-center justify-center"
-										whileHover={{ scale: 1.03 }}
-										whileTap={{ scale: 0.98 }}
-									>
-										{showPricing ? (
-											<>
-												<svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-												</svg>
-												Hide Pricing
-											</>
-										) : (
-											<>
-												<svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-												</svg>
-												Upgrade Plan
-											</>
-										)}
-									</motion.button>
-								</div>
+							<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+								<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
+								<p className="font-medium text-gray-600">Free Plan - No active subscription</p>
 							</div>
 						)}
 					</div>
 				</div>
+				)}
 			</motion.div>
+		
 
-			{/* Pricing Section */}
-			<AnimatePresence>
-				{showPricing && (
-					<motion.div 
-						className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300 overflow-visible"
-						initial={{ opacity: 0, y: -20 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -20 }}
-						transition={{ duration: 0.3 }}
-					>
-						<div className="flex items-center mb-6">
-							<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
-								<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
-							</div>
-							<h2 className="text-xl font-bold">Upgrade Your Plan</h2>
-						</div>
+			{/* Pricing Section - Always Visible - Shows even during loading/error states */}
+			<motion.div 
+				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border border-[var(--border)] hover:shadow-xl transition-shadow duration-300 overflow-visible"
+				variants={fadeIn}
+			>
+				<div className="flex items-center mb-6">
+					<div className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] p-2 rounded-lg mr-4">
+						<svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					</div>
+					<h2 className="text-xl font-bold">Choose Your Plan</h2>
+				</div>
 						
 						{/* Billing Toggle */}
 						<div className="flex justify-center items-center gap-4 mb-10 bg-[var(--background-subtle)] p-4 rounded-full max-w-xs mx-auto">
@@ -355,12 +435,33 @@ export default function ProfileAndBillingContent() {
 							<span className={`text-sm font-medium transition-colors duration-200 ${isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>Yearly</span>
 						</div>
 
-						{/* Pricing Cards - Fixed layout with responsive grid */}
+						{/* Pricing Cards - Always visible, shows loading state when data is not available */}
 						<div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-							{priceData.map((plan: any, index: number) => {
+							{loading ? (
+								// Show loading skeleton when loading
+								<>
+									{[1, 2, 3].map((i) => (
+										<div key={i} className="bg-[var(--background)] p-6 rounded-xl shadow-md border-2 border-[var(--border)] animate-pulse">
+											<div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+											<div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+											<div className="h-10 bg-gray-200 rounded w-2/3 mb-6"></div>
+											<div className="h-10 bg-gray-200 rounded w-full mb-6"></div>
+											<div className="space-y-3">
+												<div className="h-4 bg-gray-200 rounded"></div>
+												<div className="h-4 bg-gray-200 rounded"></div>
+												<div className="h-4 bg-gray-200 rounded"></div>
+											</div>
+										</div>
+									))}
+								</>
+							) : safePriceData.length > 0 ? (
+								safePriceData.map((plan: any, index: number) => {
 								const isFree = plan.type === 'free';
 								const isBasic = plan.type === 'basic';
 								const isPro = plan.type === 'pro';
+								const isCurrentPlan = subscriptionData?.plan_active && 
+									planName?.toLowerCase() === plan.type.toLowerCase() &&
+									((planInterval === 'month' && !isYearly) || (planInterval === 'year' && isYearly));
 
 								const getPlanFeatures = () => {
 									if (isFree) return ['Up to 50 notes', 'Basic formatting'];
@@ -450,14 +551,65 @@ export default function ProfileAndBillingContent() {
 										</div>
 										
 										<div className="mb-6">
-											{isFree ? (
+											{isCurrentPlan ? (
 												<button 
-													className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors duration-200"
+													className="w-full py-3 px-4 bg-green-100 hover:bg-green-200 text-green-800 font-medium rounded-lg transition-colors duration-200"
 													disabled
 												>
 													Current Plan
 												</button>
+											) : isFree ? (
+												<button 
+													className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors duration-200"
+													disabled
+												>
+													Free Plan
+												</button>
+											) : subscriptionData ? (
+												// User has subscription - show upgrade/downgrade button
+												(() => {
+													const currentPlanType = planName?.toLowerCase() || '';
+													const targetPlanType = plan.type.toLowerCase();
+													
+													// Determine if this is an upgrade or downgrade
+													const planHierarchy: { [key: string]: number } = {
+														'free': 0,
+														'basic': 1,
+														'pro': 2,
+													};
+													
+													const currentTier = planHierarchy[currentPlanType] ?? 0;
+													const targetTier = planHierarchy[targetPlanType] ?? 0;
+													
+													const changeType = targetTier > currentTier ? 'upgrade' : 
+																	   targetTier < currentTier ? 'downgrade' : 'same';
+													
+													return (
+														<div className="relative">
+															<div className="absolute -inset-0.5 bg-gradient-to-r from-[#5059FE] to-[#7D65F6] rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-200"></div>
+															<PlanChangeButton
+																currentPlanName={planName}
+																newPlanName={plan.name}
+																priceId={currentPriceId}
+																changeType={changeType}
+																isCurrentPlan={false}
+																className={`relative w-full py-3 px-4 ${
+																	isHighlighted 
+																		? 'bg-gradient-to-r from-[#5059FE] to-[#7D65F6] hover:from-[#4048ed] hover:to-[#6A55E1] text-white' 
+																		: isPro 
+																			? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white' 
+																			: 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-200'
+																} font-medium rounded-lg transition-all duration-200`}
+																onSuccess={() => {
+																	// Refresh page data
+																	window.location.reload();
+																}}
+															/>
+														</div>
+													);
+												})()
 											) : (
+												// No subscription - show checkout button for new subscription
 												<div className="relative">
 													<div className="absolute -inset-0.5 bg-gradient-to-r from-[#5059FE] to-[#7D65F6] rounded-lg blur opacity-30 group-hover:opacity-100 transition duration-200"></div>
 													<CheckoutButton 
@@ -492,19 +644,31 @@ export default function ProfileAndBillingContent() {
 										</div>
 									</motion.div>
 								);
-							})}
+							})
+							) : (
+								// Fallback when priceData is missing or empty
+								<div className="col-span-3 text-center py-12">
+									<div className="flex justify-center mb-4">
+										<RefreshCw className="h-8 w-8 text-gray-400 animate-spin" />
+									</div>
+									<p className="text-gray-600">
+										{loading ? 'Loading pricing plans...' : 'Pricing plans are not available at the moment.'}
+									</p>
+									<p className="text-sm text-gray-500 mt-2">
+										{loading ? 'Please wait while we fetch your plans.' : 'Please refresh the page or contact support if this issue persists.'}
+									</p>
+								</div>
+							)}
 						</div>
-					</motion.div>
-				)}
-			</AnimatePresence>
+			</motion.div>
 
 			{/* Delete Account Section */}
 			<motion.div 
-				className="bg-[var(--background)] shadow-lg rounded-xl p-8 border-2 border-red-200 hover:shadow-xl transition-shadow duration-300"
+				className="bg-white shadow-lg rounded-2xl p-8 border-2 border-red-200 hover:shadow-xl transition-shadow duration-300"
 				variants={fadeIn}
 			>
 				<div className="flex items-center mb-4">
-					<div className="bg-red-100 p-2 rounded-lg mr-4">
+					<div className="bg-red-100 p-2.5 rounded-xl mr-4">
 						<svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 						</svg>
@@ -514,7 +678,7 @@ export default function ProfileAndBillingContent() {
 						<p className="text-sm text-gray-600 mt-1">Permanently delete your account and all associated data</p>
 					</div>
 				</div>
-				<DeleteAccountButton />
+				<DeleteAccountButton userRole={userRole} />
 			</motion.div>
 		</motion.div>
 	);
