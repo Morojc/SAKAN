@@ -59,6 +59,7 @@ export function Sidebar() {
         { href: "/app/residences", label: "Residences & Syndics", icon: Building2 },
         { href: "/app/expenses", label: "Expenses", icon: Receipt },
         { href: "/app/incidents", label: "Incidents", icon: AlertCircle },
+        { href: "/app/complaints", label: "Complaints", icon: MessageSquare },
         // TODO: Task 4 - Announcements page
         // { href: "/app/announcements", label: "Announcements", icon: Megaphone },
         // TODO: Calendar page - not yet implemented
