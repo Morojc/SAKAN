@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Download, Image as ImageIcon, Video, Music, File } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Complaint } from './ComplaintsContent';
-import { updateComplaintStatus, getComplaintEvidence } from '@/app/app/complaints/actions';
+import { updateComplaintStatus } from '@/app/app/complaints/actions';
 import toast from 'react-hot-toast';
 
 interface ReviewComplaintDialogProps {
@@ -63,45 +63,12 @@ export default function ReviewComplaintDialog({
   const [updating, setUpdating] = useState(false);
   const [status, setStatus] = useState<Complaint['status']>(complaint.status);
   const [resolutionNotes, setResolutionNotes] = useState(complaint.resolution_notes || '');
-  const [loadingEvidence, setLoadingEvidence] = useState(false);
-  const [evidence, setEvidence] = useState<Array<{
-    id: number;
-    file_url: string;
-    file_name: string;
-    file_type: 'image' | 'audio' | 'video';
-    file_size: number;
-    mime_type: string;
-    created_at: string;
-  }>>([]);
 
   // Update local state when complaint changes
   useEffect(() => {
     setStatus(complaint.status);
     setResolutionNotes(complaint.resolution_notes || '');
   }, [complaint]);
-
-  // Fetch evidence when dialog opens
-  useEffect(() => {
-    if (open) {
-      fetchEvidence();
-    }
-  }, [open, complaint.id]);
-
-  const fetchEvidence = async () => {
-    setLoadingEvidence(true);
-    try {
-      const result = await getComplaintEvidence(complaint.id);
-      if (result.success && result.data) {
-        setEvidence(result.data);
-      } else {
-        console.error('[ReviewComplaintDialog] Failed to fetch evidence:', result.error);
-      }
-    } catch (error: any) {
-      console.error('[ReviewComplaintDialog] Error fetching evidence:', error);
-    } finally {
-      setLoadingEvidence(false);
-    }
-  };
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -112,49 +79,6 @@ export default function ReviewComplaintDialog({
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
-
-  // Format file size
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  // Get file icon
-  const getFileIcon = (type: 'image' | 'audio' | 'video') => {
-    switch (type) {
-      case 'image':
-        return <ImageIcon className="h-5 w-5" />;
-      case 'audio':
-        return <Music className="h-5 w-5" />;
-      case 'video':
-        return <Video className="h-5 w-5" />;
-      default:
-        return <File className="h-5 w-5" />;
-    }
-  };
-
-  // Handle file download
-  const handleDownload = async (fileUrl: string, fileName: string) => {
-    try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success('File downloaded');
-    } catch (error: any) {
-      console.error('[ReviewComplaintDialog] Error downloading file:', error);
-      toast.error('Failed to download file');
-    }
   };
 
   async function handleUpdate() {
@@ -254,62 +178,6 @@ export default function ReviewComplaintDialog({
                 {complaint.description}
               </p>
             </div>
-          </div>
-
-          {/* Evidence Section (Only visible to syndics) */}
-          <div className="space-y-2 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <Label>Evidence Files</Label>
-              {loadingEvidence && (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-            </div>
-            {loadingEvidence ? (
-              <p className="text-sm text-muted-foreground">Loading evidence...</p>
-            ) : evidence.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No evidence files uploaded.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {evidence.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    {file.file_type === 'image' ? (
-                      <img
-                        src={file.file_url}
-                        alt={file.file_name}
-                        className="w-16 h-16 object-cover rounded"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-                        {getFileIcon(file.file_type)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {file.file_name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatFileSize(file.file_size)} • {file.file_type}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownload(file.file_url, file.file_name)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Evidence files are only visible to syndics. The complainant and complained-about resident cannot see these files.
-            </p>
           </div>
 
           {/* Status Update */}

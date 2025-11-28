@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreVertical, Eye, AlertCircle, Paperclip } from 'lucide-react';
+import { MoreVertical, Eye, AlertCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -164,7 +164,6 @@ export default function ComplaintsTable({
                 <TableHead className="w-[120px]">Reason</TableHead>
                 <TableHead className="w-[100px]">Privacy</TableHead>
                 <TableHead className="w-[100px]">Status</TableHead>
-                {canReview && <TableHead className="w-[100px]">Evidence</TableHead>}
                 <TableHead className="w-[120px]">Date</TableHead>
                 <TableHead className="w-[80px] text-right">Actions</TableHead>
               </TableRow>
@@ -190,12 +189,12 @@ export default function ComplaintsTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm text-muted-foreground">
                       {getComplainantDisplay(complaint, currentUserId)}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm text-muted-foreground">
                       {complaint.complained_about_name || 'Unknown'}
                     </span>
                   </TableCell>
@@ -215,18 +214,6 @@ export default function ComplaintsTable({
                       {complaint.status}
                     </Badge>
                   </TableCell>
-                  {canReview && (
-                    <TableCell>
-                      {complaint.evidence_count && complaint.evidence_count > 0 ? (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Paperclip className="h-4 w-4" />
-                          <span>{complaint.evidence_count} file(s)</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">No evidence</span>
-                      )}
-                    </TableCell>
-                  )}
                   <TableCell>
                     <span className="text-sm text-muted-foreground">
                       {formatRelativeTime(complaint.created_at)}
