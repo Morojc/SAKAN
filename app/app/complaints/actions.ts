@@ -762,3 +762,281 @@ export async function getResidentsForComplaint(residenceId: number) {
   }
 }
 
+/**
+ * Upload complaint evidence file (photos, audio, video)
+ * Configurable upload limit (default: 50MB per file)
+ */
+export async function uploadComplaintEvidence(
+  formData: FormData,
+  maxSizeMB: number = 50
+): Promise<{ success: boolean; url?: string; error?: string; fileName?: string; fileType?: string; mimeType?: string; fileSize?: number }> {
+  console.log('[Complaints Actions] Uploading complaint evidence');
+
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return {
+        success: false,
+        error: 'Not authenticated',
+      };
+    }
+
+    const file = formData.get('file') as File;
+    
+    if (!file) {
+      return {
+        success: false,
+        error: 'No file provided',
+      };
+    }
+
+    // Validate file type (images, audio, video)
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'];
+    const allowedAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm'];
+    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    const allowedTypes = [...allowedImageTypes, ...allowedAudioTypes, ...allowedVideoTypes];
+    
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        success: false,
+        error: 'Invalid file type. Please upload an image, audio, or video file.',
+      };
+    }
+
+    // Determine file type category
+    let fileType: 'image' | 'audio' | 'video';
+    if (allowedImageTypes.includes(file.type)) {
+      fileType = 'image';
+    } else if (allowedAudioTypes.includes(file.type)) {
+      fileType = 'audio';
+    } else {
+      fileType = 'video';
+    }
+
+    // Validate file size (configurable limit)
+    const maxSize = maxSizeMB * 1024 * 1024; // Convert MB to bytes
+    if (file.size > maxSize) {
+      return {
+        success: false,
+        error: `File size too large. Maximum size is ${maxSizeMB}MB.`,
+      };
+    }
+
+    const supabase = createSupabaseAdminClient();
+
+    // Upload file
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${session.user.id}/complaint-evidence-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `complaints/${fileName}`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('SAKAN')
+      .upload(filePath, arrayBuffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('[Complaints Actions] Storage error:', uploadError);
+      return {
+        success: false,
+        error: 'Failed to upload file. Please try again.',
+      };
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('SAKAN')
+      .getPublicUrl(filePath);
+
+    console.log('[Complaints Actions] File uploaded successfully:', urlData.publicUrl);
+    
+    return {
+      success: true,
+      url: urlData.publicUrl,
+      fileName: file.name,
+      fileType: fileType,
+      mimeType: file.type,
+      fileSize: file.size,
+    };
+
+  } catch (error: any) {
+    console.error('[Complaints Actions] Unexpected error uploading file:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to upload file',
+    };
+  }
+}
+
+/**
+ * Add evidence to a complaint
+ */
+export async function addComplaintEvidence(
+  complaintId: number,
+  evidenceData: {
+    file_url: string;
+    file_name: string;
+    file_type: 'image' | 'audio' | 'video';
+    file_size: number;
+    mime_type: string;
+  }
+) {
+  console.log('[Complaints Actions] Adding evidence to complaint:', complaintId);
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    const adminSupabase = createSupabaseAdminClient();
+
+    // Verify the complaint exists and user is the complainant
+    const { data: complaint, error: complaintError } = await adminSupabase
+      .from('complaints')
+      .select('id, complainant_id')
+      .eq('id', complaintId)
+      .single();
+
+    if (complaintError || !complaint) {
+      return {
+        success: false,
+        error: 'Complaint not found',
+      };
+    }
+
+    // Only the complainant can add evidence
+    if (complaint.complainant_id !== userId) {
+      return {
+        success: false,
+        error: 'Only the person who filed the complaint can add evidence',
+      };
+    }
+
+    // Insert evidence record
+    const { data: evidence, error } = await adminSupabase
+      .from('complaint_evidence')
+      .insert({
+        complaint_id: complaintId,
+        file_url: evidenceData.file_url,
+        file_name: evidenceData.file_name,
+        file_type: evidenceData.file_type,
+        file_size: evidenceData.file_size,
+        mime_type: evidenceData.mime_type,
+        uploaded_by: userId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Complaints Actions] Error adding evidence:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to add evidence',
+      };
+    }
+
+    console.log('[Complaints Actions] Evidence added successfully:', evidence?.id);
+    revalidatePath('/app/complaints');
+    
+    return {
+      success: true,
+      data: evidence,
+    };
+
+  } catch (error: any) {
+    console.error('[Complaints Actions] Unexpected error:', error);
+    return {
+      success: false,
+      error: error.message || 'An unexpected error occurred',
+    };
+  }
+}
+
+/**
+ * Get evidence for a complaint (syndics only)
+ */
+export async function getComplaintEvidence(complaintId: number) {
+  console.log('[Complaints Actions] Fetching evidence for complaint:', complaintId);
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    const adminSupabase = createSupabaseAdminClient();
+
+    // Get user profile to check role
+    const { data: userProfile } = await adminSupabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    // Only syndics can view evidence
+    if (!userProfile || userProfile.role !== 'syndic') {
+      return {
+        success: false,
+        error: 'Only syndics can view complaint evidence',
+      };
+    }
+
+    // Verify the complaint exists and is in syndic's residence
+    const userResidenceId = await getUserResidenceId(userId, userProfile.role, adminSupabase);
+    
+    const { data: complaint } = await adminSupabase
+      .from('complaints')
+      .select('id, residence_id')
+      .eq('id', complaintId)
+      .single();
+
+    if (!complaint || complaint.residence_id !== userResidenceId) {
+      return {
+        success: false,
+        error: 'Complaint not found or you do not have permission to view it',
+      };
+    }
+
+    // Fetch evidence
+    const { data: evidence, error } = await adminSupabase
+      .from('complaint_evidence')
+      .select('*')
+      .eq('complaint_id', complaintId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[Complaints Actions] Error fetching evidence:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch evidence',
+      };
+    }
+
+    console.log('[Complaints Actions] Found', evidence?.length || 0, 'evidence files');
+    
+    return {
+      success: true,
+      data: evidence || [],
+    };
+
+  } catch (error: any) {
+    console.error('[Complaints Actions] Unexpected error:', error);
+    return {
+      success: false,
+      error: error.message || 'An unexpected error occurred',
+    };
+  }
+}
+

@@ -119,13 +119,29 @@ async function ComplaintsData() {
       .eq('id', residenceId)
       .single();
 
-    // Transform complaints to include names
+    // Fetch evidence counts for syndics
+    let evidenceCounts: Record<number, number> = {};
+    if (userRole === 'syndic' && complaints && complaints.length > 0) {
+      const complaintIds = complaints.map((c: any) => c.id);
+      const { data: evidenceData } = await supabase
+        .from('complaint_evidence')
+        .select('complaint_id')
+        .in('complaint_id', complaintIds);
+      
+      // Count evidence per complaint
+      evidenceData?.forEach((e: any) => {
+        evidenceCounts[e.complaint_id] = (evidenceCounts[e.complaint_id] || 0) + 1;
+      });
+    }
+
+    // Transform complaints to include names and evidence count
     const complaintsWithNames = (complaints || []).map((complaint: any) => ({
       ...complaint,
       complainant_name: complaint.complainant?.full_name || 'Unknown',
       complained_about_name: complaint.complained_about?.full_name || 'Unknown',
       reviewer_name: complaint.reviewer?.full_name || null,
       residence_name: complaint.residences?.name || residence?.name || 'Unknown',
+      evidence_count: evidenceCounts[complaint.id] || 0,
     }));
 
     return (

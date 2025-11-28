@@ -35,6 +35,7 @@ export interface Complaint {
   complained_about_name?: string;
   reviewer_name?: string | null;
   residence_name?: string;
+  evidence_count?: number;
 }
 
 interface ComplaintsContentProps {
