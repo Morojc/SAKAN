@@ -11,10 +11,12 @@ import { toast } from 'react-hot-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { signOut, useSession } from 'next-auth/react';
 import { AuthNavigationManager } from '@/lib/auth-navigation';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function DocumentUploadPage() {
 	const router = useRouter();
 	const { data: session } = useSession();
+	const { t } = useI18n();
 	const [file, setFile] = useState<File | null>(null);
 	const [idCardFile, setIdCardFile] = useState<File | null>(null);
 	const [isUploading, setIsUploading] = useState(false);
@@ -203,7 +205,7 @@ export default function DocumentUploadPage() {
 				<Card className="w-full max-w-2xl">
 					<CardContent className="flex items-center justify-center py-12">
 						<Loader2 className="h-8 w-8 animate-spin text-primary" />
-						<p className="ml-3 text-gray-600">Redirection vers le tableau de bord...</p>
+						<p className="ml-3 text-gray-600">{t('documentUpload.redirecting')}</p>
 					</CardContent>
 				</Card>
 			</div>
@@ -217,9 +219,9 @@ export default function DocumentUploadPage() {
 					<CardHeader>
 						<div className="flex items-start justify-between">
 							<div>
-								<CardTitle className="text-2xl font-bold">Téléchargement du Procès Verbal</CardTitle>
+								<CardTitle className="text-2xl font-bold">{t('documentUpload.title')}</CardTitle>
 								<CardDescription>
-									Veuillez télécharger votre document "procès verbal" pour compléter votre vérification
+									{t('documentUpload.description')}
 								</CardDescription>
 							</div>
 							<div className="flex gap-2">
@@ -233,7 +235,7 @@ export default function DocumentUploadPage() {
 									className="border-gray-300 text-gray-600 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50"
 								>
 									<LogOut className="h-4 w-4 mr-2" />
-									<span className="hidden sm:inline">Se déconnecter</span>
+									<span className="hidden sm:inline">{t('common.signOut')}</span>
 								</Button>
 								{/* Delete account button */}
 								<Button
@@ -253,10 +255,9 @@ export default function DocumentUploadPage() {
 						{submission && submission.status === 'pending' && (
 							<Alert className="bg-yellow-50 border-yellow-200 text-yellow-800">
 								<AlertCircle className="h-4 w-4 text-yellow-600" />
-								<AlertTitle>Document en attente de révision</AlertTitle>
+								<AlertTitle>{t('documentUpload.pendingTitle')}</AlertTitle>
 								<AlertDescription>
-									Votre document a été soumis le {new Date(submission.submitted_at).toLocaleDateString('fr-FR')} 
-									et est en attente de révision par un administrateur.
+									{t('documentUpload.pendingDesc', { date: new Date(submission.submitted_at).toLocaleDateString() })}
 								</AlertDescription>
 							</Alert>
 						)}
@@ -264,10 +265,9 @@ export default function DocumentUploadPage() {
 						{submission && submission.status === 'approved' && (
 							<Alert className="bg-green-50 border-green-200 text-green-800">
 								<CheckCircle2 className="h-4 w-4 text-green-600" />
-								<AlertTitle>Document approuvé</AlertTitle>
+								<AlertTitle>{t('documentUpload.approvedTitle')}</AlertTitle>
 								<AlertDescription>
-									Votre document a été approuvé le {new Date(submission.reviewed_at).toLocaleDateString('fr-FR')}.
-									Vous pouvez maintenant accéder à l'application.
+									{t('documentUpload.approvedDesc', { date: new Date(submission.reviewed_at).toLocaleDateString() })}
 								</AlertDescription>
 							</Alert>
 						)}
@@ -275,16 +275,16 @@ export default function DocumentUploadPage() {
 						{submission && submission.status === 'rejected' && (
 							<Alert variant="destructive">
 								<XCircle className="h-4 w-4" />
-								<AlertTitle>Document rejeté</AlertTitle>
+								<AlertTitle>{t('documentUpload.rejectedTitle')}</AlertTitle>
 								<AlertDescription>
 									{submission.rejection_reason ? (
 										<>
-											<strong>Raison:</strong> {submission.rejection_reason}
+											<strong>{t('documentUpload.rejectedReason')}</strong> {submission.rejection_reason}
 											<br />
-											Veuillez télécharger un nouveau document.
+											{t('documentUpload.rejectedDesc')}
 										</>
 									) : (
-										'Votre document a été rejeté. Veuillez télécharger un nouveau document.'
+										t('documentUpload.rejectedDesc')
 									)}
 								</AlertDescription>
 							</Alert>
@@ -294,10 +294,10 @@ export default function DocumentUploadPage() {
 							{/* Procès Verbal Document */}
 							<div className="space-y-2">
 								<label htmlFor="file-input" className="text-sm font-medium text-gray-700">
-									Procès Verbal * (PDF, JPG, PNG)
+									{t('documentUpload.procesVerbal')}
 								</label>
 								<p className="text-xs text-muted-foreground">
-									Document requis pour vérifier votre résidence
+									{t('documentUpload.procesVerbalDesc')}
 								</p>
 								<div className="flex items-center justify-center w-full">
 									<label
@@ -319,9 +319,9 @@ export default function DocumentUploadPage() {
 												<>
 													<Upload className="w-10 h-10 mb-2 text-gray-400" />
 													<p className="mb-2 text-sm text-gray-500">
-														<span className="font-semibold">Cliquez pour télécharger</span> ou glissez-déposez
+														<span className="font-semibold">{t('documentUpload.clickToUpload')}</span> {t('documentUpload.dragAndDrop')}
 													</p>
-													<p className="text-xs text-gray-500">PDF, JPG ou PNG (MAX. 10MB)</p>
+													<p className="text-xs text-gray-500">{t('documentUpload.maxSize')}</p>
 												</>
 											)}
 										</div>
@@ -340,10 +340,10 @@ export default function DocumentUploadPage() {
 							{/* ID Card Document */}
 							<div className="space-y-2">
 								<label htmlFor="id-card-input" className="text-sm font-medium text-gray-700">
-									Carte d'identité * (PDF, JPG, PNG)
+									{t('documentUpload.idCard')}
 								</label>
 								<p className="text-xs text-muted-foreground">
-									Pour confirmer les informations du syndic
+									{t('documentUpload.idCardDesc')}
 								</p>
 								<div className="flex items-center justify-center w-full">
 									<label
@@ -365,9 +365,9 @@ export default function DocumentUploadPage() {
 												<>
 													<CreditCard className="w-10 h-10 mb-2 text-gray-400" />
 													<p className="mb-2 text-sm text-gray-500">
-														<span className="font-semibold">Cliquez pour télécharger</span> ou glissez-déposez
+														<span className="font-semibold">{t('documentUpload.clickToUpload')}</span> {t('documentUpload.dragAndDrop')}
 													</p>
-													<p className="text-xs text-gray-500">PDF, JPG ou PNG (MAX. 10MB)</p>
+													<p className="text-xs text-gray-500">{t('documentUpload.maxSize')}</p>
 												</>
 											)}
 										</div>
@@ -389,22 +389,22 @@ export default function DocumentUploadPage() {
 										<Button
 											type="button"
 											variant="outline"
-											onClick={() => window.open(submission.document_url, '_blank')}
+											onClick={() => submission.document_url && window.open(submission.document_url, '_blank')}
 											className="border-gray-300 text-gray-700 hover:bg-gray-50"
 										>
 											<Eye className="mr-2 h-4 w-4" />
-											Voir le procès verbal
+											{t('documentUpload.viewProcesVerbal')}
 										</Button>
 									)}
 									{submission?.id_card_url && (
 										<Button
 											type="button"
 											variant="outline"
-											onClick={() => window.open(submission.id_card_url, '_blank')}
+											onClick={() => submission.id_card_url && window.open(submission.id_card_url, '_blank')}
 											className="border-gray-300 text-gray-700 hover:bg-gray-50"
 										>
 											<Eye className="mr-2 h-4 w-4" />
-											Voir la carte d'identité
+											{t('documentUpload.viewIdCard')}
 										</Button>
 									)}
 								</div>
@@ -419,16 +419,16 @@ export default function DocumentUploadPage() {
 									{isUploading ? (
 										<>
 											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Téléchargement...
+											{t('documentUpload.uploading')}
 										</>
 									) : (
 										<>
 											<Upload className="mr-2 h-4 w-4" />
 											{submission?.status === 'pending' 
-												? 'Remplacer' 
+												? t('documentUpload.replace')
 												: submission?.status === 'rejected'
-												? 'Télécharger un nouveau document'
-												: 'Télécharger'}
+												? t('documentUpload.uploadNew')
+												: t('documentUpload.upload')}
 										</>
 									)}
 								</Button>
@@ -444,12 +444,12 @@ export default function DocumentUploadPage() {
 									{isCanceling ? (
 										<>
 											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Suppression...
+											{t('documentUpload.deleting')}
 										</>
 									) : (
 										<>
 											<X className="mr-2 h-4 w-4" />
-											Supprimer mon compte
+											{t('documentUpload.deleteAccount')}
 										</>
 									)}
 								</Button>
@@ -462,7 +462,7 @@ export default function DocumentUploadPage() {
 									onClick={() => router.push('/app/verification-pending')}
 									className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
 								>
-									Voir le statut de vérification
+									{t('documentUpload.viewStatus')}
 								</Button>
 							)}
 						</form>
@@ -471,20 +471,20 @@ export default function DocumentUploadPage() {
 						<Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
 							<DialogContent>
 								<DialogHeader>
-									<DialogTitle>Supprimer mon compte et me déconnecter</DialogTitle>
+									<DialogTitle>{t('documentUpload.deleteAccountTitle')}</DialogTitle>
 								<DialogDescription asChild>
 									<div>
 										<p className="text-sm text-muted-foreground">
-											Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et :
+											{t('documentUpload.deleteAccountConfirm')}
 										</p>
 										<ul className="list-disc list-inside mt-2 space-y-1 text-sm text-muted-foreground">
-											<li>Supprimera définitivement votre compte utilisateur</li>
-											<li>Supprimera tous vos documents soumis</li>
-											<li>Supprimera votre profil et toutes les données associées</li>
-											<li>Annulera vos abonnements et paiements</li>
-											<li className="font-semibold text-red-600">Vous serez automatiquement déconnecté</li>
+											<li>{t('documentUpload.deleteAccountList1')}</li>
+											<li>{t('documentUpload.deleteAccountList2')}</li>
+											<li>{t('documentUpload.deleteAccountList3')}</li>
+											<li>{t('documentUpload.deleteAccountList4')}</li>
+											<li className="font-semibold text-red-600">{t('documentUpload.deleteAccountList5')}</li>
 										</ul>
-										<p className="mt-3 text-sm font-semibold text-red-600">Cette action ne peut pas être annulée.</p>
+										<p className="mt-3 text-sm font-semibold text-red-600">{t('documentUpload.deleteAccountWarning')}</p>
 									</div>
 								</DialogDescription>
 								</DialogHeader>
@@ -494,7 +494,7 @@ export default function DocumentUploadPage() {
 										onClick={() => setShowCancelDialog(false)}
 										disabled={isCanceling}
 									>
-										Annuler
+										{t('common.cancel')}
 									</Button>
 									<Button
 										className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
@@ -508,10 +508,10 @@ export default function DocumentUploadPage() {
 										{isCanceling ? (
 											<>
 												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Suppression...
+												{t('documentUpload.deleting')}
 											</>
 										) : (
-											'Oui, supprimer et me déconnecter'
+											t('documentUpload.deleteAccountConfirmButton')
 										)}
 									</Button>
 								</DialogFooter>
@@ -519,14 +519,14 @@ export default function DocumentUploadPage() {
 						</Dialog>
 
 						<div className="text-sm text-muted-foreground space-y-2">
-							<p className="font-semibold">Instructions:</p>
+							<p className="font-semibold">{t('documentUpload.instructions')}</p>
 							<ul className="list-disc list-inside space-y-1 ml-2">
-								<li>Le procès verbal est <strong>requis</strong> pour la vérification</li>
-								<li>La carte d'identité est <strong>requise</strong> et recommandée pour confirmer les informations du syndic</li>
-								<li>Les documents doivent être des fichiers PDF, JPG ou PNG</li>
-								<li>La taille maximale est de 10MB par fichier</li>
-								<li>Assurez-vous que les documents sont lisibles et complets</li>
-								<li>Vos documents seront révisés par un administrateur</li>
+								<li>{t('documentUpload.instruction1')}</li>
+								<li>{t('documentUpload.instruction2')}</li>
+								<li>{t('documentUpload.instruction3')}</li>
+								<li>{t('documentUpload.instruction4')}</li>
+								<li>{t('documentUpload.instruction5')}</li>
+								<li>{t('documentUpload.instruction6')}</li>
 							</ul>
 						</div>
 					</CardContent>

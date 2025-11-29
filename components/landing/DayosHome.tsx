@@ -13,6 +13,7 @@ import Image from 'next/image'
 import config from '@/config'
 import UserMenu from '@/components/user/UserMenu'
 import SignIn from '@/components/sign-in'
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher'
 
 // --- UI Components ---
 
@@ -63,6 +64,7 @@ const Navbar = ({ user }: { user: any }) => {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
+          <LanguageSwitcher />
           {user ? (
             <UserMenu />
           ) : (
@@ -93,6 +95,9 @@ const Navbar = ({ user }: { user: any }) => {
             <Link href="#use-cases" className="text-lg font-medium">Cas d'usage</Link>
             <Link href="#pricing" className="text-lg font-medium">Tarifs</Link>
             <div className="pt-4 border-t border-gray-100 flex flex-col gap-3">
+              <div className="flex justify-center">
+                <LanguageSwitcher />
+              </div>
               <SignIn />
               <Button href="/api/auth/signin" variant="primary" className="w-full justify-center">Commencer</Button>
             </div>
