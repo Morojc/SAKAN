@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserPlus, Search, Plus, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { UserPlus, Search, Plus, LayoutGrid, Table as TableIcon, Trash2, X, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +10,8 @@ import ResidentsTable from './ResidentsTable';
 import ResidentsGrid from './ResidentsGrid';
 import ResidentsViewToggle from './ResidentsViewToggle';
 import AddResidentDialog from './AddResidentDialog';
+import BulkDeleteDialog from './BulkDeleteDialog';
+import ExcelImportDialog from './ExcelImportDialog';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
@@ -80,6 +82,11 @@ export default function ResidentsContent({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  
+  // Bulk selection state
+  const [selectedResidentIds, setSelectedResidentIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [showExcelImportDialog, setShowExcelImportDialog] = useState(false);
 
   // Sync local state with server data when it refreshes
   useEffect(() => {
@@ -100,8 +107,9 @@ export default function ResidentsContent({
       searchQuery,
       statusFilter,
       showAddDialog,
+      selectedCount: selectedResidentIds.size,
     });
-  }, [residents.length, fees.length, searchQuery, statusFilter, showAddDialog]);
+  }, [residents.length, fees.length, searchQuery, statusFilter, showAddDialog, selectedResidentIds.size]);
 
   // Filtered and sorted residents
   const filteredResidents = useMemo(() => {
@@ -157,6 +165,22 @@ export default function ResidentsContent({
   };
 
   /**
+   * Handle bulk residents imported
+   */
+  const handleResidentsImported = (newResidents: ResidentWithFees[]) => {
+    console.log('[ResidentsContent] Bulk residents imported:', newResidents.length);
+    // Add to local state immediately
+    setResidents((prev) => [...prev, ...newResidents]);
+    setShowExcelImportDialog(false);
+    toast.success(`Successfully imported ${newResidents.length} resident(s)! Refreshing data...`);
+    
+    // Refresh server data
+    setTimeout(() => {
+      router.refresh();
+    }, 500);
+  };
+
+  /**
    * Handle resident updated
    */
   const handleResidentUpdated = (updatedResident: ResidentWithFees) => {
@@ -175,7 +199,60 @@ export default function ResidentsContent({
     setResidents((prev) => prev.filter((r) => r.id !== residentId));
     // Also remove related fees
     setFees((prev) => prev.filter((f) => f.user_id !== residentId));
+    // Remove from selection if selected
+    setSelectedResidentIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(residentId);
+      return newSet;
+    });
     toast.success('Resident deleted successfully');
+  };
+
+  /**
+   * Handle bulk delete
+   */
+  const handleBulkDelete = (deletedIds: string[]) => {
+    console.log('[ResidentsContent] Bulk delete completed:', deletedIds.length, 'residents');
+    setResidents((prev) => prev.filter((r) => !deletedIds.includes(r.id)));
+    setFees((prev) => prev.filter((f) => !deletedIds.includes(f.user_id)));
+    setSelectedResidentIds(new Set());
+    toast.success(`Successfully deleted ${deletedIds.length} resident(s)`);
+    router.refresh();
+  };
+
+  /**
+   * Handle selection change
+   */
+  const handleSelectionChange = (residentId: string, selected: boolean) => {
+    console.log('[ResidentsContent] Selection change:', residentId, selected);
+    setSelectedResidentIds((prev) => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(residentId);
+      } else {
+        newSet.delete(residentId);
+      }
+      console.log('[ResidentsContent] New selection set size:', newSet.size);
+      return newSet;
+    });
+  };
+
+  /**
+   * Handle select all
+   */
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      setSelectedResidentIds(new Set(filteredResidents.map((r) => r.id)));
+    } else {
+      setSelectedResidentIds(new Set());
+    }
+  };
+
+  /**
+   * Clear selection
+   */
+  const handleClearSelection = () => {
+    setSelectedResidentIds(new Set());
   };
 
   /**
@@ -310,20 +387,86 @@ export default function ResidentsContent({
           </div>
         </div>
 
-        {/* Add Resident Button - Desktop */}
-        <Button
-          onClick={() => {
-            console.log('[ResidentsContent] Add resident button clicked, current showAddDialog:', showAddDialog);
-            setShowAddDialog(true);
-            console.log('[ResidentsContent] Set showAddDialog to true');
-          }}
-          className="hidden lg:flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all hover:scale-105 h-11 rounded-xl px-6"
-          aria-label="Add new resident"
-        >
-          <UserPlus className="h-4 w-4" />
-          Add Resident
-        </Button>
+        {/* Add Resident and Import Buttons - Desktop */}
+        <div className="hidden lg:flex items-center gap-3">
+          {currentUserRole === 'syndic' && (
+            <Button
+              onClick={() => setShowExcelImportDialog(true)}
+              className="items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-600 hover:border-blue-700 shadow-md hover:shadow-lg transition-all h-11 rounded-xl px-6 font-medium"
+              aria-label="Import residents from Excel"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Import Excel
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              console.log('[ResidentsContent] Add resident button clicked, current showAddDialog:', showAddDialog);
+              setShowAddDialog(true);
+              console.log('[ResidentsContent] Set showAddDialog to true');
+            }}
+            className="items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all hover:scale-105 h-11 rounded-xl px-6"
+            aria-label="Add new resident"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add Resident
+          </Button>
+        </div>
       </div>
+
+      {/* Bulk Actions Toolbar */}
+      {selectedResidentIds.size > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 border-2 border-blue-500 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xl sticky top-4 z-50"
+        >
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-white animate-pulse"></div>
+              <span className="text-base font-bold text-white">
+                {selectedResidentIds.size} resident{selectedResidentIds.size > 1 ? 's' : ''} selected
+              </span>
+            </div>
+            {filteredResidents.length > 0 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const allSelected = filteredResidents.every((r) => selectedResidentIds.has(r.id));
+                  handleSelectAll(!allSelected);
+                }}
+                className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/30 font-medium"
+              >
+                {filteredResidents.every((r) => selectedResidentIds.has(r.id))
+                  ? 'Deselect All'
+                  : 'Select All'}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleClearSelection}
+              className="h-9 bg-white/20 hover:bg-white/30 text-white border-white/30 font-medium"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear Selection
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              variant="destructive"
+              size="default"
+              onClick={() => setShowBulkDeleteDialog(true)}
+              className="h-11 flex-1 sm:flex-initial shadow-xl hover:shadow-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base px-6"
+            >
+              <Trash2 className="h-5 w-5 mr-2" />
+              Delete Selected ({selectedResidentIds.size})
+            </Button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Residents View (Grid or Table) */}
       <motion.div
@@ -353,24 +496,40 @@ export default function ResidentsContent({
             loading={loading}
             currentUserId={currentUserId}
             currentUserRole={currentUserRole}
+            selectedResidentIds={selectedResidentIds}
+            onSelectionChange={handleSelectionChange}
+            onSelectAll={handleSelectAll}
           />
         )}
       </motion.div>
 
-      {/* Floating Action Button for Add Resident - Mobile */}
-      <Button
-        onClick={() => {
-          console.log('[ResidentsContent] Add resident button clicked, current showAddDialog:', showAddDialog);
-          setShowAddDialog(true);
-          console.log('[ResidentsContent] Set showAddDialog to true');
-        }}
-        size="lg"
-        className="lg:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-200 z-[100] bg-gray-900 hover:bg-gray-800 text-white border-0"
-        aria-label="Add new resident"
-      >
-        <Plus className="h-6 w-6 text-white" />
-        <span className="sr-only">Add Resident</span>
-      </Button>
+      {/* Floating Action Buttons for Add Resident and Import - Mobile */}
+      <div className="lg:hidden fixed bottom-6 right-6 flex flex-col gap-3 z-[100]">
+        {currentUserRole === 'syndic' && (
+          <Button
+            onClick={() => setShowExcelImportDialog(true)}
+            size="lg"
+            className="h-14 w-14 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-200 bg-blue-600 hover:bg-blue-700 text-white border-0"
+            aria-label="Import residents from Excel"
+          >
+            <FileSpreadsheet className="h-6 w-6" />
+            <span className="sr-only">Import Excel</span>
+          </Button>
+        )}
+        <Button
+          onClick={() => {
+            console.log('[ResidentsContent] Add resident button clicked, current showAddDialog:', showAddDialog);
+            setShowAddDialog(true);
+            console.log('[ResidentsContent] Set showAddDialog to true');
+          }}
+          size="lg"
+          className="h-14 w-14 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-200 bg-gray-900 hover:bg-gray-800 text-white border-0"
+          aria-label="Add new resident"
+        >
+          <Plus className="h-6 w-6 text-white" />
+          <span className="sr-only">Add Resident</span>
+        </Button>
+      </div>
 
       {/* Add Resident Dialog */}
       <AddResidentDialog
@@ -383,6 +542,27 @@ export default function ResidentsContent({
         currentUserRole={currentUserRole}
         currentUserResidenceId={currentUserResidenceId}
       />
+
+      {/* Bulk Delete Dialog */}
+      <BulkDeleteDialog
+        open={showBulkDeleteDialog}
+        residentIds={Array.from(selectedResidentIds)}
+        residentNames={filteredResidents
+          .filter((r) => selectedResidentIds.has(r.id))
+          .map((r) => r.full_name)}
+        onClose={() => setShowBulkDeleteDialog(false)}
+        onSuccess={handleBulkDelete}
+      />
+
+      {/* Excel Import Dialog */}
+      {currentUserRole === 'syndic' && (
+        <ExcelImportDialog
+          open={showExcelImportDialog}
+          onClose={() => setShowExcelImportDialog(false)}
+          onSuccess={handleResidentsImported}
+          currentUserResidenceId={currentUserResidenceId}
+        />
+      )}
     </div>
   );
 }

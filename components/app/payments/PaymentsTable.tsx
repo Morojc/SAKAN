@@ -47,6 +47,12 @@ export default function PaymentsTable({ refreshTrigger }: PaymentsTableProps) {
 				throw new Error('Failed to fetch payments');
 			}
 
+			// Check content type to ensure it's JSON
+			const contentType = response.headers.get('content-type');
+			if (!contentType || !contentType.includes('application/json')) {
+				throw new Error('Invalid response format from server');
+			}
+
 			const data = await response.json();
 			console.log('[PaymentsTable] Payments fetched:', data.payments?.length);
 			setPayments(data.payments || []);

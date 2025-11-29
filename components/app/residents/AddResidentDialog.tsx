@@ -77,13 +77,38 @@ export default function AddResidentDialog({
   useEffect(() => {
     async function fetchCurrentUserEmail() {
       try {
-        const response = await fetch('/api/auth/session');
+        const response = await fetch('/api/auth/session', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
+        // Check if response is OK and is JSON
+        if (!response.ok) {
+          console.warn('[AddResidentDialog] Session fetch not OK:', response.status);
+          return;
+        }
+
+        // Check content type to ensure it's JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('[AddResidentDialog] Response is not JSON, got:', contentType);
+          return;
+        }
+
         const data = await response.json();
         if (data?.user?.email) {
           setCurrentUserEmail(data.user.email.toLowerCase());
         }
-      } catch (error) {
-        console.error('[AddResidentDialog] Error fetching user email:', error);
+      } catch (error: any) {
+        // Handle JSON parse errors specifically
+        if (error.message?.includes('JSON') || error.message?.includes('Unexpected token')) {
+          console.warn('[AddResidentDialog] Received non-JSON response from auth session (likely redirect)');
+        } else {
+          console.error('[AddResidentDialog] Error fetching user email:', error);
+        }
       }
     }
     fetchCurrentUserEmail();

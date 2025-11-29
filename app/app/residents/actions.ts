@@ -588,6 +588,296 @@ export async function deleteResident(residentId: string) {
 }
 
 /**
+ * Bulk delete residents
+ * Deletes multiple residents at once
+ */
+export async function bulkDeleteResidents(residentIds: string[]) {
+  console.log('[Residents Actions] Bulk deleting residents:', residentIds);
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) throw new Error('User not authenticated');
+
+    if (!residentIds || residentIds.length === 0) {
+      return { success: false, error: 'No residents selected for deletion' };
+    }
+
+    const adminSupabase = createSupabaseAdminClient();
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
+
+    if (!managedResidenceId) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const results = {
+      success: [] as string[],
+      failed: [] as { id: string; error: string }[],
+    };
+
+    // Delete each resident sequentially to handle errors properly
+    for (const residentId of residentIds) {
+      try {
+        // Get resident's profile to check role
+        const { data: residentProfile, error: profileError } = await adminSupabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', residentId)
+          .maybeSingle();
+
+        if (profileError || !residentProfile) {
+          results.failed.push({ id: residentId, error: 'Resident not found' });
+          continue;
+        }
+
+        // Prevent deleting syndics (unless it's the current user's own account)
+        if (residentProfile.role === 'syndic' && residentId !== userId) {
+          results.failed.push({ id: residentId, error: 'Cannot delete syndic accounts' });
+          continue;
+        }
+
+        // Check if resident is a guard assigned to this residence
+        if (residentProfile.role === 'guard') {
+          const { data: residence } = await adminSupabase
+            .from('residences')
+            .select('guard_user_id')
+            .eq('id', managedResidenceId)
+            .single();
+
+          if (residence?.guard_user_id === residentId) {
+            // Unlink guard from residence
+            await adminSupabase
+              .from('residences')
+              .update({ guard_user_id: null })
+              .eq('id', managedResidenceId);
+          }
+        } else {
+          // For residents: Remove from profile_residences for this residence
+          const { error: linkError } = await adminSupabase
+            .from('profile_residences')
+            .delete()
+            .eq('profile_id', residentId)
+            .eq('residence_id', managedResidenceId);
+
+          if (linkError) {
+            results.failed.push({ id: residentId, error: 'Failed to remove resident from residence' });
+            continue;
+          }
+
+          // Check if resident is in other residences
+          const { data: otherResidences } = await adminSupabase
+            .from('profile_residences')
+            .select('id')
+            .eq('profile_id', residentId)
+            .neq('residence_id', managedResidenceId);
+
+          // If resident is in other residences, don't delete their account
+          if (otherResidences && otherResidences.length > 0) {
+            console.log('[Residents Actions] Resident is in other residences, only removing from this residence');
+            results.success.push(residentId);
+            continue;
+          }
+        }
+
+        // Create dbasakan client for comprehensive cleanup
+        const { createClient } = await import('@supabase/supabase-js');
+        const dbasakanClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SECRET_KEY!,
+          {
+            db: { schema: 'dbasakan' },
+            auth: { persistSession: false },
+          }
+        );
+
+        // Get user email for cleanup
+        const { data: userData } = await dbasakanClient
+          .from('users')
+          .select('email')
+          .eq('id', residentId)
+          .maybeSingle();
+
+        const userEmail = userData?.email || null;
+
+        // Delete user-related data
+        await dbasakanClient.from('profile_residences').delete().eq('profile_id', residentId);
+        await dbasakanClient.from('notifications').delete().eq('user_id', residentId);
+        await dbasakanClient.from('poll_votes').delete().eq('user_id', residentId);
+        if (userEmail) {
+          await dbasakanClient.from('verification_tokens').delete().eq('identifier', userEmail);
+        }
+
+        // Nullify references
+        await dbasakanClient.from('announcements').update({ created_by: null }).eq('created_by', residentId);
+        await dbasakanClient.from('expenses').update({ created_by: null }).eq('created_by', residentId);
+        await dbasakanClient.from('polls').update({ created_by: null }).eq('created_by', residentId);
+        await dbasakanClient.from('balance_snapshots').update({ created_by: null }).eq('created_by', residentId);
+        await dbasakanClient.from('payments').update({ verified_by: null }).eq('verified_by', residentId);
+        await dbasakanClient.from('incidents').update({ assigned_to: null }).eq('assigned_to', residentId);
+
+        // Delete data where user is required
+        await dbasakanClient.from('deliveries').delete().eq('logged_by', residentId);
+        await dbasakanClient.from('deliveries').delete().eq('recipient_id', residentId);
+        await dbasakanClient.from('payments').delete().eq('user_id', residentId);
+        await dbasakanClient.from('fees').delete().eq('user_id', residentId);
+        await dbasakanClient.from('incidents').delete().eq('user_id', residentId);
+        await dbasakanClient.from('access_logs').delete().eq('generated_by', residentId);
+        await dbasakanClient.from('access_logs').update({ scanned_by: null }).eq('scanned_by', residentId);
+
+        // Delete document submissions and files
+        const { data: submissions } = await dbasakanClient
+          .from('syndic_document_submissions')
+          .select('document_url, id_card_url')
+          .eq('user_id', residentId);
+
+        if (submissions && submissions.length > 0) {
+          const filesToDelete: string[] = [];
+          for (const submission of submissions) {
+            if (submission.document_url) {
+              const documentPath = submission.document_url.split('/syndic-documents/')[1];
+              if (documentPath) filesToDelete.push(`syndic-documents/${documentPath}`);
+            }
+            if (submission.id_card_url) {
+              const idCardPath = submission.id_card_url.split('/syndic-documents/')[1];
+              if (idCardPath) filesToDelete.push(`syndic-documents/${idCardPath}`);
+            }
+          }
+
+          if (filesToDelete.length > 0) {
+            await adminSupabase.storage.from('SAKAN').remove(filesToDelete);
+          }
+
+          await dbasakanClient.from('syndic_document_submissions').delete().eq('user_id', residentId);
+        }
+
+        // Delete stripe customer if exists
+        await adminSupabase.from('stripe_customers').delete().eq('user_id', residentId);
+
+        // Delete profile
+        await dbasakanClient.from('profiles').delete().eq('id', residentId);
+
+        // Delete from users
+        const { error: deleteUserError } = await dbasakanClient.from('users').delete().eq('id', residentId);
+        if (deleteUserError) {
+          await adminSupabase.from('users').delete().eq('id', residentId);
+        }
+
+        // Delete accounts and sessions
+        await dbasakanClient.from('accounts').delete().eq('user_id', residentId);
+        await dbasakanClient.from('sessions').delete().eq('user_id', residentId);
+
+        results.success.push(residentId);
+      } catch (error: any) {
+        console.error(`[Residents Actions] Error deleting resident ${residentId}:`, error);
+        results.failed.push({ id: residentId, error: error.message || 'Failed to delete' });
+      }
+    }
+
+    revalidatePath('/app/residents');
+
+    if (results.failed.length > 0) {
+      return {
+        success: results.success.length > 0,
+        error: `Failed to delete ${results.failed.length} resident(s)`,
+        results,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Successfully deleted ${results.success.length} resident(s)`,
+      results,
+    };
+  } catch (error: any) {
+    console.error('[Residents Actions] Error in bulk delete:', error);
+    return { success: false, error: error.message || 'Failed to delete residents' };
+  }
+}
+
+/**
+ * Bulk create residents from array
+ * Used for Excel import
+ */
+export async function bulkCreateResidents(residents: CreateResidentData[]) {
+  console.log('[Residents Actions] Bulk creating residents:', residents.length);
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    if (!residents || residents.length === 0) {
+      return {
+        success: false,
+        error: 'No residents provided',
+      };
+    }
+
+    const adminSupabase = createSupabaseAdminClient();
+    const managedResidenceId = await getManagedResidenceId(userId, adminSupabase);
+
+    if (!managedResidenceId) {
+      return {
+        success: false,
+        error: 'You are not authorized to add residents to any residence.',
+      };
+    }
+
+    const results = {
+      success: [] as any[],
+      failed: [] as { data: CreateResidentData; error: string }[],
+    };
+
+    // Process each resident sequentially to avoid conflicts
+    for (let i = 0; i < residents.length; i++) {
+      const residentData = residents[i];
+      try {
+        // Ensure residence_id matches the managed residence
+        const finalResidentData = {
+          ...residentData,
+          residence_id: managedResidenceId,
+        };
+
+        // Call createResident directly (it's already a server action)
+        const result = await createResident(finalResidentData);
+
+        if (result.success && result.resident) {
+          results.success.push(result.resident);
+        } else {
+          results.failed.push({
+            data: residentData,
+            error: result.error || 'Failed to create resident',
+          });
+        }
+      } catch (error: any) {
+        console.error(`[Residents Actions] Error creating resident ${i + 1} in bulk:`, error);
+        results.failed.push({
+          data: residentData,
+          error: error.message || 'Failed to create resident',
+        });
+      }
+    }
+
+    revalidatePath('/app/residents');
+
+    return {
+      success: results.success.length > 0,
+      results,
+      message: `Successfully created ${results.success.length} of ${residents.length} residents`,
+    };
+  } catch (error: any) {
+    console.error('[Residents Actions] Error in bulk create:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to create residents',
+    };
+  }
+}
+
+/**
  * Get residences for dropdown
  */
 export async function getResidences() {

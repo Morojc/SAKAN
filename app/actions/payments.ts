@@ -41,7 +41,7 @@ export async function getBalances(residenceId?: bigint) {
 			.select('amount')
 			.eq('residence_id', targetResidenceId)
 			.in('method', ['cash'])
-			.eq('status', 'completed');
+			.eq('status', 'verified');
 
 		if (cashPaymentsError) {
 			console.error('[Payments Actions] Error fetching cash payments:', cashPaymentsError);
@@ -60,12 +60,13 @@ export async function getBalances(residenceId?: bigint) {
 		}
 
 		// Calculate bank balance: online payments - bank expenses
+		// Note: Using 'card' instead of 'online_card' based on the actual enum values
 		const { data: bankPayments, error: bankPaymentsError } = await supabase
 			.from('payments')
 			.select('amount')
 			.eq('residence_id', targetResidenceId)
-			.in('method', ['bank_transfer', 'online_card'])
-			.eq('status', 'completed');
+			.in('method', ['bank_transfer', 'card'])
+			.eq('status', 'verified');
 
 		if (bankPaymentsError) {
 			console.error('[Payments Actions] Error fetching bank payments:', bankPaymentsError);
@@ -145,7 +146,7 @@ export async function createCashPayment(data: {
 				fee_id: data.feeId || null,
 				amount: data.amount,
 				method: 'cash',
-				status: 'completed',
+				status: 'verified',
 				paid_at: new Date().toISOString(),
 				verified_by: currentUserId, // Syndic who recorded the payment
 			})

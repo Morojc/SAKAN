@@ -9,7 +9,6 @@ import {
   AlertCircle, 
   Megaphone, 
   UserCircle,
-  Building2,
   FileText,
   Calendar,
   Settings,
@@ -56,7 +55,6 @@ export function Sidebar() {
     {
       category: "Management",
       items: [
-        { href: "/app/residences", label: "Residences & Syndics", icon: Building2 },
         { href: "/app/expenses", label: "Expenses", icon: Receipt },
         { href: "/app/incidents", label: "Incidents", icon: AlertCircle },
         { href: "/app/complaints", label: "Complaints", icon: MessageSquare },

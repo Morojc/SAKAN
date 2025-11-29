@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,9 @@ interface ResidentsTableProps {
   loading?: boolean;
   currentUserId?: string;
   currentUserRole?: string;
+  selectedResidentIds?: Set<string>;
+  onSelectionChange?: (residentId: string, selected: boolean) => void;
+  onSelectAll?: (selected: boolean) => void;
 }
 
 type SortField = 'name' | 'apartment' | 'outstandingFees' | 'feeCount' | null;
@@ -53,6 +57,9 @@ export default function ResidentsTable({
   loading,
   currentUserId,
   currentUserRole,
+  selectedResidentIds = new Set(),
+  onSelectionChange,
+  onSelectAll,
 }: ResidentsTableProps) {
   console.log('[ResidentsTable] Rendering with', residents.length, 'residents');
 
@@ -109,6 +116,10 @@ export default function ResidentsTable({
     console.log('[ResidentsTable] Sorted', sorted.length, 'residents');
     return sorted;
   }, [residents, sortField, sortDirection]);
+
+  // Check if all visible residents are selected
+  const allSelected = sortedResidents.length > 0 && sortedResidents.every((r) => selectedResidentIds.has(r.id));
+  const someSelected = sortedResidents.some((r) => selectedResidentIds.has(r.id));
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -222,6 +233,16 @@ export default function ResidentsTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="w-12">
+                  {onSelectAll && (
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(checked) => onSelectAll(checked === true)}
+                      aria-label="Select all residents"
+                      className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 border-2 h-5 w-5"
+                    />
+                  )}
+                </TableHead>
                 <TableHead className="font-semibold">
                   <button
                     onClick={() => handleSort('name')}
@@ -274,8 +295,34 @@ export default function ResidentsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedResidents.map((resident) => (
-                <TableRow key={resident.id} className="hover:bg-muted/50 transition-colors">
+              {sortedResidents.map((resident) => {
+                const isSelected = selectedResidentIds.has(resident.id);
+                const canSelect = resident.role !== 'syndic' || resident.id === currentUserId;
+                
+                return (
+                <TableRow 
+                  key={resident.id} 
+                  className={`hover:bg-muted/50 transition-colors ${
+                    isSelected 
+                      ? 'bg-blue-100 border-l-4 border-l-blue-600 shadow-sm' 
+                      : ''
+                  }`}
+                >
+                  <TableCell className="w-12">
+                    {onSelectionChange && canSelect ? (
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          console.log('[ResidentsTable] Checkbox changed:', resident.id, checked);
+                          onSelectionChange(resident.id, checked === true);
+                        }}
+                        aria-label={`Select ${resident.full_name}`}
+                        className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 cursor-pointer border-2 h-5 w-5"
+                      />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="font-medium">{resident.full_name}</TableCell>
                   <TableCell>
                     {resident.apartment_number ? (
@@ -385,7 +432,8 @@ export default function ResidentsTable({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </div>

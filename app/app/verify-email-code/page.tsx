@@ -23,15 +23,37 @@ export default function VerifyEmailCodePage() {
 
 	useEffect(() => {
 		// Get user email from session
-		fetch('/api/auth/session')
-			.then(res => res.json())
+		fetch('/api/auth/session', {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			credentials: 'include',
+		})
+			.then(async (res) => {
+				// Check if response is OK and is JSON
+				if (!res.ok) {
+					return;
+				}
+				
+				// Check content type to ensure it's JSON
+				const contentType = res.headers.get('content-type');
+				if (!contentType || !contentType.includes('application/json')) {
+					return;
+				}
+				
+				return res.json();
+			})
 			.then(data => {
 				if (data?.user?.email) {
 					setUserEmail(data.user.email);
 				}
 			})
-			.catch(() => {
-				// Ignore errors
+			.catch((error) => {
+				// Ignore JSON parse errors (likely redirect to sign-in)
+				if (error.message?.includes('JSON') || error.message?.includes('Unexpected token')) {
+					console.warn('[VerifyEmailCode] Received non-JSON response from auth session');
+				}
 			});
 	}, []);
 
