@@ -5,12 +5,14 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import DashboardOverview from './DashboardOverview';
 import { getDashboardStats } from '@/app/actions/dashboard';
+import { useI18n } from '@/lib/i18n/client';
 
 /**
  * Dashboard Content Component
  * Client component that fetches and displays dashboard statistics
  */
 export default function DashboardContent() {
+	const { t } = useI18n();
 	const [stats, setStats] = useState({
 		totalResidents: 0,
 		cashOnHand: 0,
@@ -94,8 +96,8 @@ export default function DashboardContent() {
 		return (
 			<Alert variant="destructive">
 				<AlertCircle className="h-4 w-4" />
-				<AlertTitle>Error</AlertTitle>
-				<AlertDescription>{error}</AlertDescription>
+				<AlertTitle>{t('common.error')}</AlertTitle>
+				<AlertDescription>{error || t('dashboard.failedToLoad')}</AlertDescription>
 			</Alert>
 		);
 	}

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
+import { useI18n } from '@/lib/i18n/client';
 
 interface DashboardOverviewProps {
 	stats: {
@@ -49,6 +50,7 @@ interface DashboardOverviewProps {
  */
 export default function DashboardOverview({ stats, loading }: DashboardOverviewProps) {
 	console.log('[DashboardOverview] Rendering with stats:', stats);
+	const { t } = useI18n();
 
 	// Format currency
 	const formatCurrency = (amount: number) => {
@@ -113,24 +115,24 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 				<div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
 					<div>
 						<h1 className="text-3xl font-bold mb-2">
-							Welcome back, {stats.user.name.split(' ')[0]}! 👋
+							{t('dashboard.welcome', { name: stats.user.name.split(' ')[0] })}
 						</h1>
 						<p className="text-gray-300 flex items-center gap-2">
 							<Building2 className="h-4 w-4" />
-							{stats.residence?.name || 'My Residence'} • {stats.residence?.city || 'Casablanca'}
+							{stats.residence?.name || t('dashboard.myResidence')} • {stats.residence?.city || 'Casablanca'}
 						</p>
 					</div>
 					<div className="flex items-center gap-3">
 						<Link href="/app/payments">
 							<Button className="bg-green-500 hover:bg-green-600 text-white border-0 shadow-lg shadow-green-500/20 transition-all hover:scale-105">
 								<Plus className="h-4 w-4 mr-2" />
-								Add Payment
+								{t('dashboard.addPayment')}
 							</Button>
 						</Link>
 						<Link href="/app/residents">
 							<Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm transition-all hover:scale-105">
 								<Users className="h-4 w-4 mr-2" />
-								Residents
+								{t('dashboard.residents')}
 							</Button>
 						</Link>
 					</div>
@@ -151,7 +153,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									<Users className="h-6 w-6 text-blue-600" />
 								</div>
 								<Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100">
-									Residents
+									{t('dashboard.residentsLabel')}
 								</Badge>
 							</div>
 							<div className="space-y-1">
@@ -165,10 +167,10 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									) : (
 										<span className="text-gray-400 flex items-center">
 											<Activity className="h-3 w-3 mr-1" />
-											Stable
+											{t('dashboard.stable')}
 										</span>
 									)}
-									<span className="text-gray-500">vs last month</span>
+									<span className="text-gray-500">{t('dashboard.vsLastMonth')}</span>
 								</div>
 							</div>
 						</CardContent>
@@ -187,7 +189,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									<Wallet className="h-6 w-6 text-green-600" />
 								</div>
 								<Badge variant="secondary" className="bg-green-50 text-green-700 border-green-100">
-									Revenue
+									{t('dashboard.revenue')}
 								</Badge>
 							</div>
 							<div className="space-y-1">
@@ -197,7 +199,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										<CheckCircle2 className="h-3 w-3 mr-1" />
 										{stats.todayPayments}
 									</span>
-									<span className="text-gray-500">payments today</span>
+									<span className="text-gray-500">{t('dashboard.paymentsToday')}</span>
 								</div>
 							</div>
 						</CardContent>
@@ -216,7 +218,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									<Target className="h-6 w-6 text-purple-600" />
 								</div>
 								<Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100">
-									Collection
+									{t('dashboard.collection')}
 								</Badge>
 							</div>
 							<div className="space-y-1">
@@ -227,7 +229,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										style={{ width: `${fillRate}%` }} 
 									/>
 								</div>
-								<p className="text-xs text-gray-500 mt-1">Target: 95%</p>
+								<p className="text-xs text-gray-500 mt-1">{t('dashboard.target')}</p>
 							</div>
 						</CardContent>
 					</Card>
@@ -245,17 +247,17 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									<AlertCircle className="h-6 w-6 text-orange-600" />
 								</div>
 								<Badge variant="secondary" className="bg-orange-50 text-orange-700 border-orange-100">
-									Pending
+									{t('dashboard.pending')}
 								</Badge>
 							</div>
 							<div className="space-y-1">
 								<h3 className="text-3xl font-bold text-gray-900">{formatCurrency(stats.outstandingFees)}</h3>
 								<div className="flex items-center gap-2 text-sm">
-									<span className="text-gray-500">Outstanding amount</span>
+									<span className="text-gray-500">{t('dashboard.outstandingAmount')}</span>
 								</div>
 								{stats.outstandingFees > 0 && (
 									<Link href="/app/residents" className="text-xs text-orange-600 font-medium hover:underline inline-block mt-1">
-										View details →
+										{t('dashboard.viewDetails')}
 									</Link>
 								)}
 							</div>
@@ -273,12 +275,12 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 								<div>
 									<CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
 										<Building2 className="h-6 w-6 text-indigo-600" />
-										Informations de la Résidence
+										{t('dashboard.residenceInfo')}
 									</CardTitle>
-									<p className="text-sm text-gray-500 mt-1">Détails de votre résidence</p>
+									<p className="text-sm text-gray-500 mt-1">{t('dashboard.residenceDetails')}</p>
 								</div>
 								<Badge className="bg-indigo-100 text-indigo-700 border-0">
-									Syndic
+									{t('dashboard.syndic')}
 								</Badge>
 							</div>
 						</CardHeader>
@@ -289,7 +291,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										<Building2 className="h-5 w-5 text-indigo-600" />
 									</div>
 									<div className="flex-1">
-										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Nom de la résidence</p>
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{t('dashboard.residenceName')}</p>
 										<p className="text-sm font-semibold text-gray-900">{stats.residence.name}</p>
 									</div>
 								</div>
@@ -302,7 +304,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										</svg>
 									</div>
 									<div className="flex-1">
-										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Adresse</p>
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{t('dashboard.address')}</p>
 										<p className="text-sm font-semibold text-gray-900">{stats.residence.address}</p>
 									</div>
 								</div>
@@ -314,7 +316,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										</svg>
 									</div>
 									<div className="flex-1">
-										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Ville</p>
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{t('dashboard.city')}</p>
 										<p className="text-sm font-semibold text-gray-900">{stats.residence.city}</p>
 									</div>
 								</div>
@@ -324,8 +326,8 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										<Users className="h-5 w-5 text-blue-600" />
 									</div>
 									<div className="flex-1">
-										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Nombre de résidents</p>
-										<p className="text-sm font-semibold text-gray-900">{stats.totalResidents} résidents actifs</p>
+										<p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{t('dashboard.numberOfResidents')}</p>
+										<p className="text-sm font-semibold text-gray-900">{stats.totalResidents} {t('dashboard.activeResidents')}</p>
 									</div>
 								</div>
 							</div>
@@ -341,12 +343,12 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 					<Card className="border-none shadow-lg h-full">
 						<CardHeader className="flex flex-row items-center justify-between px-6 py-6">
 							<div>
-								<CardTitle className="text-xl font-bold text-gray-900">Recent Activity</CardTitle>
-								<p className="text-sm text-gray-500 mt-1">Latest happenings in your residence</p>
+								<CardTitle className="text-xl font-bold text-gray-900">{t('dashboard.recentActivity')}</CardTitle>
+								<p className="text-sm text-gray-500 mt-1">{t('dashboard.latestHappenings')}</p>
 							</div>
 							<Link href="/app/payments">
 								<Button variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900">
-									View All <ArrowRight className="h-4 w-4 ml-1" />
+									{t('dashboard.viewAll')} <ArrowRight className="h-4 w-4 ml-1" />
 								</Button>
 							</Link>
 						</CardHeader>
@@ -358,13 +360,13 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 											<Wallet className="h-6 w-6 text-green-600" />
 										</div>
 										<div className="flex-1 min-w-0">
-											<h4 className="font-semibold text-gray-900">New Payments Received</h4>
+											<h4 className="font-semibold text-gray-900">{t('dashboard.newPaymentsReceived')}</h4>
 											<p className="text-sm text-gray-600 truncate">
-												{stats.todayPayments} payments processed today
+												{t('dashboard.paymentsProcessedToday', { count: stats.todayPayments })}
 											</p>
 										</div>
 										<Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-0">
-											Today
+											{t('dashboard.today')}
 										</Badge>
 									</div>
 								)}
@@ -375,14 +377,14 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 											<AlertCircle className="h-6 w-6 text-orange-600" />
 										</div>
 										<div className="flex-1 min-w-0">
-											<h4 className="font-semibold text-gray-900">Incidents Reported</h4>
+											<h4 className="font-semibold text-gray-900">{t('dashboard.incidentsReported')}</h4>
 											<p className="text-sm text-gray-600 truncate">
-												{stats.openIncidents} issues need attention
+												{t('dashboard.issuesNeedAttention', { count: stats.openIncidents })}
 											</p>
 										</div>
 										<Link href="/app/incidents">
 											<Button size="sm" variant="outline" className="border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800">
-												Review
+												{t('dashboard.review')}
 											</Button>
 										</Link>
 									</div>
@@ -393,14 +395,14 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 										<Users className="h-6 w-6 text-blue-600" />
 									</div>
 									<div className="flex-1 min-w-0">
-										<h4 className="font-semibold text-gray-900">Community Status</h4>
+										<h4 className="font-semibold text-gray-900">{t('dashboard.communityStatus')}</h4>
 										<p className="text-sm text-gray-600 truncate">
-											{activeResidents} active residents in the building
+											{t('dashboard.activeResidentsInBuilding', { count: activeResidents })}
 										</p>
 									</div>
 									<Link href="/app/residents">
 										<Button size="sm" variant="ghost" className="text-blue-600 hover:bg-blue-50">
-											Manage
+											{t('dashboard.manage')}
 										</Button>
 									</Link>
 								</div>
@@ -418,24 +420,24 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 							<div className="relative z-10">
 								<h3 className="text-lg font-bold mb-2 flex items-center gap-2">
 									<Target className="h-5 w-5" />
-									Quick Insight
+									{t('dashboard.quickInsight')}
 								</h3>
 								<div className="space-y-4">
 									{stats.outstandingFees > 0 ? (
 										<div>
 											<p className="text-indigo-100 text-sm mb-3">
-												You have <span className="font-bold text-white">{formatCurrency(stats.outstandingFees)}</span> in outstanding fees. Sending reminders could improve collection by 20%.
+												{t('dashboard.outstandingFeesMessage', { amount: formatCurrency(stats.outstandingFees) })}
 											</p>
 											<Link href="/app/residents">
 												<Button size="sm" className="bg-white text-indigo-600 hover:bg-indigo-50 border-0 w-full font-semibold">
-													Send Reminders
+													{t('dashboard.sendReminders')}
 												</Button>
 											</Link>
 										</div>
 									) : (
 										<div>
 											<p className="text-indigo-100 text-sm">
-												Great job! Your collection rate is optimal. Consider announcing the good financial health to residents.
+												{t('dashboard.greatJob')}
 											</p>
 										</div>
 									)}
@@ -447,7 +449,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 					{/* Top Residents */}
 					<Card className="border-none shadow-lg">
 						<CardHeader className="px-6 pt-6 pb-4">
-							<CardTitle className="text-lg font-bold text-gray-900">Top Contributors</CardTitle>
+							<CardTitle className="text-lg font-bold text-gray-900">{t('dashboard.topContributors')}</CardTitle>
 						</CardHeader>
 						<CardContent className="px-6 pb-6">
 							<div className="space-y-4">
@@ -475,7 +477,7 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 									))
 								) : (
 									<div className="text-center py-4 text-gray-500 text-sm">
-										No data available yet
+										{t('dashboard.noDataAvailable')}
 									</div>
 								)}
 							</div>

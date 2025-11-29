@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n/client";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { t } = useI18n();
 
   const isActive = (path: string) => {
     if (path === "/app") {
@@ -51,7 +53,7 @@ export function Header() {
               <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
               <Input
                 type="search"
-                placeholder="Search anything..."
+                placeholder={t('header.searchPlaceholder')}
                 className="pl-10 w-full bg-gray-50 border-gray-200 focus:bg-white focus:border-gray-300 rounded-xl transition-all duration-200 shadow-sm focus:shadow-md"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
@@ -69,7 +71,7 @@ export function Header() {
               <Link href="/app/payments">
                 <Button size="sm" className="bg-gray-900 hover:bg-gray-800 text-white rounded-xl shadow-lg shadow-gray-900/20 transition-all hover:scale-105 active:scale-95">
                   <Plus className="h-4 w-4 mr-1.5" />
-                  New Payment
+                  {t('header.newPayment')}
                 </Button>
               </Link>
             </div>

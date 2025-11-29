@@ -20,9 +20,11 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [subscription, setSubscription] = useState<{ days: number; plan: string } | null>(null);
 
   useEffect(() => {
@@ -45,19 +47,19 @@ export function Sidebar() {
 
   const navigationItems = [
     { 
-      category: "Main",
+      category: t('sidebar.main'),
       items: [
-        { href: "/app", label: "Overview", icon: LayoutDashboard },
-        { href: "/app/residents", label: "Residents", icon: Users },
-        { href: "/app/payments", label: "Payments", icon: CreditCard },
+        { href: "/app", label: t('sidebar.overview'), icon: LayoutDashboard },
+        { href: "/app/residents", label: t('sidebar.residents'), icon: Users },
+        { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
       ]
     },
     {
-      category: "Management",
+      category: t('sidebar.management'),
       items: [
-        { href: "/app/expenses", label: "Expenses", icon: Receipt },
-        { href: "/app/incidents", label: "Incidents", icon: AlertCircle },
-        { href: "/app/complaints", label: "Complaints", icon: MessageSquare },
+        { href: "/app/expenses", label: t('sidebar.expenses'), icon: Receipt },
+        { href: "/app/incidents", label: t('sidebar.incidents'), icon: AlertCircle },
+        { href: "/app/complaints", label: t('sidebar.complaints'), icon: MessageSquare },
         // TODO: Task 4 - Announcements page
         // { href: "/app/announcements", label: "Announcements", icon: Megaphone },
         // TODO: Calendar page - not yet implemented
@@ -65,12 +67,12 @@ export function Sidebar() {
       ]
     },
     {
-      category: "System",
+      category: t('sidebar.system'),
       items: [
         // TODO: Analytics page - not yet implemented
         // { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
         // Settings redirects to profile for now
-        { href: "/app/profile", label: "Settings", icon: Settings },
+        { href: "/app/profile", label: t('sidebar.settings'), icon: Settings },
       ]
     }
   ];
@@ -140,7 +142,7 @@ export function Sidebar() {
                 <CreditCard size={20} className="text-white" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/70 bg-black/20 px-2 py-1 rounded-full backdrop-blur-md border border-white/5">
-                {subscription?.plan || 'Loading...'} Plan
+                {subscription?.plan || t('common.loading')} {t('sidebar.plan')}
               </span>
             </div>
             
@@ -149,14 +151,14 @@ export function Sidebar() {
                 <span className="text-4xl font-bold tracking-tight text-white drop-shadow-sm">
                   {subscription?.days ?? 0}
                 </span>
-                <span className="text-sm font-medium text-white/60">days left</span>
+                <span className="text-sm font-medium text-white/60">{t('sidebar.daysLeft')}</span>
               </div>
             </div>
             
             <div className="flex items-end justify-between gap-4">
               <div className="flex-1">
                 <div className="flex justify-between text-[10px] font-medium text-white/50 mb-1.5">
-                  <span>Subscription</span>
+                  <span>{t('sidebar.subscription')}</span>
                   <span>{Math.min(((subscription?.days || 0) / 30) * 100, 100).toFixed(0)}%</span>
                 </div>
                 {/* Progress bar */}
