@@ -5,6 +5,16 @@
 -- ============================================================================
 
 -- ============================================================================
+-- 0. ENABLE REQUIRED EXTENSIONS
+-- ============================================================================
+
+-- Enable pgcrypto extension for password hashing (crypt, gen_salt)
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- Enable uuid-ossp for UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+-- ============================================================================
 -- 1. RESIDENCE MANAGEMENT FUNCTIONS
 -- ============================================================================
 

@@ -5,6 +5,9 @@
 -- Admins have their own authentication and access
 -- =====================================================
 
+-- Enable pgcrypto extension for password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 -- Drop existing admin table and recreate as independent
 DROP TABLE IF EXISTS dbasakan.admins CASCADE;
 
@@ -34,11 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_admins_is_active ON dbasakan.admins(is_active);
 -- Enable RLS for admins table
 ALTER TABLE dbasakan.admins ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Admins can read their own data (no auth.uid() check)
-CREATE POLICY "Admins can read their own data"
+-- RLS Policy: Service role full access (used by admin login API)
+-- The service role key bypasses RLS, but we create a permissive policy
+-- to ensure both direct queries and RPC functions work properly
+CREATE POLICY "Service role full access to admins"
   ON dbasakan.admins
-  FOR SELECT
-  USING (true); -- Will be controlled by application logic
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 -- Update foreign key in syndic_document_submissions
 -- First drop the old constraint
@@ -73,10 +79,11 @@ COMMENT ON TABLE dbasakan.admin_sessions IS 'Admin authentication sessions - sep
 -- Enable RLS
 ALTER TABLE dbasakan.admin_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admin sessions are managed by application"
+CREATE POLICY "Service role full access to admin sessions"
   ON dbasakan.admin_sessions
   FOR ALL
-  USING (true);
+  USING (true)
+  WITH CHECK (true);
 
 -- =====================================================
 -- HELPER FUNCTIONS
@@ -91,6 +98,7 @@ CREATE OR REPLACE FUNCTION dbasakan.create_admin(
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = dbasakan, extensions, pg_temp
 AS $$
 DECLARE
   v_admin_id text;
@@ -121,6 +129,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = dbasakan, extensions, pg_temp
 AS $$
 BEGIN
   RETURN QUERY

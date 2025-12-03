@@ -19,6 +19,16 @@
 -- ============================================================================
 
 -- ============================================================================
+-- 0. ENABLE REQUIRED EXTENSIONS
+-- ============================================================================
+
+-- Enable pgcrypto extension for password hashing (crypt, gen_salt)
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- Enable uuid-ossp for UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
+
+-- ============================================================================
 -- 1. CREATE SCHEMA (if not exists)
 -- ============================================================================
 
@@ -597,6 +607,7 @@ RETURNS TABLE(
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = dbasakan, extensions, pg_temp
 AS $$
 BEGIN
   RETURN QUERY
@@ -613,6 +624,8 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION dbasakan.verify_admin_password(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION dbasakan.verify_admin_password(text, text) TO anon;
+GRANT EXECUTE ON FUNCTION dbasakan.verify_admin_password(text, text) TO service_role;
 
 -- Function: Create admin user (RECOMMENDED)
 CREATE OR REPLACE FUNCTION dbasakan.create_admin(
@@ -623,30 +636,52 @@ CREATE OR REPLACE FUNCTION dbasakan.create_admin(
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = dbasakan, extensions, pg_temp
 AS $$
 DECLARE
   v_admin_id text;
   v_password_hash text;
+  v_access_hash text;
 BEGIN
   -- Hash password using pgcrypto
   v_password_hash := crypt(p_password, gen_salt('bf', 10));
   
+  -- Generate unique access hash
+  v_access_hash := md5(random()::text || clock_timestamp()::text);
+  
   -- Insert admin
-  INSERT INTO dbasakan.admins (email, password_hash, full_name, is_active, access_hash)
+  INSERT INTO dbasakan.admins (
+    id,
+    email,
+    password_hash,
+    full_name,
+    access_hash,
+    is_active,
+    created_at
+  )
   VALUES (
+    gen_random_uuid()::text,
     p_email, 
     v_password_hash, 
-    p_full_name, 
+    p_full_name,
+    v_access_hash,
     true,
-    upper(substring(md5(random()::text || clock_timestamp()::text) from 1 for 12))
+    NOW()
   )
   RETURNING id INTO v_admin_id;
+  
+  -- Log the access hash for the user
+  RAISE NOTICE 'Admin created successfully!';
+  RAISE NOTICE 'Admin ID: %', v_admin_id;
+  RAISE NOTICE 'Access Hash: %', v_access_hash;
+  RAISE NOTICE 'Login URL: /admin/%', v_access_hash;
   
   RETURN v_admin_id;
 END;
 $$;
 
 GRANT EXECUTE ON FUNCTION dbasakan.create_admin(text, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION dbasakan.create_admin(text, text, text) TO service_role;
 
 -- Function: Generate admin access hash
 CREATE OR REPLACE FUNCTION dbasakan.generate_admin_hash()
@@ -891,42 +926,108 @@ BEGIN
     END LOOP;
 END $$;
 
--- Fees policies
-DROP POLICY IF EXISTS "Syndics can manage residence fees" ON dbasakan.fees;
-CREATE POLICY "Syndics can manage residence fees" ON dbasakan.fees
+-- ============================================================================
+-- Admin Tables RLS Policies
+-- ============================================================================
+
+-- Admins table: Service role full access (used by admin login API)
+-- The service role key bypasses RLS, but we create permissive policies
+-- to ensure both direct queries and RPC functions work properly
+DROP POLICY IF EXISTS "Service role full access to admins" ON dbasakan.admins;
+CREATE POLICY "Service role full access to admins" ON dbasakan.admins
   FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Admin sessions: Service role full access
+DROP POLICY IF EXISTS "Service role full access to admin sessions" ON dbasakan.admin_sessions;
+CREATE POLICY "Service role full access to admin sessions" ON dbasakan.admin_sessions
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ============================================================================
+-- Core Tables (profiles, residences, profile_residences)
+-- ============================================================================
+
+-- Profiles: Syndics can view all residence profiles, users can view own
+DROP POLICY IF EXISTS "Profiles access by role" ON dbasakan.profiles;
+CREATE POLICY "Profiles access by role" ON dbasakan.profiles
+  FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM dbasakan.profiles p
-      WHERE p.id = auth.uid()::text
-      AND p.role = 'syndic'
+    auth.uid()::text = id
+    OR EXISTS (
+      SELECT 1 FROM dbasakan.profile_residences pr
+      WHERE pr.profile_id = profiles.id
+      AND (pr.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
     )
-    AND (fees.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Payments policies
-DROP POLICY IF EXISTS "Syndics can manage all payments in residence" ON dbasakan.payments;
-CREATE POLICY "Syndics can manage all payments in residence" ON dbasakan.payments
-  FOR ALL
+-- Residences: Users can view their own residence
+DROP POLICY IF EXISTS "Users can view own residence" ON dbasakan.residences;
+CREATE POLICY "Users can view own residence" ON dbasakan.residences
+  FOR SELECT
   USING (
-    EXISTS (
-      SELECT 1 FROM dbasakan.profiles p
-      WHERE p.id = auth.uid()::text
-      AND p.role = 'syndic'
-    )
-    AND (payments.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    (residences.id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    OR syndic_user_id = auth.uid()::text
+    OR guard_user_id = auth.uid()::text
   );
 
--- Expenses policies
-DROP POLICY IF EXISTS "Authenticated users can view expenses" ON dbasakan.expenses;
-CREATE POLICY "Authenticated users can view expenses" ON dbasakan.expenses
+-- Profile residences: Syndics can manage, residents can view own
+DROP POLICY IF EXISTS "Profile residences access" ON dbasakan.profile_residences;
+CREATE POLICY "Profile residences access" ON dbasakan.profile_residences
+  FOR ALL
+  USING (
+    profile_id = auth.uid()::text
+    OR (residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+  );
+
+-- ============================================================================
+-- Financial Tables
+-- ============================================================================
+
+-- Fees: Syndics can manage all fees in their residence, users can view own
+DROP POLICY IF EXISTS "Fees management" ON dbasakan.fees;
+CREATE POLICY "Fees management" ON dbasakan.fees
+  FOR ALL
+  USING (
+    user_id = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role = 'syndic'
+      )
+      AND (fees.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
+  );
+
+-- Payments: Syndics can manage all, users can view own
+DROP POLICY IF EXISTS "Payments access" ON dbasakan.payments;
+CREATE POLICY "Payments access" ON dbasakan.payments
+  FOR ALL
+  USING (
+    user_id = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role = 'syndic'
+      )
+      AND (payments.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
+  );
+
+-- Expenses: All authenticated users can view, syndics can manage
+DROP POLICY IF EXISTS "Expenses view" ON dbasakan.expenses;
+CREATE POLICY "Expenses view" ON dbasakan.expenses
   FOR SELECT
   USING (
     (expenses.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can manage expenses" ON dbasakan.expenses;
-CREATE POLICY "Syndics can manage expenses" ON dbasakan.expenses
+DROP POLICY IF EXISTS "Expenses manage" ON dbasakan.expenses;
+CREATE POLICY "Expenses manage" ON dbasakan.expenses
   FOR ALL
   USING (
     EXISTS (
@@ -935,31 +1036,42 @@ CREATE POLICY "Syndics can manage expenses" ON dbasakan.expenses
       AND p.role = 'syndic'
     )
     AND (expenses.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
-  );
-
--- Incidents policies
-DROP POLICY IF EXISTS "Syndics can manage all incidents" ON dbasakan.incidents;
-CREATE POLICY "Syndics can manage all incidents" ON dbasakan.incidents
-  FOR ALL
-  USING (
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM dbasakan.profiles p
       WHERE p.id = auth.uid()::text
       AND p.role = 'syndic'
     )
-    AND (incidents.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    AND (expenses.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Announcements policies
-DROP POLICY IF EXISTS "Residents can view announcements" ON dbasakan.announcements;
-CREATE POLICY "Residents can view announcements" ON dbasakan.announcements
+-- Incidents: Syndics can manage all, users can view own
+DROP POLICY IF EXISTS "Incidents access" ON dbasakan.incidents;
+CREATE POLICY "Incidents access" ON dbasakan.incidents
+  FOR ALL
+  USING (
+    user_id = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role = 'syndic'
+      )
+      AND (incidents.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
+  );
+
+-- Announcements: All can view, syndics can manage
+DROP POLICY IF EXISTS "Announcements view" ON dbasakan.announcements;
+CREATE POLICY "Announcements view" ON dbasakan.announcements
   FOR SELECT
   USING (
     (announcements.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can manage announcements" ON dbasakan.announcements;
-CREATE POLICY "Syndics can manage announcements" ON dbasakan.announcements
+DROP POLICY IF EXISTS "Announcements manage" ON dbasakan.announcements;
+CREATE POLICY "Announcements manage" ON dbasakan.announcements
   FOR ALL
   USING (
     EXISTS (
@@ -968,18 +1080,26 @@ CREATE POLICY "Syndics can manage announcements" ON dbasakan.announcements
       AND p.role = 'syndic'
     )
     AND (announcements.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND (announcements.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Polls policies
-DROP POLICY IF EXISTS "Residents can view polls" ON dbasakan.polls;
-CREATE POLICY "Residents can view polls" ON dbasakan.polls
+-- Polls: All can view, syndics can manage
+DROP POLICY IF EXISTS "Polls view" ON dbasakan.polls;
+CREATE POLICY "Polls view" ON dbasakan.polls
   FOR SELECT
   USING (
     (polls.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can manage polls" ON dbasakan.polls;
-CREATE POLICY "Syndics can manage polls" ON dbasakan.polls
+DROP POLICY IF EXISTS "Polls manage" ON dbasakan.polls;
+CREATE POLICY "Polls manage" ON dbasakan.polls
   FOR ALL
   USING (
     EXISTS (
@@ -988,11 +1108,19 @@ CREATE POLICY "Syndics can manage polls" ON dbasakan.polls
       AND p.role = 'syndic'
     )
     AND (polls.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND (polls.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Poll options policies
-DROP POLICY IF EXISTS "Users can view poll options" ON dbasakan.poll_options;
-CREATE POLICY "Users can view poll options" ON dbasakan.poll_options
+-- Poll options: All can view, syndics can manage
+DROP POLICY IF EXISTS "Poll options view" ON dbasakan.poll_options;
+CREATE POLICY "Poll options view" ON dbasakan.poll_options
   FOR SELECT
   USING (
     EXISTS (
@@ -1002,20 +1130,41 @@ CREATE POLICY "Users can view poll options" ON dbasakan.poll_options
     )
   );
 
-DROP POLICY IF EXISTS "Syndics can manage poll options" ON dbasakan.poll_options;
-CREATE POLICY "Syndics can manage poll options" ON dbasakan.poll_options
+DROP POLICY IF EXISTS "Poll options manage" ON dbasakan.poll_options;
+CREATE POLICY "Poll options manage" ON dbasakan.poll_options
   FOR ALL
   USING (
     EXISTS (
       SELECT 1 FROM dbasakan.polls pol
       WHERE pol.id = poll_options.poll_id
-      AND (pol.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+      AND (
+        EXISTS (
+          SELECT 1 FROM dbasakan.profiles p
+          WHERE p.id = auth.uid()::text
+          AND p.role = 'syndic'
+        )
+        AND (pol.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+      )
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM dbasakan.polls pol
+      WHERE pol.id = poll_options.poll_id
+      AND (
+        EXISTS (
+          SELECT 1 FROM dbasakan.profiles p
+          WHERE p.id = auth.uid()::text
+          AND p.role = 'syndic'
+        )
+        AND (pol.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+      )
     )
   );
 
--- Poll votes policies
-DROP POLICY IF EXISTS "Users can view votes" ON dbasakan.poll_votes;
-CREATE POLICY "Users can view votes" ON dbasakan.poll_votes
+-- Poll votes: All can view, residents can vote
+DROP POLICY IF EXISTS "Poll votes view" ON dbasakan.poll_votes;
+CREATE POLICY "Poll votes view" ON dbasakan.poll_votes
   FOR SELECT
   USING (
     EXISTS (
@@ -1025,29 +1174,61 @@ CREATE POLICY "Users can view votes" ON dbasakan.poll_votes
     )
   );
 
--- Deliveries policies
-DROP POLICY IF EXISTS "Guards can manage deliveries" ON dbasakan.deliveries;
-CREATE POLICY "Guards can manage deliveries" ON dbasakan.deliveries
-  FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM dbasakan.profiles p
-      WHERE p.id = auth.uid()::text
-      AND p.role = 'guard'
+DROP POLICY IF EXISTS "Poll votes insert" ON dbasakan.poll_votes;
+CREATE POLICY "Poll votes insert" ON dbasakan.poll_votes
+  FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()::text
+    AND EXISTS (
+      SELECT 1 FROM dbasakan.polls
+      WHERE polls.id = poll_votes.poll_id
+      AND (polls.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
     )
-    AND (deliveries.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Transaction history policies
-DROP POLICY IF EXISTS "Residents can view residence transactions" ON dbasakan.transaction_history;
-CREATE POLICY "Residents can view residence transactions" ON dbasakan.transaction_history
+-- Deliveries: Guards can manage all in their residence, recipients can view own
+DROP POLICY IF EXISTS "Deliveries management" ON dbasakan.deliveries;
+CREATE POLICY "Deliveries management" ON dbasakan.deliveries
+  FOR ALL
+  USING (
+    recipient_id = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role = 'guard'
+      )
+      AND (deliveries.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
+  );
+
+-- Access logs: Guards can manage, users can view own
+DROP POLICY IF EXISTS "Access logs access" ON dbasakan.access_logs;
+CREATE POLICY "Access logs access" ON dbasakan.access_logs
+  FOR ALL
+  USING (
+    generated_by = auth.uid()::text
+    OR scanned_by = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role IN ('guard', 'syndic')
+      )
+      AND (access_logs.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
+  );
+
+-- Transaction history: All can view, syndics can manage
+DROP POLICY IF EXISTS "Transaction history view" ON dbasakan.transaction_history;
+CREATE POLICY "Transaction history view" ON dbasakan.transaction_history
   FOR SELECT
   USING (
     (transaction_history.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can manage residence transactions" ON dbasakan.transaction_history;
-CREATE POLICY "Syndics can manage residence transactions" ON dbasakan.transaction_history
+DROP POLICY IF EXISTS "Transaction history manage" ON dbasakan.transaction_history;
+CREATE POLICY "Transaction history manage" ON dbasakan.transaction_history
   FOR ALL
   USING (
     EXISTS (
@@ -1056,20 +1237,36 @@ CREATE POLICY "Syndics can manage residence transactions" ON dbasakan.transactio
       AND p.role = 'syndic'
     )
     AND (transaction_history.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND (transaction_history.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
--- Balance snapshots policies
-DROP POLICY IF EXISTS "Residents can view residence balances" ON dbasakan.balance_snapshots;
-CREATE POLICY "Residents can view residence balances" ON dbasakan.balance_snapshots
+-- Balance snapshots: All can view, syndics can manage
+DROP POLICY IF EXISTS "Balance snapshots view" ON dbasakan.balance_snapshots;
+CREATE POLICY "Balance snapshots view" ON dbasakan.balance_snapshots
   FOR SELECT
   USING (
     (balance_snapshots.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can manage residence balances" ON dbasakan.balance_snapshots;
-CREATE POLICY "Syndics can manage residence balances" ON dbasakan.balance_snapshots
+DROP POLICY IF EXISTS "Balance snapshots manage" ON dbasakan.balance_snapshots;
+CREATE POLICY "Balance snapshots manage" ON dbasakan.balance_snapshots
   FOR ALL
   USING (
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND (balance_snapshots.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM dbasakan.profiles p
       WHERE p.id = auth.uid()::text
@@ -1091,35 +1288,119 @@ CREATE POLICY "Syndics can view all residence profiles" ON dbasakan.profiles
     OR auth.uid()::text = profiles.id
   );
 
--- Profile residences policies
-DROP POLICY IF EXISTS "Syndics can view profile_residences for their residence" ON dbasakan.profile_residences;
-CREATE POLICY "Syndics can view profile_residences for their residence" ON dbasakan.profile_residences
+-- Notifications: Users can only see their own
+DROP POLICY IF EXISTS "Notifications access" ON dbasakan.notifications;
+CREATE POLICY "Notifications access" ON dbasakan.notifications
+  FOR ALL
+  USING (user_id = auth.uid()::text);
+
+-- Syndic document submissions: Users can view own, admins can view all
+DROP POLICY IF EXISTS "Document submissions access" ON dbasakan.syndic_document_submissions;
+CREATE POLICY "Document submissions access" ON dbasakan.syndic_document_submissions
+  FOR ALL
+  USING (
+    user_id = auth.uid()::text
+    OR EXISTS (
+      SELECT 1 FROM dbasakan.admins
+      WHERE id = reviewed_by
+      AND is_active = true
+    )
+  );
+
+-- Syndic deletion requests: Syndics can view own, admins can view all
+DROP POLICY IF EXISTS "Deletion requests access" ON dbasakan.syndic_deletion_requests;
+CREATE POLICY "Deletion requests access" ON dbasakan.syndic_deletion_requests
+  FOR ALL
+  USING (
+    syndic_user_id = auth.uid()::text
+    OR EXISTS (
+      SELECT 1 FROM dbasakan.admins
+      WHERE id = reviewed_by
+      AND is_active = true
+    )
+  );
+
+-- Complaints: Complainants can view own, complained-about can view, syndics can view all
+DROP POLICY IF EXISTS "Complaints access" ON dbasakan.complaints;
+CREATE POLICY "Complaints access" ON dbasakan.complaints
   FOR SELECT
   USING (
-    (profile_residences.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
-    OR profile_residences.profile_id = auth.uid()::text
+    complainant_id = auth.uid()::text
+    OR complained_about_id = auth.uid()::text
+    OR (
+      EXISTS (
+        SELECT 1 FROM dbasakan.profiles p
+        WHERE p.id = auth.uid()::text
+        AND p.role = 'syndic'
+      )
+      AND (complaints.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
   );
 
-DROP POLICY IF EXISTS "Syndics can insert profile_residences for their residence" ON dbasakan.profile_residences;
-CREATE POLICY "Syndics can insert profile_residences for their residence" ON dbasakan.profile_residences
+DROP POLICY IF EXISTS "Complaints create" ON dbasakan.complaints;
+CREATE POLICY "Complaints create" ON dbasakan.complaints
   FOR INSERT
   WITH CHECK (
-    (profile_residences.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'resident'
+    )
+    AND complainant_id = auth.uid()::text
+    AND (complaints.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can update profile_residences for their residence" ON dbasakan.profile_residences;
-CREATE POLICY "Syndics can update profile_residences for their residence" ON dbasakan.profile_residences
+DROP POLICY IF EXISTS "Complaints update" ON dbasakan.complaints;
+CREATE POLICY "Complaints update" ON dbasakan.complaints
   FOR UPDATE
   USING (
-    (profile_residences.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND (complaints.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
   );
 
-DROP POLICY IF EXISTS "Syndics can delete profile_residences for their residence" ON dbasakan.profile_residences;
-CREATE POLICY "Syndics can delete profile_residences for their residence" ON dbasakan.profile_residences
-  FOR DELETE
+-- Complaint evidence: Only syndics can view, complainants can upload
+DROP POLICY IF EXISTS "Complaint evidence view" ON dbasakan.complaint_evidence;
+CREATE POLICY "Complaint evidence view" ON dbasakan.complaint_evidence
+  FOR SELECT
   USING (
-    (profile_residences.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'syndic'
+    )
+    AND EXISTS (
+      SELECT 1 FROM dbasakan.complaints c
+      WHERE c.id = complaint_evidence.complaint_id
+      AND (c.residence_id::bigint) = (dbasakan.get_user_residence_id(auth.uid())::bigint)
+    )
   );
+
+DROP POLICY IF EXISTS "Complaint evidence upload" ON dbasakan.complaint_evidence;
+CREATE POLICY "Complaint evidence upload" ON dbasakan.complaint_evidence
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM dbasakan.profiles p
+      WHERE p.id = auth.uid()::text
+      AND p.role = 'resident'
+    )
+    AND uploaded_by = auth.uid()::text
+    AND EXISTS (
+      SELECT 1 FROM dbasakan.complaints c
+      WHERE c.id = complaint_evidence.complaint_id
+      AND c.complainant_id = auth.uid()::text
+    )
+  );
+
+-- Stripe customers: Users can only see their own
+DROP POLICY IF EXISTS "Stripe customers access" ON dbasakan.stripe_customers;
+CREATE POLICY "Stripe customers access" ON dbasakan.stripe_customers
+  FOR ALL
+  USING (user_id = auth.uid()::text);
 
 -- ============================================================================
 -- 15. INDEXES FOR PERFORMANCE
