@@ -75,7 +75,7 @@ export default async function AdminAccessPage({ params }: PageProps) {
 
         {/* Footer */}
         <div className="text-center mt-8 text-sm text-gray-500">
-          <p>© 2024 SAKAN. Tous droits réservés.</p>
+          <p>© 2025 SAKAN. Tous droits réservés.</p>
         </div>
       </div>
     </div>

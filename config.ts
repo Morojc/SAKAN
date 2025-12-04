@@ -4,8 +4,8 @@
 
 const config = {
 	metadata: {
-		title: "Saas Starter",
-		description: "Saas Starter Kit for demo purpose ",
+		title: "SAKAN",
+		description: "SAKAN Kit for demo purpose ",
 		keywords: ["Saas", "Starter Kit", "Demo", "Note Taking", "AI", "Chatbot"],
 	},
 	theme: {

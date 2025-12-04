@@ -1,6 +1,6 @@
-# Next.js SaaS Starter Kit
+# Next.js SAKAN Kit
 
-A modern SaaS starter kit built with Next.js, featuring authentication, payments, and email functionality.
+A modern SAKAN kit built with Next.js, featuring authentication, payments, and email functionality.
 
 ## Features
 
