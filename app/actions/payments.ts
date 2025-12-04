@@ -109,9 +109,12 @@ export async function getBalances(residenceId?: bigint) {
 
 /**
  * Create a cash payment record
+ * Payment must be linked to a specific resident and apartment number
  */
 export async function createCashPayment(data: {
 	userId: string;
+	apartmentNumber: string;
+	profileResidenceId?: number;
 	amount: number;
 	feeId?: bigint;
 	residenceId?: bigint;
@@ -126,6 +129,11 @@ export async function createCashPayment(data: {
 			throw new Error('User not authenticated');
 		}
 
+		// Validation: apartment number is required for payments
+		if (!data.apartmentNumber || data.apartmentNumber.trim() === '') {
+			throw new Error('Apartment number is required for payments');
+		}
+
 		const supabase = createSupabaseAdminClient();
 
 		// Get residence ID if not provided
@@ -137,12 +145,31 @@ export async function createCashPayment(data: {
 			}
 		}
 
-		// Create payment record
+		// If profile_residence_id is not provided, find it from apartment number
+		let profileResidenceId = data.profileResidenceId;
+		if (!profileResidenceId) {
+			const { data: profileResidence } = await supabase
+				.from('profile_residences')
+				.select('id')
+				.eq('profile_id', data.userId)
+				.eq('residence_id', targetResidenceId)
+				.eq('apartment_number', data.apartmentNumber.trim())
+				.maybeSingle();
+
+			if (!profileResidence) {
+				throw new Error(`Resident is not associated with apartment ${data.apartmentNumber} in this residence`);
+			}
+			profileResidenceId = profileResidence.id;
+		}
+
+		// Create payment record with apartment number
 		const { data: payment, error: paymentError } = await supabase
 			.from('payments')
 			.insert({
 				residence_id: targetResidenceId,
 				user_id: data.userId,
+				apartment_number: data.apartmentNumber.trim(),
+				profile_residence_id: profileResidenceId,
 				fee_id: data.feeId || null,
 				amount: data.amount,
 				method: 'cash',
@@ -215,6 +242,7 @@ export async function getResidents(residenceId?: bigint) {
 		const { data: residentsLinks, error: residentsError } = await supabase
 			.from('profile_residences')
 			.select(`
+                id,
                 apartment_number,
                 verified,
                 profiles (
@@ -232,12 +260,13 @@ export async function getResidents(residenceId?: bigint) {
 			throw residentsError;
 		}
 
-        // Transform to flat structure
+        // Transform to flat structure with profile_residence_id for payment linking
         const residents = residentsLinks?.map((link: any) => ({
             id: link.profiles.id,
             full_name: link.profiles.full_name,
             role: link.profiles.role,
-            apartment_number: link.apartment_number
+            apartment_number: link.apartment_number,
+            profile_residence_id: link.id // Include profile_residence_id for payment linking
         })) || [];
 
 		console.log('[Payments Actions] Residents fetched:', residents.length);

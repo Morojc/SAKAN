@@ -38,7 +38,7 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 	const [submitting, setSubmitting] = useState(false);
 
 	// Form state
-	const [selectedResident, setSelectedResident] = useState('');
+	const [selectedResident, setSelectedResident] = useState(''); // Format: "userId|apartmentNumber|profileResidenceId"
 	const [amount, setAmount] = useState('');
 	const [method, setMethod] = useState('cash');
 
@@ -87,8 +87,19 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 		setSubmitting(true);
 
 		try {
+			// Parse selected resident value: userId|apartmentNumber|profileResidenceId
+			const [userId, apartmentNumber, profileResidenceId] = selectedResident.split('|');
+			
+			if (!userId || !apartmentNumber) {
+				toast.error('Invalid resident selection. Please select a resident with an apartment number.');
+				setSubmitting(false);
+				return;
+			}
+
 			const result = await createCashPayment({
-				userId: selectedResident,
+				userId: userId,
+				apartmentNumber: apartmentNumber,
+				profileResidenceId: profileResidenceId ? Number(profileResidenceId) : undefined,
 				amount: Number(amount),
 			});
 
@@ -148,11 +159,15 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 											No residents found
 										</SelectItem>
 									) : (
-										residents.map((resident) => (
-											<SelectItem key={resident.id} value={resident.id}>
-												{resident.full_name} - Apt. {resident.apartment_number}
-											</SelectItem>
-										))
+										residents.map((resident) => {
+											// Create composite value: userId|apartmentNumber|profileResidenceId
+											const value = `${resident.id}|${resident.apartment_number || ''}|${resident.profile_residence_id || ''}`;
+											return (
+												<SelectItem key={`${resident.id}-${resident.apartment_number || 'no-apt'}-${resident.profile_residence_id || ''}`} value={value}>
+													{resident.full_name} - Apt. {resident.apartment_number || 'N/A'}
+												</SelectItem>
+											);
+										})
 									)}
 								</SelectContent>
 							</Select>
@@ -193,7 +208,11 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={submitting || loading}>
+						<Button 
+							type="submit" 
+							disabled={submitting || loading}
+							className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+						>
 							{submitting ? 'Recording...' : 'Record Payment'}
 						</Button>
 					</DialogFooter>

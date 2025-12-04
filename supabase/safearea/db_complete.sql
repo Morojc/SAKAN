@@ -44,6 +44,11 @@
 --    - resident_onboarding_code and resident_onboarding_code_expires_at
 --    - Prevents conflicts with email verification OTP
 -- ============================================================================
+-- 6. 20251207000000_add_apartment_to_payments.sql
+--    - Adds apartment_number and profile_residence_id to payments table
+--    - Links payments to specific resident-apartment combinations
+--    - Ensures payments are properly tracked by apartment number
+-- ============================================================================
 
 -- ============================================================================
 -- 0. ENABLE REQUIRED EXTENSIONS
@@ -273,6 +278,8 @@ CREATE TABLE IF NOT EXISTS dbasakan.payments (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   residence_id bigint NOT NULL,
   user_id text NOT NULL,
+  apartment_number text,
+  profile_residence_id bigint,
   fee_id bigint,
   amount numeric NOT NULL,
   method dbasakan.payment_method NOT NULL,
@@ -283,9 +290,16 @@ CREATE TABLE IF NOT EXISTS dbasakan.payments (
   CONSTRAINT payments_pkey PRIMARY KEY (id),
   CONSTRAINT payments_residence_id_fkey FOREIGN KEY (residence_id) REFERENCES dbasakan.residences(id),
   CONSTRAINT payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES dbasakan.profiles(id),
+  CONSTRAINT payments_profile_residence_id_fkey FOREIGN KEY (profile_residence_id) REFERENCES dbasakan.profile_residences(id) ON DELETE SET NULL,
   CONSTRAINT payments_fee_id_fkey FOREIGN KEY (fee_id) REFERENCES dbasakan.fees(id),
   CONSTRAINT payments_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES dbasakan.profiles(id)
 );
+
+COMMENT ON COLUMN dbasakan.payments.apartment_number IS 
+  'Apartment number for the payment. Links payment to specific apartment in the residence.';
+
+COMMENT ON COLUMN dbasakan.payments.profile_residence_id IS 
+  'Foreign key to profile_residences table. Links payment to specific resident-apartment combination.';
 
 CREATE TABLE IF NOT EXISTS dbasakan.expenses (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -1465,6 +1479,9 @@ CREATE INDEX IF NOT EXISTS idx_fees_residence_id ON dbasakan.fees(residence_id);
 CREATE INDEX IF NOT EXISTS idx_fees_user_id ON dbasakan.fees(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_residence_id ON dbasakan.payments(residence_id);
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON dbasakan.payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_apartment_number ON dbasakan.payments(apartment_number) WHERE apartment_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_profile_residence_id ON dbasakan.payments(profile_residence_id) WHERE profile_residence_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_residence_apartment ON dbasakan.payments(residence_id, apartment_number) WHERE apartment_number IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON dbasakan.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_residence_id ON dbasakan.notifications(residence_id);
 
@@ -1974,6 +1991,7 @@ BEGIN
     RAISE NOTICE '  - 20251205000000: Multiple apartments per residence support';
     RAISE NOTICE '  - 20251205000001: Prevent duplicate apartment assignments';
     RAISE NOTICE '  - 20251206000000: Separate resident onboarding OTP fields';
+    RAISE NOTICE '  - 20251207000000: Add apartment number to payments';
     RAISE NOTICE '====================================================================';
     RAISE NOTICE 'All tables, functions, triggers, RLS policies, and permissions created';
     RAISE NOTICE 'All migrations and cleanup steps completed';

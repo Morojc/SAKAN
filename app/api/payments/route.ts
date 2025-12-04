@@ -30,6 +30,7 @@ export async function GET() {
 		}
 
 		// Get all payments for the residence with related data
+		// apartment_number is now stored directly in the payments table
 		const { data: payments, error: paymentsError } = await supabase
 			.from('payments')
 			.select(
@@ -51,30 +52,6 @@ export async function GET() {
 			.eq('residence_id', residenceId)
 			.order('paid_at', { ascending: false })
 			.limit(50);
-
-		// Fetch apartment numbers separately from profile_residences
-		if (payments && payments.length > 0) {
-			const userIds = payments.map((p: any) => p.user_id).filter(Boolean);
-			if (userIds.length > 0) {
-				const { data: profileResidences } = await supabase
-					.from('profile_residences')
-					.select('profile_id, apartment_number')
-					.eq('residence_id', residenceId)
-					.in('profile_id', userIds);
-
-				// Add apartment_number to each payment
-				if (profileResidences) {
-					const apartmentMap = new Map(
-						profileResidences.map((pr: any) => [pr.profile_id, pr.apartment_number])
-					);
-					payments.forEach((payment: any) => {
-						if (payment.profiles) {
-							payment.profiles.apartment_number = apartmentMap.get(payment.user_id) || null;
-						}
-					});
-				}
-			}
-		}
 
 		if (paymentsError) {
 			console.error('[Payments API] Error fetching payments:', paymentsError);

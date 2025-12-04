@@ -292,7 +292,7 @@ export default function ExpensesContent({
               console.log('[ExpensesContent] Add expense button clicked');
               setShowAddDialog(true);
             }}
-            className="hidden lg:flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20 transition-all hover:scale-105 h-11 rounded-xl px-6"
+            className="hidden lg:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all hover:scale-105 h-11 rounded-xl px-6"
             aria-label="Add new expense"
           >
             <Plus className="h-4 w-4" />
@@ -330,7 +330,7 @@ export default function ExpensesContent({
             setShowAddDialog(true);
           }}
           size="lg"
-          className="lg:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-200 z-[100] bg-gray-900 hover:bg-gray-800 text-white border-0"
+          className="lg:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-2xl hover:shadow-3xl transition-all duration-200 z-[100] bg-blue-600 hover:bg-blue-700 text-white border-0"
           aria-label="Add new expense"
         >
           <Plus className="h-6 w-6 text-white" />

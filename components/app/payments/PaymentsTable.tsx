@@ -74,7 +74,7 @@ export default function PaymentsTable({ refreshTrigger }: PaymentsTableProps) {
 			const pdfBytes = await generateCashReceiptPDF({
 				paymentId: payment.id,
 				residentName: payment.profiles?.full_name || 'Unknown',
-				apartmentNumber: payment.profiles?.apartment_number || 'N/A',
+				apartmentNumber: payment.apartment_number || 'N/A',
 				amount: payment.amount,
 				paymentDate: new Date(payment.paid_at),
 				receiptNumber: `REC-${payment.id.toString().padStart(6, '0')}`,
@@ -123,7 +123,7 @@ export default function PaymentsTable({ refreshTrigger }: PaymentsTableProps) {
 
 		const config = variants[method] || { variant: 'outline', label: method };
 		return (
-			<Badge variant={config.variant as any} className="capitalize">
+			<Badge variant={config.variant as any} className="capitalize bg-blue-600 hover:bg-blue-700 text-white shadow-md">
 				{config.label}
 			</Badge>
 		);
@@ -132,7 +132,7 @@ export default function PaymentsTable({ refreshTrigger }: PaymentsTableProps) {
 	// Get status badge
 	const getStatusBadge = (status: string) => {
 		const variants: Record<string, { variant: any; label: string }> = {
-			completed: { variant: 'default', label: 'Completed' },
+			verified: { variant: 'default', label: 'Verified' },
 			pending: { variant: 'secondary', label: 'Pending' },
 			rejected: { variant: 'destructive', label: 'Rejected' },
 		};
@@ -189,18 +189,17 @@ export default function PaymentsTable({ refreshTrigger }: PaymentsTableProps) {
 							<TableRow key={payment.id}>
 								<TableCell className="font-medium">{formatDate(payment.paid_at)}</TableCell>
 								<TableCell>{payment.profiles?.full_name || 'Unknown'}</TableCell>
-								<TableCell>{payment.profiles?.apartment_number || 'N/A'}</TableCell>
+								<TableCell>{payment.apartment_number || 'N/A'}</TableCell>
 								<TableCell className="font-semibold">{formatCurrency(payment.amount)}</TableCell>
 								<TableCell>{getMethodBadge(payment.method)}</TableCell>
 								<TableCell>{getStatusBadge(payment.status)}</TableCell>
 								<TableCell className="text-right">
-									{payment.method === 'cash' && payment.status === 'completed' && (
+									{payment.method === 'cash' && payment.status === 'verified' && (
 										<Button
 											size="sm"
-											variant="outline"
 											onClick={() => handleDownloadReceipt(payment)}
 											disabled={generatingReceipt === payment.id}
-											className="gap-2"
+											className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
 										>
 											<Download className="h-3 w-3" />
 											{generatingReceipt === payment.id ? 'Generating...' : 'Receipt'}

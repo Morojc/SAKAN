@@ -440,7 +440,11 @@ export default function EditExpenseDialog({
             <Button type="button" variant="outline" onClick={onClose} disabled={submitting || uploading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || uploading}>
+            <Button 
+              type="submit" 
+              disabled={submitting || uploading}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+            >
               {(submitting || uploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {uploading ? 'Uploading...' : submitting ? 'Saving...' : 'Save Changes'}
             </Button>

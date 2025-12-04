@@ -118,7 +118,10 @@ export default function PaymentsContent() {
 						Manage cash and online payment records
 					</p>
 				</div>
-				<Button onClick={() => setShowAddDialog(true)} className="gap-2">
+				<Button 
+					onClick={() => setShowAddDialog(true)} 
+					className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+				>
 					<Plus className="h-4 w-4" />
 					Add Payment
 				</Button>
