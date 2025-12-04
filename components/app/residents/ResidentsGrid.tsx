@@ -226,14 +226,28 @@ export default function ResidentsGrid({
                               {resident.full_name}
                             </h3>
                           </div>
-                          {resident.apartment_number ? (
-                            <div className="flex items-center text-xs text-gray-500 font-medium bg-white px-2 py-0.5 rounded-full border border-gray-200 w-fit shadow-sm">
-                              <Building2 className="h-3 w-3 mr-1 text-gray-400" />
-                              Apt. {resident.apartment_number}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">No apartment</span>
-                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {resident.apartment_number ? (
+                              <div className="flex items-center text-xs text-gray-500 font-medium bg-white px-2 py-0.5 rounded-full border border-gray-200 w-fit shadow-sm">
+                                <Building2 className="h-3 w-3 mr-1 text-gray-400" />
+                                Apt. {resident.apartment_number}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">No apartment</span>
+                            )}
+                            {resident.role === 'resident' && (
+                              <Badge 
+                                variant={resident.verified ? 'default' : 'secondary'}
+                                className={`text-xs font-medium ${
+                                  resident.verified 
+                                    ? 'bg-green-100 text-green-800 hover:bg-green-200 border-green-300' 
+                                    : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-300'
+                                }`}
+                              >
+                                {resident.verified ? '✓ Verified' : '⚠ Pending'}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -250,15 +264,15 @@ export default function ResidentsGrid({
                             <Edit className="h-4 w-4 mr-2" />
                             Edit Details
                           </DropdownMenuItem>
-                          {(resident.role !== 'syndic' || resident.id === currentUserId) && (
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(resident)}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {resident.role === 'syndic' ? 'Delete My Account' : 'Remove Resident'}
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(resident)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {resident.role === 'syndic' && resident.id === currentUserId
+                              ? 'Remove Resident'
+                              : 'Delete Resident'}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -357,6 +371,7 @@ export default function ResidentsGrid({
             full_name: selectedResidentForDelete.full_name,
             role: selectedResidentForDelete.role,
           }}
+          currentUserId={currentUserId}
           onClose={() => setSelectedResidentForDelete(null)}
           onSuccess={handleDeleteSuccess}
         />

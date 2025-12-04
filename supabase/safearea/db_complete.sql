@@ -17,6 +17,33 @@
 -- - Residents: M:N with Residence via profile_residences junction table
 -- - Profiles table: NO residence_id column
 -- ============================================================================
+-- 
+-- INTEGRATED MIGRATIONS:
+-- ============================================================================
+-- 1. 20251125000000_separate_admin_system.sql
+--    - Independent admin system (not linked to users table)
+--    - Admin authentication sessions
+--    - Admin password verification functions
+-- ============================================================================
+-- 2. 20251204000000_add_otp_verification_indexes.sql
+--    - Indexes for email verification status
+--    - Indexes for profile_residences verification status
+--    - Performance optimization for OTP queries
+-- ============================================================================
+-- 3. 20251205000000_allow_multiple_apartments_per_residence.sql
+--    - Updated profile_residences unique constraint to include apartment_number
+--    - Allows same user in same residence multiple times (different apartments)
+--    - Partial unique index for NULL apartment numbers
+-- ============================================================================
+-- 4. 20251205000001_prevent_duplicate_apartment_assignments.sql
+--    - Unique index on (residence_id, apartment_number)
+--    - Prevents multiple users from sharing the same apartment
+-- ============================================================================
+-- 5. 20251206000000_separate_resident_onboarding_otp.sql
+--    - Separate OTP fields for resident onboarding
+--    - resident_onboarding_code and resident_onboarding_code_expires_at
+--    - Prevents conflicts with email verification OTP
+-- ============================================================================
 
 -- ============================================================================
 -- 0. ENABLE REQUIRED EXTENSIONS
@@ -98,6 +125,8 @@ CREATE TABLE IF NOT EXISTS dbasakan.profiles (
   email_verification_code text UNIQUE,
   email_verification_code_expires_at timestamp with time zone,
   email_verified boolean NOT NULL DEFAULT false,
+  resident_onboarding_code text,
+  resident_onboarding_code_expires_at timestamp with time zone,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES dbasakan.users(id)
 );
@@ -118,6 +147,9 @@ CREATE TABLE IF NOT EXISTS dbasakan.residences (
 );
 
 -- Profile-Residences junction table (M:N for residents)
+-- Migration: 20251205000000_allow_multiple_apartments_per_residence.sql
+-- Description: Allows same user in same residence multiple times, but only once per apartment number
+--              Each apartment number can only be assigned to one user per residence
 CREATE TABLE IF NOT EXISTS dbasakan.profile_residences (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   profile_id text NOT NULL,
@@ -128,13 +160,35 @@ CREATE TABLE IF NOT EXISTS dbasakan.profile_residences (
   CONSTRAINT profile_residences_pkey PRIMARY KEY (id),
   CONSTRAINT profile_residences_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES dbasakan.profiles(id),
   CONSTRAINT profile_residences_residence_id_fkey FOREIGN KEY (residence_id) REFERENCES dbasakan.residences(id),
-  CONSTRAINT profile_residences_unique UNIQUE (profile_id, residence_id)
+  CONSTRAINT profile_residences_unique UNIQUE (profile_id, residence_id, apartment_number)
 );
+
+COMMENT ON CONSTRAINT profile_residences_unique ON dbasakan.profile_residences IS 
+  'Allows same user to be in same residence multiple times, but only once per apartment number. Multiple entries with NULL apartment_number are prevented by idx_profile_residences_null_apartment.';
+
+-- Partial unique index for NULL apartment numbers (only one NULL per user-residence)
+-- Migration: 20251205000000_allow_multiple_apartments_per_residence.sql
+-- This ensures guards or users without apartment numbers can only be added once per residence
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_residences_null_apartment 
+ON dbasakan.profile_residences(profile_id, residence_id) 
+WHERE apartment_number IS NULL;
+
+-- Unique index to ensure each apartment number can only be assigned to one user per residence
+-- Migration: 20251205000001_prevent_duplicate_apartment_assignments.sql
+-- This prevents multiple users from being assigned to the same apartment
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_residences_residence_apartment_unique 
+ON dbasakan.profile_residences(residence_id, apartment_number) 
+WHERE apartment_number IS NOT NULL;
 
 -- ============================================================================
 -- 4. ADMIN TABLES
 -- ============================================================================
+-- Migration: 20251125000000_separate_admin_system.sql
+-- Description: Independent admin system not linked to users table
+--              Admins have their own authentication and access
+-- ============================================================================
 
+-- Independent admins table (not linked to regular users table)
 CREATE TABLE IF NOT EXISTS dbasakan.admins (
   id text NOT NULL DEFAULT (gen_random_uuid())::text,
   email text NOT NULL UNIQUE,
@@ -143,10 +197,22 @@ CREATE TABLE IF NOT EXISTS dbasakan.admins (
   created_at timestamp with time zone DEFAULT now(),
   last_login_at timestamp with time zone,
   is_active boolean NOT NULL DEFAULT true,
-  access_hash text NOT NULL UNIQUE,
   CONSTRAINT admins_pkey PRIMARY KEY (id)
 );
 
+-- Add comments for documentation
+COMMENT ON TABLE dbasakan.admins IS 'Independent admin users - not linked to regular users table';
+COMMENT ON COLUMN dbasakan.admins.id IS 'Unique admin ID (UUID)';
+COMMENT ON COLUMN dbasakan.admins.email IS 'Admin email for login';
+COMMENT ON COLUMN dbasakan.admins.password_hash IS 'Bcrypt hashed password';
+COMMENT ON COLUMN dbasakan.admins.full_name IS 'Full name of the administrator';
+COMMENT ON COLUMN dbasakan.admins.is_active IS 'Allows deactivating admin accounts';
+
+-- Create indexes for faster lookups
+CREATE INDEX IF NOT EXISTS idx_admins_email ON dbasakan.admins(email);
+CREATE INDEX IF NOT EXISTS idx_admins_is_active ON dbasakan.admins(is_active);
+
+-- Admin sessions table (stores admin authentication sessions separately from NextAuth sessions)
 CREATE TABLE IF NOT EXISTS dbasakan.admin_sessions (
   id text NOT NULL DEFAULT (gen_random_uuid())::text,
   admin_id text NOT NULL,
@@ -154,8 +220,14 @@ CREATE TABLE IF NOT EXISTS dbasakan.admin_sessions (
   expires_at timestamp with time zone NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT admin_sessions_pkey PRIMARY KEY (id),
-  CONSTRAINT admin_sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES dbasakan.admins(id)
+  CONSTRAINT admin_sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES dbasakan.admins(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON dbasakan.admin_sessions(token);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_id ON dbasakan.admin_sessions(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires_at ON dbasakan.admin_sessions(expires_at);
+
+COMMENT ON TABLE dbasakan.admin_sessions IS 'Admin authentication sessions - separate from user sessions';
 
 -- ============================================================================
 -- 5. DOCUMENT SUBMISSIONS
@@ -628,6 +700,8 @@ GRANT EXECUTE ON FUNCTION dbasakan.verify_admin_password(text, text) TO anon;
 GRANT EXECUTE ON FUNCTION dbasakan.verify_admin_password(text, text) TO service_role;
 
 -- Function: Create admin user (RECOMMENDED)
+-- Migration: 20251125000000_separate_admin_system.sql
+-- Description: Creates admin with hashed password (no access_hash)
 CREATE OR REPLACE FUNCTION dbasakan.create_admin(
   p_email text,
   p_password text,
@@ -641,40 +715,14 @@ AS $$
 DECLARE
   v_admin_id text;
   v_password_hash text;
-  v_access_hash text;
 BEGIN
   -- Hash password using pgcrypto
   v_password_hash := crypt(p_password, gen_salt('bf', 10));
   
-  -- Generate unique access hash
-  v_access_hash := md5(random()::text || clock_timestamp()::text);
-  
   -- Insert admin
-  INSERT INTO dbasakan.admins (
-    id,
-    email,
-    password_hash,
-    full_name,
-    access_hash,
-    is_active,
-    created_at
-  )
-  VALUES (
-    gen_random_uuid()::text,
-    p_email, 
-    v_password_hash, 
-    p_full_name,
-    v_access_hash,
-    true,
-    NOW()
-  )
+  INSERT INTO dbasakan.admins (email, password_hash, full_name, is_active, created_at)
+  VALUES (p_email, v_password_hash, p_full_name, true, NOW())
   RETURNING id INTO v_admin_id;
-  
-  -- Log the access hash for the user
-  RAISE NOTICE 'Admin created successfully!';
-  RAISE NOTICE 'Admin ID: %', v_admin_id;
-  RAISE NOTICE 'Access Hash: %', v_access_hash;
-  RAISE NOTICE 'Login URL: /admin/%', v_access_hash;
   
   RETURN v_admin_id;
 END;
@@ -1406,6 +1454,7 @@ CREATE POLICY "Stripe customers access" ON dbasakan.stripe_customers
 -- 15. INDEXES FOR PERFORMANCE
 -- ============================================================================
 
+-- Core indexes
 CREATE INDEX IF NOT EXISTS idx_residences_syndic_user_id ON dbasakan.residences(syndic_user_id);
 CREATE INDEX IF NOT EXISTS idx_residences_guard_user_id ON dbasakan.residences(guard_user_id);
 CREATE INDEX IF NOT EXISTS idx_profile_residences_profile_id ON dbasakan.profile_residences(profile_id);
@@ -1418,6 +1467,45 @@ CREATE INDEX IF NOT EXISTS idx_payments_residence_id ON dbasakan.payments(reside
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON dbasakan.payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON dbasakan.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_residence_id ON dbasakan.notifications(residence_id);
+
+-- ============================================================================
+-- 15.1. OTP VERIFICATION INDEXES
+-- Migration: 20251204000000_add_otp_verification_indexes.sql
+-- Description: Indexes for OTP verification system to improve query performance
+-- ============================================================================
+
+-- Index for email_verified status filtering (used to filter verified/unverified residents)
+CREATE INDEX IF NOT EXISTS idx_profiles_email_verified 
+  ON dbasakan.profiles(email_verified) 
+  WHERE email_verified = false;
+
+-- Index for email_verification_code_expires_at (used to check expiration)
+CREATE INDEX IF NOT EXISTS idx_profiles_email_verification_code_expires_at 
+  ON dbasakan.profiles(email_verification_code_expires_at) 
+  WHERE email_verification_code_expires_at IS NOT NULL;
+
+-- Index for profile_residences.verified status filtering
+-- This is used to filter verified/unverified residents in the residents list
+CREATE INDEX IF NOT EXISTS idx_profile_residences_verified 
+  ON dbasakan.profile_residences(verified) 
+  WHERE verified = false;
+
+-- Composite index for residence_id and verified (common query pattern)
+-- Used when fetching residents for a specific residence filtered by verification status
+CREATE INDEX IF NOT EXISTS idx_profile_residences_residence_id_verified 
+  ON dbasakan.profile_residences(residence_id, verified);
+
+COMMENT ON INDEX dbasakan.idx_profiles_email_verified IS 
+  'Index for filtering verified/unverified users by email verification status';
+
+COMMENT ON INDEX dbasakan.idx_profiles_email_verification_code_expires_at IS 
+  'Index for checking OTP code expiration timestamps';
+
+COMMENT ON INDEX dbasakan.idx_profile_residences_verified IS 
+  'Index for filtering verified/unverified residents in residence listings';
+
+COMMENT ON INDEX dbasakan.idx_profile_residences_residence_id_verified IS 
+  'Composite index for efficient queries filtering residents by residence and verification status';
 
 -- ============================================================================
 -- 16. SCHEMA PERMISSIONS (Required for NextAuth Adapter)
@@ -1820,3 +1908,74 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA dbasakan TO authenticated;
 -- ============================================================================
 -- END OF MIGRATION
 -- ============================================================================
+
+-- ============================================================================
+-- 17. RESIDENT ONBOARDING OTP FIELDS
+-- Migration: 20251206000000_separate_resident_onboarding_otp.sql
+-- Description: Separate fields for resident onboarding OTP to avoid conflicts 
+--              with email verification code
+-- ============================================================================
+
+-- Add columns for resident onboarding OTP (separate from email verification)
+-- Note: These columns are already defined in the profiles table (section 3),
+--       but this migration ensures they exist and adds indexes
+ALTER TABLE dbasakan.profiles
+  ADD COLUMN IF NOT EXISTS resident_onboarding_code text,
+  ADD COLUMN IF NOT EXISTS resident_onboarding_code_expires_at timestamp with time zone;
+
+-- Index for resident onboarding code lookup
+CREATE INDEX IF NOT EXISTS idx_profiles_resident_onboarding_code 
+  ON dbasakan.profiles(resident_onboarding_code) 
+  WHERE resident_onboarding_code IS NOT NULL;
+
+-- Index for resident onboarding code expiration
+CREATE INDEX IF NOT EXISTS idx_profiles_resident_onboarding_code_expires_at 
+  ON dbasakan.profiles(resident_onboarding_code_expires_at) 
+  WHERE resident_onboarding_code_expires_at IS NOT NULL;
+
+-- Add comments explaining the separation
+COMMENT ON COLUMN dbasakan.profiles.email_verification_code IS 
+  'OTP code for email verification during initial authentication/signup. Used by /api/verify-email-code endpoint.';
+
+COMMENT ON COLUMN dbasakan.profiles.email_verification_code_expires_at IS 
+  'Expiration timestamp for email verification OTP code. Used for authentication.';
+
+COMMENT ON COLUMN dbasakan.profiles.resident_onboarding_code IS 
+  'OTP code for resident onboarding when added by syndic. Used by /api/mobile/auth/verify-otp endpoint. Separate from email verification.';
+
+COMMENT ON COLUMN dbasakan.profiles.resident_onboarding_code_expires_at IS 
+  'Expiration timestamp for resident onboarding OTP code. Used when syndic adds a resident.';
+
+COMMENT ON INDEX dbasakan.idx_profiles_resident_onboarding_code IS 
+  'Index for quick lookup of resident onboarding OTP codes';
+
+COMMENT ON INDEX dbasakan.idx_profiles_resident_onboarding_code_expires_at IS 
+  'Index for checking resident onboarding OTP code expiration timestamps';
+
+-- ============================================================================
+-- 18. COMPLETION MESSAGE
+-- ============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '====================================================================';
+    RAISE NOTICE 'Database schema setup completed successfully!';
+    RAISE NOTICE '====================================================================';
+    RAISE NOTICE 'Schema: dbasakan';
+    RAISE NOTICE 'New relationship model:';
+    RAISE NOTICE '  - Syndics: 1:1 with Residence via residences.syndic_user_id';
+    RAISE NOTICE '  - Guards: 1:1 with Residence via residences.guard_user_id';
+    RAISE NOTICE '  - Residents: M:N with Residence via profile_residences';
+    RAISE NOTICE '  - Profiles table: NO residence_id column';
+    RAISE NOTICE '====================================================================';
+    RAISE NOTICE 'Recent migrations integrated:';
+    RAISE NOTICE '  - 20251125000000: Separate admin system (independent from users)';
+    RAISE NOTICE '  - 20251204000000: OTP verification indexes';
+    RAISE NOTICE '  - 20251205000000: Multiple apartments per residence support';
+    RAISE NOTICE '  - 20251205000001: Prevent duplicate apartment assignments';
+    RAISE NOTICE '  - 20251206000000: Separate resident onboarding OTP fields';
+    RAISE NOTICE '====================================================================';
+    RAISE NOTICE 'All tables, functions, triggers, RLS policies, and permissions created';
+    RAISE NOTICE 'All migrations and cleanup steps completed';
+    RAISE NOTICE '====================================================================';
+END $$;

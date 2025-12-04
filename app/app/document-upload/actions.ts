@@ -297,9 +297,33 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 		};
 	} catch (error: any) {
 		console.error('[Document Upload] Error:', error);
+		
+		// Check if error is related to body size limit
+		if (error?.message?.includes('Body exceeded') || error?.message?.includes('bodysizelimit') || error?.statusCode === 413) {
+			return {
+				success: false,
+				error: 'File size too large. The total size of all files must not exceed 20MB. Please compress your files or reduce their size and try again.',
+			};
+		}
+		
+		// Check for other specific error types
+		if (error?.code === 'ENOENT' || error?.message?.includes('ENOENT')) {
+			return {
+				success: false,
+				error: 'File not found. Please select the files again and try uploading.',
+			};
+		}
+		
+		if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+			return {
+				success: false,
+				error: 'Network error. Please check your internet connection and try again.',
+			};
+		}
+		
 		return {
 			success: false,
-			error: error.message || 'An error occurred. Please try again.',
+			error: error.message || 'An error occurred while uploading. Please try again. If the problem persists, contact support.',
 		};
 	}
 }

@@ -73,6 +73,7 @@ async function ResidentsData() {
     console.log('[ResidentsPage] Fetching residents and guards for residence_id:', residenceId);
 
     // Fetch residents via junction table
+    // Include all residents (verified and unverified) to show verification status
     const { data: residentLinks, error: linkError } = await supabase
         .from('profile_residences')
         .select(`
@@ -84,11 +85,10 @@ async function ResidentsData() {
                 phone_number,
                 role,
                 created_at,
-                verified
+                email_verified
             )
         `)
-        .eq('residence_id', residenceId)
-        .eq('verified', true); // Only verified residents?
+        .eq('residence_id', residenceId);
 
     if (linkError) {
         console.error('[ResidentsPage] Error fetching residents:', linkError);
@@ -102,6 +102,7 @@ async function ResidentsData() {
             ...p,
             apartment_number: link.apartment_number,
             residence_id: residenceId, // Synthesize this for UI compatibility
+            verified: link.verified || false, // Get verification status from profile_residences
         };
     }) || [];
 
@@ -189,6 +190,7 @@ async function ResidentsData() {
         created_at: profile.created_at,
         residence_id: residenceId,
         email: userEmail,
+        verified: profile.verified || false, // Include verification status
         fees: residentFees,
         outstandingFees,
         feeCount: residentFees.length,

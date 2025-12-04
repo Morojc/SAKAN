@@ -1,5 +1,5 @@
-import { Header } from "../../components/app/Header"
-import { Sidebar } from "../../components/app/Sidebar"
+import { SidebarProvider } from "../../components/app/SidebarProvider"
+import { AppLayoutContentClient } from "../../components/app/AppLayoutContent"
 import { headers } from "next/headers"
 
 // Routes that should render without dashboard layout (Header/Sidebar)
@@ -35,19 +35,10 @@ export default async function AppLayout({
 	// Middleware handles all verification and residence checks
 	// No onboarding wizard needed - admins assign residences
 	return (
-		<div className="flex h-screen bg-gray-50 overflow-hidden">
-			{/* Sidebar - Desktop Only */}
-			<aside className="hidden lg:block w-64 bg-white border-r border-gray-200 flex-shrink-0">
-				<Sidebar />
-			</aside>
-			
-			{/* Main Content Area */}
-			<div className="flex-1 flex flex-col overflow-hidden">
-				<Header />
-				<main className="flex-1 overflow-y-auto bg-gray-50">
-					{children}
-				</main>
-			</div>
-		</div>
+		<SidebarProvider>
+			<AppLayoutContentClient>
+				{children}
+			</AppLayoutContentClient>
+		</SidebarProvider>
 	)
 }

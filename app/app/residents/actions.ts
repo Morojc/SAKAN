@@ -68,10 +68,18 @@ export async function createResident(data: CreateResidentData) {
     }
 
     // Validation
-    if (!data.full_name || !data.email || !data.apartment_number || !data.residence_id) {
+    if (!data.full_name || !data.email || !data.residence_id) {
       return {
         success: false,
-        error: 'Missing required fields: full_name, email, apartment_number, and residence_id are required',
+        error: 'Missing required fields: full_name, email, and residence_id are required',
+      };
+    }
+
+    // Validate apartment number based on role
+    if (!data.apartment_number || !data.apartment_number.trim()) {
+      return {
+        success: false,
+        error: 'Apartment number is required',
       };
     }
 
@@ -82,18 +90,6 @@ export async function createResident(data: CreateResidentData) {
         error: 'Invalid email format',
       };
     }
-
-    // Validate role - only 'resident' or 'guard' are allowed when adding via this form
-    // Syndics cannot be added as residents - they must be assigned to residences via syndic_user_id
-    if (data.role === 'syndic') {
-      return {
-        success: false,
-        error: 'Cannot add a resident with syndic role. Only one syndic per residence is allowed.',
-      };
-    }
-
-    // Default to 'resident' if no role provided or invalid role
-    const finalRole = (data.role === 'resident' || data.role === 'guard') ? data.role : 'resident';
 
     const adminSupabase = createSupabaseAdminClient();
 
@@ -110,11 +106,48 @@ export async function createResident(data: CreateResidentData) {
     // Check if user with this email already exists
     const { data: existingUser } = await adminSupabase
       .from('users')
-      .select('id')
-      .eq('email', data.email)
+      .select('id, email')
+      .eq('email', data.email.trim().toLowerCase())
       .maybeSingle();
+    
+    // Check if existing user is a syndic - if so, allow them to be added as resident
+    // (their syndic role will be preserved automatically)
+    let isExistingSyndic = false;
+    if (existingUser) {
+      const { data: existingProfile } = await adminSupabase
+        .from('profiles')
+        .select('role')
+        .eq('id', existingUser.id)
+        .maybeSingle();
+      isExistingSyndic = existingProfile?.role === 'syndic';
+    }
 
-    // If email exists, check the user's role
+    // Note: Role validation is not needed here because:
+    // 1. The dropdown only allows 'resident' or 'guard' (not 'syndic')
+    // 2. Existing syndics can be added as residents - their role will be preserved automatically
+    // 3. Syndics can be residents in OTHER residences (not the one they manage)
+    // They are assigned to residences as syndics via residences.syndic_user_id (1:1)
+    // But can also be residents via profile_residences (M:N) in different residences
+
+    // Default to 'resident' if no role provided or invalid role
+    // Note: For existing users (especially syndics), their role will be preserved automatically
+    const finalRole = (data.role === 'resident' || data.role === 'guard') ? data.role : 'resident';
+
+    // Validate apartment number: Cannot be "0" for residents, only guards can use "0"
+    if (finalRole === 'resident' && data.apartment_number.trim() === '0') {
+      return {
+        success: false,
+        error: 'Apartment number cannot be 0 for residents. Only guards can use apartment number 0.',
+      };
+    }
+
+    // Check if syndic is adding themselves
+    // Compare both by user ID and by email (case-insensitive) for better detection
+    const currentUserEmail = session?.user?.email?.toLowerCase();
+    const enteredEmail = data.email.trim().toLowerCase();
+    const isSyndicAddingSelf = (existingUser?.id === userId) || (currentUserEmail === enteredEmail);
+
+    // If email exists, check the user's role and residence assignments
     if (existingUser) {
       // Check if the existing user is a syndic
       const { data: existingProfile } = await adminSupabase
@@ -123,29 +156,96 @@ export async function createResident(data: CreateResidentData) {
         .eq('id', existingUser.id)
         .maybeSingle();
 
-      // If the user is a syndic, prevent adding them as a resident (even if it's the current syndic)
-      if (existingProfile?.role === 'syndic') {
+      // Check if apartment number is already reserved by another user in this residence
+      // Each apartment can only be assigned to one user per residence
+      const apartmentNumber = data.apartment_number?.trim() || null;
+      
+      if (apartmentNumber) {
+        // Check if this apartment is already taken by another user
+        const { data: existingApartmentReservation } = await adminSupabase
+          .from('profile_residences')
+          .select('id, profile_id, apartment_number')
+          .eq('residence_id', data.residence_id)
+          .eq('apartment_number', apartmentNumber)
+          .maybeSingle();
+
+        if (existingApartmentReservation && existingApartmentReservation.profile_id !== existingUser.id) {
+          // Get the name of the user who already has this apartment
+          const { data: existingResidentProfile } = await adminSupabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', existingApartmentReservation.profile_id)
+            .maybeSingle();
+
+          const residentName = existingResidentProfile?.full_name || 'another resident';
+          return {
+            success: false,
+            error: `Apartment ${apartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+          };
+        }
+      }
+
+      // Check if user is already a resident in this residence with the same apartment number
+      // This check prevents adding the same user to the same apartment multiple times
+      // Users can be in the same residence multiple times, but only once per apartment number
+      // (The unique constraint on (profile_id, residence_id, apartment_number) also enforces this at DB level)
+      const { data: existingResidentLink } = await adminSupabase
+        .from('profile_residences')
+        .select('id, apartment_number')
+        .eq('profile_id', existingUser.id)
+        .eq('residence_id', data.residence_id)
+        .eq('apartment_number', apartmentNumber)
+        .maybeSingle();
+
+      if (existingResidentLink) {
+        // Check if this is a syndic trying to be added to their own residence
+        if (existingProfile?.role === 'syndic') {
+          const { data: managedResidence } = await adminSupabase
+            .from('residences')
+            .select('id')
+            .eq('syndic_user_id', existingUser.id)
+            .eq('id', data.residence_id)
+            .maybeSingle();
+
+          if (managedResidence) {
+            return {
+              success: false,
+              error: apartmentNumber 
+                ? `This syndic is already a resident in apartment ${apartmentNumber} of this residence. Each apartment can only have one entry per user.`
+                : 'This syndic is already a resident in this residence without an apartment number. A user can only have one entry without an apartment number per residence.',
+            };
+          }
+        }
         return {
           success: false,
-          error: 'Cannot add a syndic as a resident. Syndics cannot be added to residences as residents.',
+          error: apartmentNumber
+            ? `This user is already a resident of apartment ${apartmentNumber} in this residence. Each apartment can only have one entry per user.`
+            : 'This user is already a resident of this residence without an apartment number. A user can only have one entry without an apartment number per residence.',
         };
       }
 
-      // If email exists and doesn't belong to the current syndic, reject it
-      if (existingUser.id !== userId) {
-        return {
-          success: false,
-          error: 'This email is already registered to another user. Please use a different email address.',
-        };
-      }
+      // Allow existing users to be added as residents in different residences
+      // A resident can be added by different syndics in different residences
+      // The only restrictions that apply:
+      // 1. Cannot add the same user to the same apartment in the same residence (checked above)
+      // 2. Apartment number cannot be already taken by another user in the same residence (checked above)
+      // 3. Syndics can be added as residents while preserving their syndic role
+      // 4. If user already exists and is verified, no OTP email will be sent (handled later)
     }
 
     let finalUserId: string;
 
-    if (existingUser) {
-      // Email belongs to the syndic themselves - allow it (but they won't be a syndic, they'll be a resident/guard)
+    // Special handling for syndic adding themselves
+    if (isSyndicAddingSelf) {
+      // Syndic is adding themselves - use their current user ID directly
+      // Do NOT create new user or profile - just add to profile_residences
+      finalUserId = userId;
+      console.log('[Residents Actions] Syndic adding themselves - using current user ID:', finalUserId);
+    } else if (existingUser) {
+      // Email belongs to an existing user (could be a syndic being added to a different residence)
+      // Allow it - syndics can be residents in other residences while keeping their syndic role
       finalUserId = existingUser.id;
-      console.log('[Residents Actions] Using existing user (syndic\'s own email):', finalUserId);
+      console.log('[Residents Actions] Using existing user:', finalUserId);
     } else {
       // Create new user
       finalUserId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -161,33 +261,124 @@ export async function createResident(data: CreateResidentData) {
         console.error('[Residents Actions] Error creating user:', userError);
         return { success: false, error: 'Failed to create user account' };
       }
+      // Note: A trigger will auto-create a profile with role 'syndic', but we'll override it with the selected role
     }
+    
+    // Track if this is a newly created user (not existing)
+    const isNewUser = !existingUser;
 
-    // Ensure profile exists with 'resident' role
-    const { data: existingProfile } = await adminSupabase
-      .from('profiles')
-      .select('id, verified, role, onboarding_completed')
-      .eq('id', finalUserId)
-      .maybeSingle();
+    // OTP logic:
+    // - Always send OTP when adding a resident to a NEW residence (even if they exist in other residences)
+    // - Only skip OTP if syndic is adding themselves
+    // If a syndic adds an existing resident to a new residence, OTP must be sent for confirmation
 
-    // Use upsert to handle both new profiles and existing profiles (from trigger)
-    // Set role based on what was selected in the form (resident or guard)
-    const { error: profileError } = await adminSupabase
-      .from('profiles')
-      .upsert({
-        id: finalUserId,
-        full_name: data.full_name.trim(),
-        phone_number: data.phone_number?.trim() || null,
-        role: finalRole, // Use the role selected in the form (resident or guard)
-        verified: existingProfile?.verified !== undefined ? existingProfile.verified : true, // Preserve existing verified status or auto-verify new
-        onboarding_completed: existingProfile?.onboarding_completed !== undefined ? existingProfile.onboarding_completed : false,
-      }, {
-        onConflict: 'id'
-      });
+    // For syndic adding themselves, skip all profile creation/update logic
+    // Just add entry to profile_residences table
+    if (isSyndicAddingSelf) {
+      // Syndic adding themselves - verify profile exists
+      const { data: existingProfile } = await adminSupabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', finalUserId)
+        .maybeSingle();
 
-    if (profileError) {
-      console.error('[Residents Actions] Error creating/updating profile:', profileError);
-      return { success: false, error: 'Failed to create resident profile' };
+      if (!existingProfile) {
+        return {
+          success: false,
+          error: 'Cannot add yourself as resident: profile not found. Please contact support.',
+        };
+      }
+
+      // Only update phone number if provided
+      if (data.phone_number?.trim()) {
+        const { error: profileError } = await adminSupabase
+          .from('profiles')
+          .update({ phone_number: data.phone_number.trim() })
+          .eq('id', finalUserId);
+
+        if (profileError) {
+          console.error('[Residents Actions] Error updating phone number:', profileError);
+          return { success: false, error: 'Failed to update phone number' };
+        }
+        console.log('[Residents Actions] Syndic adding themselves - updated phone number only');
+      } else {
+        console.log('[Residents Actions] Syndic adding themselves - skipping profile update, only adding to profile_residences');
+      }
+    } else {
+      // Normal flow - handle profile creation/update for new or existing users
+      const { data: existingProfile } = await adminSupabase
+        .from('profiles')
+        .select('id, verified, role, onboarding_completed, email_verified')
+        .eq('id', finalUserId)
+        .maybeSingle();
+
+      // Check if user already exists in another residence
+      // If so, only allow apartment number update (don't update profile fields)
+      let existsInOtherResidence = false;
+      if (existingUser) {
+        const { data: otherResidences } = await adminSupabase
+          .from('profile_residences')
+          .select('residence_id')
+          .eq('profile_id', finalUserId)
+          .neq('residence_id', data.residence_id);
+        
+        if (otherResidences && otherResidences.length > 0) {
+          existsInOtherResidence = true;
+          console.log('[Residents Actions] User exists in other residence - only updating apartment number, skipping profile update');
+        }
+      }
+
+      // Only update profile if user doesn't exist in another residence
+      if (!existsInOtherResidence) {
+        // Determine the role to use
+        // For new users: Always use the dropdown role (ignore trigger-created 'syndic' role)
+        // For existing users: Preserve their original role (syndic or resident) - cannot be changed
+        let roleToUse: string;
+        if (isNewUser) {
+          // New user - always use the role selected from dropdown
+          // The trigger may have created a profile with 'syndic' role, but we override it
+          roleToUse = finalRole;
+        } else if (existingProfile?.role === 'syndic' && existingUser) {
+          // An existing syndic being added to another residence - preserve their syndic role
+          roleToUse = 'syndic';
+        } else if (existingProfile?.role === 'resident' && existingUser) {
+          // An existing resident being added to another residence - preserve their resident role
+          // Do not allow changing resident role to guard or any other role
+          roleToUse = 'resident';
+        } else {
+          // Existing user with other role - use the role selected from dropdown
+          roleToUse = finalRole;
+        }
+
+        // Prepare profile update data for normal flow
+        const profileUpdateData: any = {
+          id: finalUserId,
+          full_name: data.full_name.trim(),
+          phone_number: data.phone_number?.trim() || null,
+          role: roleToUse,
+        };
+        
+        // Handle verification status for normal flow
+        profileUpdateData.verified = existingProfile?.verified !== undefined ? existingProfile.verified : true;
+        profileUpdateData.email_verified = existingProfile?.email_verified !== undefined ? existingProfile.email_verified : false;
+        profileUpdateData.onboarding_completed = existingProfile?.onboarding_completed !== undefined ? existingProfile.onboarding_completed : false;
+
+        // Create or update profile
+        const { error: profileError } = await adminSupabase
+          .from('profiles')
+          .upsert(profileUpdateData, {
+            onConflict: 'id'
+          });
+
+        if (profileError) {
+          console.error('[Residents Actions] Error creating/updating profile:', profileError);
+          return { success: false, error: 'Failed to create resident profile' };
+        }
+      } else {
+        // User exists in another residence - preserve existing profile data
+        // Only the apartment number in profile_residences will be updated
+        console.log('[Residents Actions] User exists in other residence - preserving profile data, only updating apartment number');
+      }
     }
 
     // Handle role-specific assignment
@@ -219,25 +410,120 @@ export async function createResident(data: CreateResidentData) {
       }
     } else {
       // Residents are assigned via profile_residences (M:N relationship)
-      // Check if already in residence
+      const apartmentNumber = data.apartment_number?.trim() || null;
+      
+      // Check if apartment number is already reserved by another user in this residence
+      // Each apartment can only be assigned to one user per residence
+      if (apartmentNumber) {
+        const { data: existingApartmentReservation } = await adminSupabase
+          .from('profile_residences')
+          .select('id, profile_id, apartment_number')
+          .eq('residence_id', data.residence_id)
+          .eq('apartment_number', apartmentNumber)
+          .maybeSingle();
+
+        if (existingApartmentReservation && existingApartmentReservation.profile_id !== finalUserId) {
+          // Get the name of the user who already has this apartment
+          const { data: existingResidentProfile } = await adminSupabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', existingApartmentReservation.profile_id)
+            .maybeSingle();
+
+          const residentName = existingResidentProfile?.full_name || 'another resident';
+          return {
+            success: false,
+            error: `Apartment ${apartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+          };
+        }
+      }
+
+      // Check if already in residence with the same apartment number
+      // Users can be in the same residence multiple times, but only once per apartment number
       const { data: existingLink } = await adminSupabase
         .from('profile_residences')
-        .select('id')
+        .select('id, apartment_number')
         .eq('profile_id', finalUserId)
         .eq('residence_id', data.residence_id)
+        .eq('apartment_number', apartmentNumber)
         .maybeSingle();
 
       if (existingLink) {
-        return { success: false, error: 'User is already a resident of this residence.' };
+        return { 
+          success: false, 
+          error: apartmentNumber
+            ? `User is already a resident of apartment ${apartmentNumber} in this residence. Each apartment can only have one entry per user.`
+            : 'User is already a resident of this residence without an apartment number. A user can only have one entry without an apartment number per residence.'
+        };
       }
 
+      // Send OTP email when:
+      // 1. Syndic is NOT adding themselves
+      // 2. User is being added to a NEW residence (even if they exist in other residences)
+      // If a syndic adds an existing resident to a new residence, OTP must be sent for confirmation
+      if (!isSyndicAddingSelf) {
+        // Generate OTP code for resident authentication
+        const { generateVerificationCode, sendResidentOnboardingOTP } = await import('@/lib/email/verification');
+        const otpCode = generateVerificationCode();
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutes expiration
+
+        // Update profile with resident onboarding OTP code (separate from email verification code)
+        const { error: otpUpdateError } = await adminSupabase
+          .from('profiles')
+          .update({
+            resident_onboarding_code: otpCode,
+            resident_onboarding_code_expires_at: expiresAt.toISOString(),
+            // Note: email_verified remains unchanged - resident onboarding OTP is separate
+          })
+          .eq('id', finalUserId);
+
+        if (otpUpdateError) {
+          console.error('[Residents Actions] Error setting OTP code:', otpUpdateError);
+          // Continue anyway, but log the error
+        }
+
+        // Get residence name for email
+        const { data: residenceData } = await adminSupabase
+          .from('residences')
+          .select('name')
+          .eq('id', data.residence_id)
+          .single();
+
+        // Send OTP email to resident
+        try {
+          await sendResidentOnboardingOTP(
+            data.email,
+            otpCode,
+            data.full_name,
+            residenceData?.name,
+            data.apartment_number
+          );
+          console.log('[Residents Actions] OTP email sent to resident:', data.email);
+        } catch (emailError: any) {
+          console.error('[Residents Actions] Error sending OTP email:', emailError);
+          // Don't fail the resident creation if email fails, but log it
+          // The resident can request a new code later
+        }
+      } else {
+        // Skip OTP email only if syndic is adding themselves
+        if (isSyndicAddingSelf) {
+          console.log('[Residents Actions] Syndic adding themselves - skipping OTP email, auto-verified');
+        }
+      }
+
+      // Add resident entry to profile_residences table
+      // For syndic adding themselves:
+      //   - Profile role stays 'syndic' in profiles table (unchanged)
+      //   - Entry added to profile_residences table as resident
+      //   - Unique constraint on (profile_id, residence_id, apartment_number) prevents duplicates per apartment
       const { error: linkError } = await adminSupabase
         .from('profile_residences')
         .insert({
           profile_id: finalUserId,
           residence_id: data.residence_id,
           apartment_number: data.apartment_number.trim(),
-          verified: true
+          verified: isSyndicAddingSelf ? true : false // Auto-verify only if syndic adding themselves, otherwise wait for OTP verification
         });
 
       if (linkError) {
@@ -318,47 +604,96 @@ export async function updateResident(data: UpdateResidentData) {
         return { success: false, error: 'Resident not found in your residence.' };
     }
 
-    // Update User Email
-    if (data.email) {
-      // Check if the new email already exists and belongs to someone else
-      const { data: existingUserWithEmail } = await adminSupabase
-        .from('users')
-        .select('id')
-        .eq('email', data.email)
-        .maybeSingle();
-
-      // If email exists and doesn't belong to the resident being updated or the syndic, reject it
-      if (existingUserWithEmail && existingUserWithEmail.id !== data.id && existingUserWithEmail.id !== userId) {
-        return {
-          success: false,
-          error: 'This email is already registered to another user. Please use a different email address.',
-        };
-      }
-
-      const { error: userError } = await adminSupabase
-        .from('users')
-            .update({ email: data.email, name: data.full_name })
-        .eq('id', data.id);
-        if (userError) console.error('Error updating email:', userError);
+    // Check if resident exists in other residences
+    // If so, only allow apartment number update (don't update profile fields)
+    let existsInOtherResidence = false;
+    const { data: otherResidences } = await adminSupabase
+        .from('profile_residences')
+        .select('residence_id')
+        .eq('profile_id', data.id)
+        .neq('residence_id', managedResidenceId);
+    
+    if (otherResidences && otherResidences.length > 0) {
+        existsInOtherResidence = true;
+        console.log('[Residents Actions] User exists in other residence - only updating apartment number, skipping profile update');
     }
 
-    // Update Profile (Global info)
-    const profileUpdates: any = {};
-    if (data.full_name) profileUpdates.full_name = data.full_name.trim();
-    if (data.phone_number !== undefined) profileUpdates.phone_number = data.phone_number?.trim() || null;
-    if (data.role) profileUpdates.role = data.role;
+    // Only update profile fields if user doesn't exist in other residences
+    if (!existsInOtherResidence) {
+        // Update User Email
+        if (data.email) {
+          // Check if the new email already exists and belongs to someone else
+          const { data: existingUserWithEmail } = await adminSupabase
+            .from('users')
+            .select('id')
+            .eq('email', data.email)
+            .maybeSingle();
 
-    if (Object.keys(profileUpdates).length > 0) {
-        await adminSupabase.from('profiles').update(profileUpdates).eq('id', data.id);
+          // If email exists and doesn't belong to the resident being updated or the syndic, reject it
+          if (existingUserWithEmail && existingUserWithEmail.id !== data.id && existingUserWithEmail.id !== userId) {
+            return {
+              success: false,
+              error: 'This email is already registered to another user. Please use a different email address.',
+            };
+          }
+
+          const { error: userError } = await adminSupabase
+            .from('users')
+                .update({ email: data.email, name: data.full_name })
+            .eq('id', data.id);
+            if (userError) console.error('Error updating email:', userError);
+        }
+
+        // Update Profile (Global info)
+        const profileUpdates: any = {};
+        if (data.full_name) profileUpdates.full_name = data.full_name.trim();
+        if (data.phone_number !== undefined) profileUpdates.phone_number = data.phone_number?.trim() || null;
+        if (data.role) profileUpdates.role = data.role;
+
+        if (Object.keys(profileUpdates).length > 0) {
+            await adminSupabase.from('profiles').update(profileUpdates).eq('id', data.id);
+        }
+    } else {
+        console.log('[Residents Actions] Skipping profile update - resident exists in other residences');
     }
 
     // Update Residence Link (Apartment Number)
     if (data.apartment_number) {
-        await adminSupabase
+        const newApartmentNumber = data.apartment_number.trim();
+        
+        // Check if the new apartment number is already reserved by another user
+        const { data: existingApartmentReservation } = await adminSupabase
             .from('profile_residences')
-            .update({ apartment_number: data.apartment_number.trim() })
+            .select('id, profile_id, apartment_number')
+            .eq('residence_id', managedResidenceId)
+            .eq('apartment_number', newApartmentNumber)
+            .maybeSingle();
+
+        if (existingApartmentReservation && existingApartmentReservation.profile_id !== data.id) {
+            // Get the name of the user who already has this apartment
+            const { data: existingResidentProfile } = await adminSupabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', existingApartmentReservation.profile_id)
+                .maybeSingle();
+
+            const residentName = existingResidentProfile?.full_name || 'another resident';
+            return {
+                success: false,
+                error: `Apartment ${newApartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+            };
+        }
+
+        const { error: linkError } = await adminSupabase
+            .from('profile_residences')
+            .update({ apartment_number: newApartmentNumber })
             .eq('profile_id', data.id)
             .eq('residence_id', managedResidenceId);
+        
+        if (linkError) {
+            console.error('[Residents Actions] Error updating apartment number:', linkError);
+            return { success: false, error: 'Failed to update apartment number' };
+        }
     }
 
     revalidatePath('/app/residents');
@@ -467,6 +802,36 @@ export async function deleteResident(residentId: string) {
         if (linkError) {
             console.error('[Residents Actions] Error removing resident link:', linkError);
             return { success: false, error: 'Failed to remove resident from residence' };
+        }
+
+        // Check if resident is a syndic managing this residence
+        // If so, only remove from profile_residences - don't delete their account
+        const { data: managedResidence } = await adminSupabase
+            .from('residences')
+            .select('syndic_user_id')
+            .eq('id', managedResidenceId)
+            .maybeSingle();
+
+        if (managedResidence?.syndic_user_id === residentId) {
+            console.log('[Residents Actions] Resident is a syndic managing this residence - only removing from profile_residences, not deleting account');
+            revalidatePath('/app/residents');
+            return { success: true };
+        }
+
+        // Check if resident is a syndic managing ANY other residence
+        // If so, only remove from profile_residences - don't delete their account
+        if (residentProfile.role === 'syndic') {
+            const { data: otherManagedResidence } = await adminSupabase
+                .from('residences')
+                .select('id')
+                .eq('syndic_user_id', residentId)
+                .maybeSingle();
+
+            if (otherManagedResidence) {
+                console.log('[Residents Actions] Resident is a syndic managing another residence - only removing from profile_residences, not deleting account');
+                revalidatePath('/app/residents');
+                return { success: true };
+            }
         }
 
         // Check if resident is in other residences

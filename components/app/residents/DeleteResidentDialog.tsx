@@ -20,6 +20,7 @@ interface DeleteResidentDialogProps {
   resident: { id: string; full_name: string; role?: string } | null;
   onClose: () => void;
   onSuccess: () => void;
+  currentUserId?: string;
 }
 
 /**
@@ -31,6 +32,7 @@ export default function DeleteResidentDialog({
   resident,
   onClose,
   onSuccess,
+  currentUserId,
 }: DeleteResidentDialogProps) {
   console.log('[DeleteResidentDialog] Dialog', open ? 'opened' : 'closed', 'for resident:', resident?.id);
 
@@ -50,7 +52,8 @@ export default function DeleteResidentDialog({
 
       if (result.success) {
         console.log('[DeleteResidentDialog] Resident deleted successfully:', resident.id);
-        toast.success('Resident deleted successfully');
+        const isSyndicRemovingSelf = resident.role === 'syndic' && resident.id === currentUserId;
+        toast.success(isSyndicRemovingSelf ? 'Removed from residents list successfully' : 'Resident deleted successfully');
         onSuccess();
         onClose();
       } else {
@@ -67,30 +70,33 @@ export default function DeleteResidentDialog({
 
   if (!resident) return null;
 
+  // Check if syndic is removing themselves as a resident (not deleting their account)
+  const isSyndicRemovingSelf = resident.role === 'syndic' && resident.id === currentUserId;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <Trash2 className="h-5 w-5" />
-            Delete Resident
+            {isSyndicRemovingSelf ? 'Remove Resident' : 'Delete Resident'}
           </DialogTitle>
           <DialogDescription>
-            {resident.role === 'syndic' 
-              ? 'This action cannot be undone. Deleting your syndic account will permanently remove all your data and access to the system.'
+            {isSyndicRemovingSelf
+              ? 'This will remove you from the resident list. Your syndic account and access will remain unchanged.'
               : 'This action cannot be undone. This will permanently delete the resident and all associated data.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
-          <Alert variant="destructive">
+          <Alert variant={isSyndicRemovingSelf ? "default" : "destructive"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              {resident.role === 'syndic' ? (
+              {isSyndicRemovingSelf ? (
                 <>
-                  <strong>Warning:</strong> You are about to delete your own syndic account. This will permanently remove{' '}
-                  <strong>{resident.full_name}</strong> and all associated records, fees, and payment history. 
-                  You will lose access to the system.
+                  You are about to remove <strong>{resident.full_name}</strong> from the resident list. 
+                  Your syndic account will remain active and you will continue to have access to the system. 
+                  Only your entry in the residents list will be removed.
                 </>
               ) : (
                 <>
@@ -107,7 +113,7 @@ export default function DeleteResidentDialog({
             Cancel
           </Button>
           <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete Resident'}
+            {deleting ? (isSyndicRemovingSelf ? 'Removing...' : 'Deleting...') : (isSyndicRemovingSelf ? 'Remove Resident' : 'Delete Resident')}
           </Button>
         </DialogFooter>
       </DialogContent>

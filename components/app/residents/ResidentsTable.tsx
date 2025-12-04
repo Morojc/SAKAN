@@ -266,6 +266,7 @@ export default function ResidentsTable({
                   </button>
                 </TableHead>
                 <TableHead className="font-semibold">Role</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="font-semibold">Email</TableHead>
                 <TableHead className="font-semibold">Phone</TableHead>
                 <TableHead className="font-semibold">
@@ -341,6 +342,22 @@ export default function ResidentsTable({
                       {resident.role === 'syndic' ? 'Syndic' : resident.role === 'guard' ? 'Guard' : 'Resident'}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    {resident.role === 'resident' ? (
+                      <Badge 
+                        variant={resident.verified ? 'default' : 'secondary'}
+                        className={`font-normal ${
+                          resident.verified 
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200 border-green-300' 
+                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-300'
+                        }`}
+                      >
+                        {resident.verified ? '✓ Verified' : '⚠ Pending'}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm" aria-label="Not applicable">N/A</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {resident.email ? (
                       <a
@@ -413,20 +430,17 @@ export default function ResidentsTable({
                             <Edit className="h-4 w-4 mr-2" />
                             Edit Resident
                           </DropdownMenuItem>
-                          {/* Only show delete option if:
-                              1. Resident is not a syndic, OR
-                              2. Resident is a syndic but it's the current user's own account */}
-                          {(resident.role !== 'syndic' || resident.id === currentUserId) && (
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(resident)}
-                              className="cursor-pointer text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {resident.role === 'syndic' && resident.id === currentUserId
-                                ? 'Delete My Account'
-                                : 'Delete Resident'}
-                            </DropdownMenuItem>
-                          )}
+                          {/* Show remove/delete option for all residents
+                              For syndics removing themselves: only removes from resident list, not account */}
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(resident)}
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {resident.role === 'syndic' && resident.id === currentUserId
+                              ? 'Remove Resident'
+                              : 'Delete Resident'}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -478,6 +492,7 @@ export default function ResidentsTable({
             full_name: selectedResidentForDelete.full_name,
             role: selectedResidentForDelete.role,
           }}
+          currentUserId={currentUserId}
           onClose={() => {
             console.log('[ResidentsTable] Delete dialog closed');
             setSelectedResidentForDelete(null);

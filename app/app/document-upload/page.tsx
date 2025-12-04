@@ -118,6 +118,18 @@ export default function DocumentUploadPage() {
 		setIsUploading(true);
 
 		try {
+			// Check total file size before attempting upload
+			const totalSize = (file?.size || 0) + (idCardFile?.size || 0);
+			const maxTotalSize = 20 * 1024 * 1024; // 20MB total limit
+			
+			if (totalSize > maxTotalSize) {
+				toast.error(`Total file size (${(totalSize / 1024 / 1024).toFixed(2)} MB) exceeds the 20MB limit. Please reduce file sizes and try again.`, {
+					duration: 5000,
+				});
+				setIsUploading(false);
+				return;
+			}
+
 			const formData = new FormData();
 			formData.append('file', file);
 			if (idCardFile) {
@@ -131,11 +143,28 @@ export default function DocumentUploadPage() {
 				// Redirect immediately to verification pending page
 				router.push('/app/verification-pending');
 			} else {
-				toast.error(result.error || 'Failed to upload document');
+				// Show error message with longer duration for important errors
+				toast.error(result.error || 'Failed to upload document', {
+					duration: result.error?.includes('size') || result.error?.includes('large') ? 6000 : 4000,
+				});
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Upload error:', error);
-			toast.error('An error occurred. Please try again.');
+			
+			// Handle specific error types
+			let errorMessage = 'An error occurred while uploading. Please try again.';
+			
+			if (error?.message?.includes('Body exceeded') || error?.message?.includes('bodysizelimit') || error?.statusCode === 413) {
+				errorMessage = 'File size too large. The total size of all files must not exceed 20MB. Please compress your files and try again.';
+			} else if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+				errorMessage = 'Network error. Please check your internet connection and try again.';
+			} else if (error?.message) {
+				errorMessage = error.message;
+			}
+			
+			toast.error(errorMessage, {
+				duration: 6000,
+			});
 		} finally {
 			setIsUploading(false);
 		}
@@ -382,6 +411,27 @@ export default function DocumentUploadPage() {
 									</label>
 								</div>
 							</div>
+
+							{/* File size indicator */}
+							{(file || idCardFile) && (
+								<div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+									<div className="flex items-center justify-between text-sm">
+										<span className="text-blue-700 font-medium">Total file size:</span>
+										<span className={`font-semibold ${
+											((file?.size || 0) + (idCardFile?.size || 0)) > 20 * 1024 * 1024
+												? 'text-red-600'
+												: 'text-blue-700'
+										}`}>
+											{(((file?.size || 0) + (idCardFile?.size || 0)) / 1024 / 1024).toFixed(2)} MB / 20 MB
+										</span>
+									</div>
+									{((file?.size || 0) + (idCardFile?.size || 0)) > 20 * 1024 * 1024 && (
+										<p className="text-xs text-red-600 mt-1">
+											Total size exceeds 20MB limit. Please reduce file sizes before uploading.
+										</p>
+									)}
+								</div>
+							)}
 
 							{(submission?.document_url || submission?.id_card_url) && (
 								<div className="flex items-center gap-2 flex-wrap">

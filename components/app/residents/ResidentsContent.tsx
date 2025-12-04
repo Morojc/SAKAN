@@ -27,6 +27,7 @@ export interface ResidentWithFees {
   created_at: string;
   residence_id: number | null;
   email: string | null;
+  verified?: boolean; // Verification status from profile_residences
   fees: Fee[];
   outstandingFees: number;
   feeCount: number;

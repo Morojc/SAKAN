@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -55,6 +55,8 @@ export default function EditResidentDialog({
   const [residenceId, setResidenceId] = useState<string>('');
   const [role, setRole] = useState<'resident' | 'guard'>('resident');
   const [originalRole, setOriginalRole] = useState<string>(''); // Store original role to preserve syndic
+  const [existsInOtherResidence, setExistsInOtherResidence] = useState(false); // Check if resident exists in other residences
+  const [checkingOtherResidences, setCheckingOtherResidences] = useState(false);
 
   // Validation errors
   const [errors, setErrors] = useState<{
@@ -64,6 +66,41 @@ export default function EditResidentDialog({
     apartmentNumber?: string;
     residenceId?: string;
   }>({});
+
+  // Check if resident exists in other residences
+  async function checkOtherResidences(residentId: string, currentResidenceId: number) {
+    setCheckingOtherResidences(true);
+    try {
+      const response = await fetch('/api/check-resident-other-residences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resident_id: residentId, residence_id: currentResidenceId }),
+      });
+
+      if (!response.ok) {
+        console.error('[EditResidentDialog] Error checking other residences:', response.statusText);
+        return;
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[EditResidentDialog] Invalid response type:', contentType);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success && data.existsInOtherResidences) {
+        setExistsInOtherResidence(true);
+        console.log('[EditResidentDialog] Resident exists in other residences - only apartment number can be edited');
+      } else {
+        setExistsInOtherResidence(false);
+      }
+    } catch (error) {
+      console.error('[EditResidentDialog] Error checking other residences:', error);
+    } finally {
+      setCheckingOtherResidences(false);
+    }
+  }
 
   // Load resident data when dialog opens
   useEffect(() => {
@@ -81,6 +118,13 @@ export default function EditResidentDialog({
         setRole(resident.role as 'resident' | 'guard');
       }
       setErrors({});
+      setExistsInOtherResidence(false);
+      
+      // Check if resident exists in other residences
+      if (resident.id && resident.residence_id) {
+        checkOtherResidences(resident.id, resident.residence_id);
+      }
+      
       fetchResidences();
     }
   }, [open, resident]);
@@ -107,34 +151,39 @@ export default function EditResidentDialog({
   function validateForm(): boolean {
     const newErrors: typeof errors = {};
 
-    // Full name validation
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (fullName.trim().length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
-    }
+    // Skip validation for disabled fields when resident exists in other residences
+    if (!existsInOtherResidence) {
+      // Full name validation
+      if (!fullName.trim()) {
+        newErrors.fullName = 'Full name is required';
+      } else if (fullName.trim().length < 2) {
+        newErrors.fullName = 'Full name must be at least 2 characters';
+      }
 
-    // Email validation
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email.trim())) {
-        newErrors.email = 'Invalid email format';
+      // Email validation
+      if (!email.trim()) {
+        newErrors.email = 'Email is required';
+      } else {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+          newErrors.email = 'Invalid email format';
+        }
+      }
+
+      // Phone validation (optional but if provided, should be valid)
+      if (phoneNumber.trim()) {
+        const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+        if (!phoneRegex.test(phoneNumber.trim())) {
+          newErrors.phoneNumber = 'Invalid phone number format';
+        }
       }
     }
 
-    // Phone validation (optional but if provided, should be valid)
-    if (phoneNumber.trim()) {
-      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
-      if (!phoneRegex.test(phoneNumber.trim())) {
-        newErrors.phoneNumber = 'Invalid phone number format';
-      }
-    }
-
-    // Apartment number validation
+    // Apartment number validation (always required)
     if (!apartmentNumber.trim()) {
       newErrors.apartmentNumber = 'Apartment number is required';
+    } else if (originalRole !== 'syndic' && originalRole !== 'guard' && apartmentNumber.trim() === '0') {
+      newErrors.apartmentNumber = 'Apartment number cannot be 0 for residents. Only guards can use apartment number 0.';
     }
 
     // Residence validation
@@ -231,6 +280,21 @@ export default function EditResidentDialog({
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {/* Informational message when resident exists in other residences */}
+            {existsInOtherResidence && (
+              <div className="mt-3 mb-2">
+                <div className="flex items-start gap-3 text-sm bg-amber-50 border border-amber-300 rounded-lg p-4" role="alert">
+                  <Info className="h-5 w-5 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-900 mb-2 text-base">Existing resident detected</p>
+                    <p className="text-amber-800 leading-relaxed">
+                      This resident exists in other residences. Their profile information has been extracted and only the apartment number can be updated. Name, email, phone number, and role are preserved from their existing profile and cannot be changed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Full Name */}
             <div className="grid gap-2">
               <Label htmlFor="edit-fullName">
@@ -240,19 +304,27 @@ export default function EditResidentDialog({
                 id="edit-fullName"
                 value={fullName}
                 onChange={(e) => {
-                  setFullName(e.target.value);
-                  if (errors.fullName) {
-                    setErrors({ ...errors, fullName: undefined });
+                  if (!existsInOtherResidence) {
+                    setFullName(e.target.value);
+                    if (errors.fullName) {
+                      setErrors({ ...errors, fullName: undefined });
+                    }
                   }
                 }}
+                disabled={existsInOtherResidence}
                 placeholder="Enter full name"
                 aria-invalid={!!errors.fullName}
                 aria-describedby={errors.fullName ? 'edit-fullName-error' : undefined}
-                className={errors.fullName ? 'border-destructive' : ''}
+                className={errors.fullName ? 'border-destructive' : (existsInOtherResidence ? 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200' : '')}
               />
               {errors.fullName && (
                 <p id="edit-fullName-error" className="text-sm text-destructive" role="alert">
                   {errors.fullName}
+                </p>
+              )}
+              {existsInOtherResidence && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Name from existing profile (cannot be changed)
                 </p>
               )}
             </div>
@@ -267,19 +339,27 @@ export default function EditResidentDialog({
                 type="email"
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email) {
-                    setErrors({ ...errors, email: undefined });
+                  if (!existsInOtherResidence) {
+                    setEmail(e.target.value);
+                    if (errors.email) {
+                      setErrors({ ...errors, email: undefined });
+                    }
                   }
                 }}
+                disabled={existsInOtherResidence}
                 placeholder="Enter email address"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? 'edit-email-error' : undefined}
-                className={errors.email ? 'border-destructive' : ''}
+                className={errors.email ? 'border-destructive' : (existsInOtherResidence ? 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200' : '')}
               />
               {errors.email && (
                 <p id="edit-email-error" className="text-sm text-destructive" role="alert">
                   {errors.email}
+                </p>
+              )}
+              {existsInOtherResidence && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Email from existing profile (cannot be changed)
                 </p>
               )}
             </div>
@@ -292,19 +372,27 @@ export default function EditResidentDialog({
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => {
-                  setPhoneNumber(e.target.value);
-                  if (errors.phoneNumber) {
-                    setErrors({ ...errors, phoneNumber: undefined });
+                  if (!existsInOtherResidence) {
+                    setPhoneNumber(e.target.value);
+                    if (errors.phoneNumber) {
+                      setErrors({ ...errors, phoneNumber: undefined });
+                    }
                   }
                 }}
+                disabled={existsInOtherResidence}
                 placeholder="Enter phone number (optional)"
                 aria-invalid={!!errors.phoneNumber}
                 aria-describedby={errors.phoneNumber ? 'edit-phoneNumber-error' : undefined}
-                className={errors.phoneNumber ? 'border-destructive' : ''}
+                className={errors.phoneNumber ? 'border-destructive' : (existsInOtherResidence ? 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200' : '')}
               />
               {errors.phoneNumber && (
                 <p id="edit-phoneNumber-error" className="text-sm text-destructive" role="alert">
                   {errors.phoneNumber}
+                </p>
+              )}
+              {existsInOtherResidence && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Phone number from existing profile (cannot be changed)
                 </p>
               )}
             </div>
@@ -374,7 +462,7 @@ export default function EditResidentDialog({
             </div>
 
             {/* Role - Only show for non-syndics */}
-            {originalRole !== 'syndic' && (
+            {originalRole !== 'syndic' && !existsInOtherResidence && (
               <div className="grid gap-2">
                 <Label htmlFor="edit-role">
                   Role <span className="text-destructive">*</span>
@@ -391,12 +479,30 @@ export default function EditResidentDialog({
               </div>
             )}
             
-            {/* Show read-only role for syndics */}
-            {originalRole === 'syndic' && (
+            {/* Show read-only role for syndics or residents in other residences */}
+            {(originalRole === 'syndic' || existsInOtherResidence) && (
               <div className="grid gap-2">
                 <Label htmlFor="edit-role">Role</Label>
-                <div className="px-3 py-2 border rounded-md bg-muted text-sm">
-                  Syndic (cannot be changed)
+                <Input
+                  value={originalRole === 'syndic' ? 'Syndic (cannot be changed)' : `${originalRole.charAt(0).toUpperCase() + originalRole.slice(1)} (cannot be changed)`}
+                  disabled
+                  className="bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200"
+                />
+                <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3" role="alert">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600" />
+                  <div>
+                    {originalRole === 'syndic' ? (
+                      <>
+                        <p className="font-semibold mb-1">Role: Syndic (cannot be changed)</p>
+                        <p>This user already has a syndic role. Cannot be changed but considered as a resident in this residence.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold mb-1">Role: {originalRole.charAt(0).toUpperCase() + originalRole.slice(1)} (cannot be changed)</p>
+                        <p>This user already has a {originalRole} role. Cannot be changed. and considered as a resident in this residence.</p>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

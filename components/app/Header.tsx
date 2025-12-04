@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, X, Building2, Search, Bell, Settings, Plus, UserCircle, LogOut } from "lucide-react";
+import { Menu, X, Building2, Search, Bell, Settings, Plus, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import UserMenu from "@/components/user/UserMenu";
 import Link from "next/link";
 import { useState } from "react";
@@ -11,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/lib/i18n/client";
+import { useSidebar } from "./SidebarProvider";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { t } = useI18n();
+  const { isCollapsed, toggleSidebar } = useSidebar();
 
   const isActive = (path: string) => {
     if (path === "/app") {
@@ -30,6 +32,7 @@ export function Header() {
         <div className="flex items-center justify-between px-6 py-4">
           {/* Left: Logo & Mobile Menu */}
         <div className="flex items-center gap-4">
+          {/* Mobile Menu Toggle */}
           <button 
               className="lg:hidden p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-all duration-200" 
               aria-label="Toggle sidebar"
@@ -37,6 +40,17 @@ export function Header() {
           >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
+          
+          {/* Desktop Sidebar Toggle */}
+          <button 
+              className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-all duration-200" 
+              aria-label="Toggle sidebar"
+              onClick={toggleSidebar}
+              title={isCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+          >
+              {isCollapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
+          </button>
+          
             <Link href="/app" className="flex items-center gap-2.5 group">
               <div className="bg-gray-900 p-2 rounded-xl group-hover:scale-105 transition-transform duration-200">
                 <Building2 className="h-5 w-5 text-white" />
