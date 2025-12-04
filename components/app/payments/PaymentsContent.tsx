@@ -8,12 +8,14 @@ import AddPaymentDialog from './AddPaymentDialog';
 import PaymentsTable from './PaymentsTable';
 import { getBalances } from '@/app/actions/payments';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
 
 /**
  * Payments Content Component
  * Displays balance cards and payments table with add payment functionality
  */
 export default function PaymentsContent() {
+	const { t } = useI18n();
 	const [showAddDialog, setShowAddDialog] = useState(false);
 	const [balances, setBalances] = useState({ cashOnHand: 0, bankBalance: 0 });
 	const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export default function PaymentsContent() {
 				}
 			} catch (error: any) {
 				console.error('[PaymentsContent] Error:', error);
-				toast.error(error.message || 'Failed to load balances');
+					toast.error(error.message || t('payments.failedToLoadBalances'));
 			} finally {
 				setLoading(false);
 			}
@@ -72,7 +74,7 @@ export default function PaymentsContent() {
 				{/* Cash on Hand Card */}
 				<Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-						<CardTitle className="text-sm font-medium text-emerald-900">Cash on Hand</CardTitle>
+						<CardTitle className="text-sm font-medium text-emerald-900">{t('payments.cashOnHand')}</CardTitle>
 						<Wallet className="h-4 w-4 text-emerald-600" />
 					</CardHeader>
 					<CardContent>
@@ -84,7 +86,7 @@ export default function PaymentsContent() {
 							</div>
 						)}
 						<p className="text-xs text-emerald-700 mt-1">
-							Cash payments minus cash expenses
+							{t('payments.cashOnHandDesc')}
 						</p>
 					</CardContent>
 				</Card>
@@ -92,7 +94,7 @@ export default function PaymentsContent() {
 				{/* Bank Balance Card */}
 				<Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-						<CardTitle className="text-sm font-medium text-blue-900">Bank Balance</CardTitle>
+						<CardTitle className="text-sm font-medium text-blue-900">{t('payments.bankBalance')}</CardTitle>
 						<Building2 className="h-4 w-4 text-blue-600" />
 					</CardHeader>
 					<CardContent>
@@ -104,7 +106,7 @@ export default function PaymentsContent() {
 							</div>
 						)}
 						<p className="text-xs text-blue-700 mt-1">
-							Online payments minus bank expenses
+							{t('payments.bankBalanceDesc')}
 						</p>
 					</CardContent>
 				</Card>
@@ -113,9 +115,9 @@ export default function PaymentsContent() {
 			{/* Add Payment Button */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h2 className="text-lg font-semibold">Payment Records</h2>
+					<h2 className="text-lg font-semibold">{t('payments.paymentRecords')}</h2>
 					<p className="text-sm text-muted-foreground">
-						Manage cash and online payment records
+						{t('payments.paymentRecordsDesc')}
 					</p>
 				</div>
 				<Button 
@@ -123,7 +125,7 @@ export default function PaymentsContent() {
 					className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
 				>
 					<Plus className="h-4 w-4" />
-					Add Payment
+					{t('payments.addPayment')}
 				</Button>
 			</div>
 
