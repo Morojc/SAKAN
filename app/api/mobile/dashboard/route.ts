@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
           type: 'payment',
           title: `Payment of ${p.amount} MAD`,
           description: `Payment ${p.status}`,
-          timestamp: new Date(p.paid_at),
+          timestamp: p.paid_at ? new Date(p.paid_at).toISOString() : new Date().toISOString(),
         }));
 
       const recentIncidents = allIncidents
@@ -158,11 +158,11 @@ export async function GET(request: NextRequest) {
           type: 'incident',
           title: `Incident #${i.id}`,
           description: `Status: ${i.status}`,
-          timestamp: new Date(i.created_at || Date.now()),
+          timestamp: i.created_at ? new Date(i.created_at).toISOString() : new Date().toISOString(),
         }));
 
       const activities = [...recentPayments, ...recentIncidents]
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 5);
 
       console.log('[Mobile API] Dashboard: Returning resident dashboard data');

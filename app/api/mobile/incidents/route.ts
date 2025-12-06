@@ -144,20 +144,79 @@ export async function POST(request: NextRequest) {
   try {
     const mobileUser = await getMobileUser(request);
     if (!mobileUser?.id) {
+      console.error('[Mobile API] Incidents POST: No mobile user found');
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401, headers: getCorsHeaders() }
       );
     }
 
-    const body = await request.json();
-    const result = await createIncident(body);
+    const supabase = createSupabaseAdminClient();
+    const userId = mobileUser.id;
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400, headers: getCorsHeaders() });
+    // Get user profile
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      console.error('[Mobile API] Incidents POST: Profile error:', profileError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
-    return NextResponse.json(result, { status: 201, headers: getCorsHeaders() });
+    // Get residence ID
+    const residenceId = await getUserResidenceId(userId, userProfile.role, supabase);
+    if (!residenceId) {
+      console.error('[Mobile API] Incidents POST: No residence found for user:', userId);
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    const body = await request.json();
+
+    // Validate required fields
+    if (!body.title || !body.description) {
+      return NextResponse.json(
+        { success: false, error: 'Title and description are required' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Create incident directly in database
+    const { data: incident, error: incidentError } = await supabase
+      .from('incidents')
+      .insert({
+        title: body.title,
+        description: body.description,
+        user_id: userId,
+        residence_id: residenceId,
+        status: 'open',
+        photo_url: body.photo_url || null,
+      })
+      .select()
+      .single();
+
+    if (incidentError) {
+      console.error('[Mobile API] Incidents POST: Error creating incident:', incidentError);
+      return NextResponse.json(
+        { success: false, error: incidentError.message || 'Failed to create incident' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    console.log('[Mobile API] Incidents POST: Incident created successfully:', incident.id);
+
+    return NextResponse.json(
+      { success: true, data: incident },
+      { status: 201, headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Incidents POST error:', error);
     return NextResponse.json(

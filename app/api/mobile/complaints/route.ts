@@ -194,6 +194,7 @@ export async function POST(request: NextRequest) {
   try {
     const mobileUser = await getMobileUser(request);
     if (!mobileUser?.id) {
+      console.error('[Mobile API] Complaints POST: No mobile user found');
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401, headers: getCorsHeaders() }
@@ -211,9 +212,18 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profileError || !userProfile) {
+      console.error('[Mobile API] Complaints POST: Profile error:', profileError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch user profile' },
         { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Only residents can create complaints
+    if (userProfile.role !== 'resident') {
+      return NextResponse.json(
+        { success: false, error: 'Only residents can create complaints' },
+        { status: 403, headers: getCorsHeaders() }
       );
     }
 
@@ -226,32 +236,72 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!prLink) {
+      console.error('[Mobile API] Complaints POST: No residence found for user:', userId);
       return NextResponse.json(
         { success: false, error: 'User has no residence assigned' },
         { status: 400, headers: getCorsHeaders() }
       );
     }
 
-    const body = await request.json();
+    // Get the syndic for this residence to use as complained_about_id for general complaints
+    // Since complained_about_id cannot be null and cannot be the complainant, we use the syndic
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('syndic_user_id')
+      .eq('id', prLink.residence_id)
+      .maybeSingle();
 
-    // Transform mobile complaint data to backend format
-    const complaintData = {
-      complainant_id: userId,
-      complained_about_id: userId, // For now, complaints are general (not about specific person)
-      reason: body.type || 'other',
-      privacy: 'private',
-      title: body.type || 'Complaint',
-      description: body.description,
-      residence_id: prLink.residence_id,
-    };
-
-    const result = await createComplaint(complaintData);
-
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400, headers: getCorsHeaders() });
+    if (!residence?.syndic_user_id) {
+      console.error('[Mobile API] Complaints POST: No syndic found for residence:', prLink.residence_id);
+      return NextResponse.json(
+        { success: false, error: 'No syndic found for this residence' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
-    return NextResponse.json(result, { status: 201, headers: getCorsHeaders() });
+    const body = await request.json();
+
+    // Validate required fields
+    if (!body.description) {
+      return NextResponse.json(
+        { success: false, error: 'Description is required' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Create complaint directly in database
+    // Note: complained_about_id must not be null and cannot be the complainant
+    // For general complaints, we use the syndic as the complained_about_id
+    // This satisfies the constraint while allowing residents to file general complaints
+    const { data: complaint, error: complaintError } = await supabase
+      .from('complaints')
+      .insert({
+        complainant_id: userId,
+        complained_about_id: residence.syndic_user_id, // Use syndic for general complaints
+        reason: body.type || 'other',
+        privacy: 'private',
+        title: body.title || body.type || 'Complaint',
+        description: body.description,
+        residence_id: prLink.residence_id,
+        status: 'submitted',
+      })
+      .select()
+      .single();
+
+    if (complaintError) {
+      console.error('[Mobile API] Complaints POST: Error creating complaint:', complaintError);
+      return NextResponse.json(
+        { success: false, error: complaintError.message || 'Failed to create complaint' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    console.log('[Mobile API] Complaints POST: Complaint created successfully:', complaint.id);
+
+    return NextResponse.json(
+      { success: true, data: complaint },
+      { status: 201, headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Complaints POST error:', error);
     return NextResponse.json(
