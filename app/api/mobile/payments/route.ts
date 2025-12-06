@@ -1,25 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getMobileUser } from '@/lib/auth/mobile';
 import { createCashPayment, getBalances, getResidents } from '@/app/actions/payments';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 /**
  * Mobile API: Payments
- * GET /api/mobile/payments - Get all payments
- * POST /api/mobile/payments - Create payment
- * GET /api/mobile/payments/balances - Get balances
- * GET /api/mobile/payments/residents - Get residents for payment
+ * GET /api/mobile/payments - Get all payments (resident-specific)
+ * POST /api/mobile/payments - Create payment (syndic only)
  */
+
+function getCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: getCorsHeaders() });
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      console.error('[Mobile API] Payments: No mobile user found');
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
     const supabase = createSupabaseAdminClient();
-    const userId = session.user.id;
+    const userId = mobileUser.id;
+
+    console.log('[Mobile API] Payments: Fetching payments for user:', userId);
 
     // Get user profile
     const { data: userProfile, error: profileError } = await supabase
@@ -28,8 +44,20 @@ export async function GET(request: NextRequest) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (profileError || !userProfile) {
-      return NextResponse.json({ success: false, error: 'Failed to fetch user profile' }, { status: 400 });
+    if (profileError) {
+      console.error('[Mobile API] Payments: Profile error:', profileError);
+      return NextResponse.json(
+        { success: false, error: `Failed to fetch user profile: ${profileError.message}` },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    if (!userProfile) {
+      console.error('[Mobile API] Payments: Profile not found for user:', userId);
+      return NextResponse.json(
+        { success: false, error: 'User profile not found. Please contact your syndic.' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     // Get residence ID
@@ -46,7 +74,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!residenceId) {
-      return NextResponse.json({ success: false, error: 'User has no residence assigned' }, { status: 400 });
+      console.error('[Mobile API] Payments: No residence found for user:', userId);
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned. Please contact your syndic.' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -93,7 +125,11 @@ export async function GET(request: NextRequest) {
     const { data: payments, error: paymentsError } = await paymentsQuery.order('paid_at', { ascending: false });
 
     if (paymentsError) {
-      return NextResponse.json({ success: false, error: paymentsError.message }, { status: 400 });
+      console.error('[Mobile API] Payments: Error fetching payments:', paymentsError);
+      return NextResponse.json(
+        { success: false, error: paymentsError.message },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     // Transform payments
@@ -104,21 +140,29 @@ export async function GET(request: NextRequest) {
       fee_title: payment.fees?.title || null,
     }));
 
-    return NextResponse.json({ success: true, data: paymentsWithNames });
+    console.log('[Mobile API] Payments: Returning', paymentsWithNames.length, 'payments');
+
+    return NextResponse.json(
+      { success: true, data: paymentsWithNames },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Payments GET error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
     const body = await request.json();
@@ -141,15 +185,15 @@ export async function POST(request: NextRequest) {
     const result = await createCashPayment(paymentData);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: 400, headers: getCorsHeaders() });
     }
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result, { status: 201, headers: getCorsHeaders() });
   } catch (error: any) {
     console.error('[Mobile API] Payments POST error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }

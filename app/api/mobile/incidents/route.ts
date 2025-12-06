@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getMobileUser } from '@/lib/auth/mobile';
 import { createIncident } from '@/app/app/incidents/actions';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
+
+/**
+ * CORS headers helper
+ */
+function getCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: getCorsHeaders() });
+}
 
 /**
  * Helper to get user's residence ID
@@ -28,13 +43,16 @@ async function getUserResidenceId(userId: string, userRole: string, supabase: an
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
     const supabase = createSupabaseAdminClient();
-    const userId = session.user.id;
+    const userId = mobileUser.id;
 
     // Get user profile
     const { data: userProfile, error: profileError } = await supabase
@@ -44,12 +62,18 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (profileError || !userProfile) {
-      return NextResponse.json({ success: false, error: 'Failed to fetch user profile' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     const residenceId = await getUserResidenceId(userId, userProfile.role, supabase);
     if (!residenceId) {
-      return NextResponse.json({ success: false, error: 'User has no residence assigned' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -89,7 +113,10 @@ export async function GET(request: NextRequest) {
     const { data: incidents, error: incidentsError } = await incidentsQuery.order('created_at', { ascending: false });
 
     if (incidentsError) {
-      return NextResponse.json({ success: false, error: incidentsError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: incidentsError.message },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     // Transform incidents
@@ -100,36 +127,42 @@ export async function GET(request: NextRequest) {
       residence_name: incident.residences?.name || 'Unknown',
     }));
 
-    return NextResponse.json({ success: true, data: incidentsWithNames });
+    return NextResponse.json(
+      { success: true, data: incidentsWithNames },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Incidents GET error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
     const body = await request.json();
     const result = await createIncident(body);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, { status: 400, headers: getCorsHeaders() });
     }
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result, { status: 201, headers: getCorsHeaders() });
   } catch (error: any) {
     console.error('[Mobile API] Incidents POST error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
