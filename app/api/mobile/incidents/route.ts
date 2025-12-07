@@ -68,16 +68,91 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const residenceId = await getUserResidenceId(userId, userProfile.role, supabase);
+    const searchParams = request.nextUrl.searchParams;
+    const status = searchParams.get('status');
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null; // Current role from mobile app
+    const requestedResidenceId = searchParams.get('residence_id'); // Selected residence when in resident mode
+
+    console.log('[Mobile API] Incidents: Role:', requestedRole, 'Residence ID:', requestedResidenceId);
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    const effectiveRole = requestedRole || userProfile.role;
+
+    // Determine residence ID based on role
+    let residenceId: number | null = null;
+    let isResidentInResidence = false;
+
+    if (effectiveRole === 'resident') {
+      // User is viewing as resident - check profile_residences table
+      if (requestedResidenceId) {
+        // Verify user is actually a resident in the requested residence
+        const parsedResidenceId = parseInt(requestedResidenceId, 10);
+        if (!isNaN(parsedResidenceId)) {
+          const { data: profileResidence } = await supabase
+            .from('profile_residences')
+            .select('residence_id')
+            .eq('profile_id', userId)
+            .eq('residence_id', parsedResidenceId)
+            .maybeSingle();
+          
+          if (profileResidence) {
+            residenceId = parsedResidenceId;
+            isResidentInResidence = true;
+            console.log('[Mobile API] Incidents: User is a resident in residence:', residenceId);
+          } else {
+            console.error('[Mobile API] Incidents: User is not a resident in requested residence:', parsedResidenceId);
+            return NextResponse.json(
+              { success: false, error: 'You are not a resident in this residence.' },
+              { status: 403, headers: getCorsHeaders() }
+            );
+          }
+        }
+      } else {
+        // Get first residence from profile_residences
+        const { data: pr } = await supabase
+          .from('profile_residences')
+          .select('residence_id')
+          .eq('profile_id', userId)
+          .limit(1)
+          .maybeSingle();
+        
+        if (pr) {
+          residenceId = pr.residence_id;
+          isResidentInResidence = true;
+        }
+      }
+    } else if (effectiveRole === 'syndic') {
+      // User is viewing as syndic - get syndic's residence
+      const { data: res } = await supabase
+        .from('residences')
+        .select('id')
+        .eq('syndic_user_id', userId)
+        .maybeSingle();
+      
+      if (res) {
+        residenceId = res.id;
+        console.log('[Mobile API] Incidents: User is a syndic of residence:', residenceId);
+      }
+    } else if (userProfile.role === 'guard') {
+      // User is a guard
+      const { data: res } = await supabase
+        .from('residences')
+        .select('id')
+        .eq('guard_user_id', userId)
+        .maybeSingle();
+      
+      if (res) {
+        residenceId = res.id;
+      }
+    }
+
     if (!residenceId) {
+      console.error('[Mobile API] Incidents: No residence found for user:', userId, 'Role:', effectiveRole);
       return NextResponse.json(
         { success: false, error: 'User has no residence assigned' },
         { status: 400, headers: getCorsHeaders() }
       );
     }
-
-    const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status');
 
     // Fetch incidents with joins
     let incidentsQuery = supabase
@@ -101,8 +176,13 @@ export async function GET(request: NextRequest) {
       .eq('residence_id', residenceId);
 
     // Role-based filtering
-    if (userProfile.role === 'resident') {
+    // If viewing as resident, only show incidents for this user in this residence
+    if (effectiveRole === 'resident' && isResidentInResidence) {
       incidentsQuery = incidentsQuery.eq('user_id', userId);
+      console.log('[Mobile API] Incidents: Filtering incidents for resident user:', userId, 'in residence:', residenceId);
+    } else if (effectiveRole === 'syndic') {
+      // Syndic can see all incidents for the residence
+      console.log('[Mobile API] Incidents: Syndic viewing all incidents for residence:', residenceId);
     }
 
     // Status filter
@@ -169,17 +249,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get residence ID
-    const residenceId = await getUserResidenceId(userId, userProfile.role, supabase);
+    // Get residence ID - for POST, we need to determine residence based on role context
+    // Check if user is creating as resident (from query params or body)
+    const searchParams = request.nextUrl.searchParams;
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null;
+    const requestedResidenceId = searchParams.get('residence_id');
+    const body = await request.json();
+    
+    // Determine effective role
+    const effectiveRole = requestedRole || userProfile.role;
+    
+    let residenceId: number | null = null;
+    
+    if (effectiveRole === 'resident') {
+      // User is creating as resident - get residence from profile_residences
+      if (requestedResidenceId) {
+        const parsedResidenceId = parseInt(requestedResidenceId, 10);
+        if (!isNaN(parsedResidenceId)) {
+          const { data: profileResidence } = await supabase
+            .from('profile_residences')
+            .select('residence_id')
+            .eq('profile_id', userId)
+            .eq('residence_id', parsedResidenceId)
+            .maybeSingle();
+          
+          if (profileResidence) {
+            residenceId = parsedResidenceId;
+          }
+        }
+      } else {
+        // Get first residence from profile_residences
+        const { data: pr } = await supabase
+          .from('profile_residences')
+          .select('residence_id')
+          .eq('profile_id', userId)
+          .limit(1)
+          .maybeSingle();
+        
+        if (pr) {
+          residenceId = pr.residence_id;
+        }
+      }
+    } else if (effectiveRole === 'syndic') {
+      // User is creating as syndic - get syndic's residence
+      const { data: res } = await supabase
+        .from('residences')
+        .select('id')
+        .eq('syndic_user_id', userId)
+        .maybeSingle();
+      
+      if (res) {
+        residenceId = res.id;
+      }
+    }
+    
     if (!residenceId) {
-      console.error('[Mobile API] Incidents POST: No residence found for user:', userId);
+      console.error('[Mobile API] Incidents POST: No residence found for user:', userId, 'Role:', effectiveRole);
       return NextResponse.json(
         { success: false, error: 'User has no residence assigned' },
         { status: 400, headers: getCorsHeaders() }
       );
     }
-
-    const body = await request.json();
 
     // Validate required fields
     if (!body.title || !body.description) {

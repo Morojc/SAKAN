@@ -135,10 +135,16 @@ export async function PATCH(
       );
     }
 
-    // Only syndics can update residents
-    if (userProfile.role !== 'syndic') {
+    const searchParams = request.nextUrl.searchParams;
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null;
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    const effectiveRole = requestedRole || userProfile.role;
+
+    // Only syndics can update residents (must be in syndic mode)
+    if (effectiveRole !== 'syndic') {
       return NextResponse.json(
-        { success: false, error: 'Only syndics can update residents' },
+        { success: false, error: 'Only syndics can update residents. Please switch to syndic mode.' },
         { status: 403, headers: getCorsHeaders() }
       );
     }
@@ -225,10 +231,19 @@ export async function DELETE(
       );
     }
 
-    // Only syndics can delete residents
-    if (userProfile.role !== 'syndic') {
+    const searchParams = request.nextUrl.searchParams;
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null;
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    const effectiveRole = requestedRole || userProfile.role;
+
+    console.log('[Mobile API] Residents DELETE: Role:', requestedRole, 'Profile role:', userProfile.role);
+
+    // Only syndics can delete residents (must be in syndic mode)
+    if (effectiveRole !== 'syndic') {
+      console.error('[Mobile API] Residents DELETE: User is not in syndic mode. Effective role:', effectiveRole);
       return NextResponse.json(
-        { success: false, error: 'Only syndics can delete residents' },
+        { success: false, error: 'Only syndics can delete residents. Please switch to syndic mode.' },
         { status: 403, headers: getCorsHeaders() }
       );
     }

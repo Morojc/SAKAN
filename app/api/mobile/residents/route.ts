@@ -54,15 +54,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Only syndics can view all residents
-    if (userProfile.role !== 'syndic') {
+    const searchParams = request.nextUrl.searchParams;
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null; // Current role from mobile app
+
+    console.log('[Mobile API] Residents: Role:', requestedRole, 'Profile role:', userProfile.role);
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    const effectiveRole = requestedRole || userProfile.role;
+
+    // Only syndics can view all residents (must be in syndic mode)
+    if (effectiveRole !== 'syndic') {
+      console.error('[Mobile API] Residents: User is not in syndic mode. Effective role:', effectiveRole);
       return NextResponse.json(
-        { success: false, error: 'Only syndics can view all residents' },
+        { success: false, error: 'Only syndics can view all residents. Please switch to syndic mode.' },
         { status: 403, headers: getCorsHeaders() }
       );
     }
 
-    // Get residence ID
+    // Get residence ID - verify user is actually a syndic
     const { data: residence } = await supabase
       .from('residences')
       .select('id')
@@ -70,15 +79,19 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (!residence) {
+      console.error('[Mobile API] Residents: User is not a syndic of any residence:', userId);
       return NextResponse.json(
-        { success: false, error: 'User has no residence assigned' },
-        { status: 400, headers: getCorsHeaders() }
+        { success: false, error: 'User is not a syndic of any residence' },
+        { status: 403, headers: getCorsHeaders() }
       );
     }
 
-    const searchParams = request.nextUrl.searchParams;
+    console.log('[Mobile API] Residents: Syndic viewing residents for residence:', residence.id);
+
     const search = searchParams.get('search');
-    const role = searchParams.get('role');
+    // Use 'role_filter' for filtering residents by their role (resident, guard, etc.)
+    // 'role' is reserved for the current user's role context (syndic/resident)
+    const roleFilter = searchParams.get('role_filter');
 
     // Fetch residents
     const { data: residentLinks, error: linksError } = await supabase
@@ -132,8 +145,8 @@ export async function GET(request: NextRequest) {
       .filter((r: any) => r.role !== 'syndic'); // Exclude syndic
 
     // Filter by role
-    if (role && role !== 'all') {
-      residents = residents.filter((r: any) => r.role === role);
+    if (roleFilter && roleFilter !== 'all') {
+      residents = residents.filter((r: any) => r.role === roleFilter);
     }
 
     // Filter by search
@@ -187,10 +200,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only syndics can create residents
-    if (userProfile.role !== 'syndic') {
+    const searchParams = request.nextUrl.searchParams;
+    const requestedRole = searchParams.get('role') as 'syndic' | 'resident' | null;
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    const effectiveRole = requestedRole || userProfile.role;
+
+    // Only syndics can create residents (must be in syndic mode)
+    if (effectiveRole !== 'syndic') {
+      console.error('[Mobile API] Residents POST: User is not in syndic mode. Effective role:', effectiveRole);
       return NextResponse.json(
-        { success: false, error: 'Only syndics can create residents' },
+        { success: false, error: 'Only syndics can create residents. Please switch to syndic mode.' },
         { status: 403, headers: getCorsHeaders() }
       );
     }
