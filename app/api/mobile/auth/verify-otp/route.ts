@@ -185,17 +185,93 @@ export async function POST(request: NextRequest) {
       accessToken = `otp_verified_${user.id}`;
     }
 
-    // Return success with user info and access token
+    // Fetch user's available roles and residences
+    let syndicResidence = null;
+    let residentResidences: any[] = [];
+    const availableRoles: string[] = [];
+
+    // Check if user is a syndic
+    const { data: syndicRes } = await supabase
+      .from('residences')
+      .select('id, name, address, city')
+      .eq('syndic_user_id', user.id)
+      .maybeSingle();
+
+    if (syndicRes) {
+      syndicResidence = {
+        id: syndicRes.id,
+        name: syndicRes.name,
+        address: syndicRes.address,
+        city: syndicRes.city,
+      };
+      availableRoles.push('syndic');
+    }
+
+    // Check if user is a resident in any residence
+    const { data: residentLinks } = await supabase
+      .from('profile_residences')
+      .select(`
+        residence_id,
+        apartment_number,
+        verified,
+        residences (
+          id,
+          name,
+          address,
+          city
+        )
+      `)
+      .eq('profile_id', user.id);
+
+    if (residentLinks && residentLinks.length > 0) {
+      availableRoles.push('resident');
+      residentResidences = residentLinks.map((link: any) => ({
+        residenceId: link.residence_id,
+        apartmentNumber: link.apartment_number,
+        verified: link.verified,
+        residence: link.residences ? {
+          id: link.residences.id,
+          name: link.residences.name,
+          address: link.residences.address,
+          city: link.residences.city,
+        } : null,
+      }));
+    }
+
+    // Determine default role (prefer syndic if available, otherwise resident)
+    const defaultRole = availableRoles.includes('syndic') ? 'syndic' : 
+                        availableRoles.includes('resident') ? 'resident' : 
+                        profile.role || 'resident';
+
+    // Get residence data for response (for backward compatibility)
+    let residenceData = null;
+    if (defaultRole === 'syndic' && syndicResidence) {
+      residenceData = syndicResidence;
+    } else if (defaultRole === 'resident' && residentResidences.length > 0) {
+      residenceData = residentResidences[0].residence;
+    }
+
+    // Return success with user info, access token, and role/residence data
     return NextResponse.json({
       success: true,
       message: 'OTP verified successfully',
       userId: user.id,
       email: user.email,
       accessToken: accessToken,
+      refreshToken: refreshToken,
       profile: {
         id: profile.id,
         full_name: profile.full_name,
         role: profile.role,
+      },
+      residence: residenceData, // For backward compatibility
+      // New role switching data
+      roles: {
+        primaryRole: profile.role,
+        defaultRole: defaultRole,
+        availableRoles: availableRoles,
+        syndicResidence: syndicResidence,
+        residentResidences: residentResidences,
       },
     }, { headers: getCorsHeaders() });
   } catch (error: any) {

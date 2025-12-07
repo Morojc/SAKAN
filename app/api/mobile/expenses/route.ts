@@ -1,7 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { createExpense } from '@/app/app/expenses/actions';
+import { getMobileUser } from '@/lib/auth/mobile';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
+
+/**
+ * CORS headers for mobile API
+ */
+function getCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+/**
+ * Handle OPTIONS request for CORS preflight
+ */
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: getCorsHeaders() });
+}
 
 /**
  * Mobile API: Expenses
@@ -11,13 +29,16 @@ import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
     const supabase = createSupabaseAdminClient();
-    const userId = session.user.id;
+    const userId = mobileUser.id;
 
     // Get user profile
     const { data: userProfile, error: profileError } = await supabase
@@ -27,7 +48,10 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (profileError || !userProfile) {
-      return NextResponse.json({ success: false, error: 'Failed to fetch user profile' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     // Get residence ID
@@ -44,7 +68,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (!residenceId) {
-      return NextResponse.json({ success: false, error: 'User has no residence assigned' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -84,7 +111,10 @@ export async function GET(request: NextRequest) {
     const { data: expenses, error: expensesError } = await expensesQuery.order('expense_date', { ascending: false });
 
     if (expensesError) {
-      return NextResponse.json({ success: false, error: expensesError.message }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: expensesError.message },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     // Transform expenses
@@ -94,36 +124,110 @@ export async function GET(request: NextRequest) {
       residence_name: expense.residences?.name || 'Unknown',
     }));
 
-    return NextResponse.json({ success: true, data: expensesWithNames });
+    return NextResponse.json(
+      { success: true, data: expensesWithNames },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Expenses GET error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const userId = mobileUser.id;
+
+    // Get user profile to verify syndic role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Only syndics can create expenses
+    if (userProfile.role !== 'syndic') {
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can create expenses' },
+        { status: 403, headers: getCorsHeaders() }
+      );
+    }
+
+    // Get residence ID
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
+
+    if (!residence) {
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
     const body = await request.json();
-    const result = await createExpense(body);
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+    // Validate required fields
+    if (!body.description || !body.amount || !body.category) {
+      return NextResponse.json(
+        { success: false, error: 'Description, amount, and category are required' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
-    return NextResponse.json(result, { status: 201 });
+    // Create expense directly in database
+    const { data: newExpense, error: createError } = await supabase
+      .from('expenses')
+      .insert({
+        residence_id: residence.id,
+        created_by: userId,
+        description: body.description,
+        amount: body.amount,
+        category: body.category,
+        expense_date: body.expense_date || new Date().toISOString().split('T')[0],
+        receipt_url: body.receipt_url || null,
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('[Mobile API] Expenses POST: Error creating expense:', createError);
+      return NextResponse.json(
+        { success: false, error: createError.message || 'Failed to create expense' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    return NextResponse.json(
+      { success: true, data: newExpense },
+      { status: 201, headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Expenses POST error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }

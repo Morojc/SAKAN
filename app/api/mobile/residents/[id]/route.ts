@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { updateResident, deleteResident } from '@/app/app/residents/actions';
+import { getMobileUser } from '@/lib/auth/mobile';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
+
+/**
+ * CORS headers for mobile API
+ */
+function getCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+/**
+ * Handle OPTIONS request for CORS preflight
+ */
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: getCorsHeaders() });
+}
 
 /**
  * Mobile API: Resident by ID
@@ -14,21 +33,74 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
     }
 
+    const supabase = createSupabaseAdminClient();
     const id = params.id;
 
-    // For now, redirect to the list endpoint with filtering
-    // In a full implementation, we'd have a getResidentById function
-    return NextResponse.json({ success: false, error: 'Use GET /api/mobile/residents and filter by ID' }, { status: 501 });
+    // Get resident from profile_residences
+    const { data: residentLink, error: linkError } = await supabase
+      .from('profile_residences')
+      .select(`
+        profile_id,
+        apartment_number,
+        verified,
+        profiles:profile_id (
+          id,
+          full_name,
+          phone_number,
+          role
+        )
+      `)
+      .eq('profile_id', id)
+      .maybeSingle();
+
+    if (linkError) {
+      return NextResponse.json(
+        { success: false, error: linkError.message },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    if (!residentLink) {
+      return NextResponse.json(
+        { success: false, error: 'Resident not found' },
+        { status: 404, headers: getCorsHeaders() }
+      );
+    }
+
+    // Get email from users table
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('id', id)
+      .maybeSingle();
+
+    const resident = {
+      id: residentLink.profile_id,
+      full_name: residentLink.profiles?.full_name || 'Unknown',
+      email: user?.email || '',
+      phone_number: residentLink.profiles?.phone_number || null,
+      apartment_number: residentLink.apartment_number || null,
+      role: residentLink.profiles?.role || 'resident',
+      verified: residentLink.verified || false,
+    };
+
+    return NextResponse.json(
+      { success: true, data: resident },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Resident GET error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
@@ -38,29 +110,87 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const userId = mobileUser.id;
+
+    // Get user profile to verify syndic role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Only syndics can update residents
+    if (userProfile.role !== 'syndic') {
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can update residents' },
+        { status: 403, headers: getCorsHeaders() }
+      );
     }
 
     const id = params.id;
-
     const body = await request.json();
-    const result = await updateResident({
-      id,
-      ...body,
-    });
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+    // Update profile if provided
+    if (body.full_name != null || body.phone_number != null) {
+      const profileUpdate: any = {};
+      if (body.full_name != null) profileUpdate.full_name = body.full_name;
+      if (body.phone_number != null) profileUpdate.phone_number = body.phone_number;
+
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', id);
+
+      if (profileUpdateError) {
+        console.error('[Mobile API] Residents PATCH: Error updating profile:', profileUpdateError);
+        return NextResponse.json(
+          { success: false, error: profileUpdateError.message || 'Failed to update resident' },
+          { status: 400, headers: getCorsHeaders() }
+        );
+      }
     }
 
-    return NextResponse.json(result);
+    // Update profile_residences if apartment_number provided
+    if (body.apartment_number != null) {
+      const { error: linkUpdateError } = await supabase
+        .from('profile_residences')
+        .update({ apartment_number: body.apartment_number })
+        .eq('profile_id', id);
+
+      if (linkUpdateError) {
+        console.error('[Mobile API] Residents PATCH: Error updating profile_residences:', linkUpdateError);
+        return NextResponse.json(
+          { success: false, error: linkUpdateError.message || 'Failed to update resident' },
+          { status: 400, headers: getCorsHeaders() }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { success: true },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Resident PATCH error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
@@ -70,25 +200,79 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    const mobileUser = await getMobileUser(request);
+    if (!mobileUser?.id) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: getCorsHeaders() }
+      );
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const userId = mobileUser.id;
+
+    // Get user profile to verify syndic role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    // Only syndics can delete residents
+    if (userProfile.role !== 'syndic') {
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can delete residents' },
+        { status: 403, headers: getCorsHeaders() }
+      );
     }
 
     const id = params.id;
 
-    const result = await deleteResident(id);
+    // Get residence ID to ensure we only delete from the syndic's residence
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+    if (!residence) {
+      return NextResponse.json(
+        { success: false, error: 'User has no residence assigned' },
+        { status: 400, headers: getCorsHeaders() }
+      );
     }
 
-    return NextResponse.json(result);
+    // Delete from profile_residences (this removes the resident from the residence)
+    const { error: deleteError } = await supabase
+      .from('profile_residences')
+      .delete()
+      .eq('profile_id', id)
+      .eq('residence_id', residence.id);
+
+    if (deleteError) {
+      console.error('[Mobile API] Residents DELETE: Error deleting resident:', deleteError);
+      return NextResponse.json(
+        { success: false, error: deleteError.message || 'Failed to delete resident' },
+        { status: 400, headers: getCorsHeaders() }
+      );
+    }
+
+    return NextResponse.json(
+      { success: true },
+      { headers: getCorsHeaders() }
+    );
   } catch (error: any) {
     console.error('[Mobile API] Resident DELETE error:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: getCorsHeaders() }
     );
   }
 }
