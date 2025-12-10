@@ -75,8 +75,43 @@ export async function GET(request: NextRequest) {
 
     console.log('[Mobile API] Incidents: Role:', requestedRole, 'Residence ID:', requestedResidenceId);
 
-    // Determine the effective role: use requested role if provided, otherwise use profile role
-    const effectiveRole = requestedRole || userProfile.role;
+    // Validate user's actual roles
+    let hasSyndicRole = false;
+    let hasResidentRole = false;
+    
+    // Check if user is actually a syndic
+    const { data: syndicCheck } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
+    hasSyndicRole = !!syndicCheck;
+    
+    // Check if user is actually a resident
+    const { data: residentCheck } = await supabase
+      .from('profile_residences')
+      .select('profile_id')
+      .eq('profile_id', userId)
+      .limit(1)
+      .maybeSingle();
+    hasResidentRole = !!residentCheck;
+    
+    // Determine effective role: validate requested role against actual roles
+    let effectiveRole = requestedRole || userProfile.role;
+    
+    // CRITICAL: If user requested syndic but doesn't actually have it, force resident role
+    if (effectiveRole === 'syndic' && !hasSyndicRole) {
+      console.warn('[Mobile API] Incidents: User requested syndic role but doesn\'t have it. Forcing resident role.');
+      effectiveRole = 'resident';
+    }
+    
+    // If user requested resident but doesn't have it, this is an error
+    if (effectiveRole === 'resident' && !hasResidentRole) {
+      return NextResponse.json(
+        { success: false, error: 'User is not registered as a resident' },
+        { status: 403, headers: getCorsHeaders() }
+      );
+    }
 
     // Determine residence ID based on role
     let residenceId: number | null = null;

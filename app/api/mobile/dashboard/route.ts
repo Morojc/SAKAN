@@ -66,7 +66,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Determine active role: use requested role if provided, otherwise use profile role
-    const activeRole = requestedRole || userProfile.role;
+    // IMPORTANT: Validate that the user actually has the requested role
+    let activeRole = requestedRole || userProfile.role;
+    
+    // Check if user actually has the requested role
+    let hasSyndicRole = false;
+    let hasResidentRole = false;
+    
+    // Check if user is a syndic
+    const { data: syndicCheck } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('syndic_user_id', userId)
+      .maybeSingle();
+    hasSyndicRole = !!syndicCheck;
+    
+    // Check if user is a resident
+    const { data: residentCheck } = await supabase
+      .from('profile_residences')
+      .select('profile_id')
+      .eq('profile_id', userId)
+      .limit(1)
+      .maybeSingle();
+    hasResidentRole = !!residentCheck;
+    
+    // Validate active role - if user doesn't have the requested role, use their actual role
+    if (activeRole === 'syndic' && !hasSyndicRole) {
+      // User requested syndic but doesn't have it - force resident role
+      activeRole = 'resident';
+      console.warn('[Mobile API] Dashboard: User requested syndic role but doesn\'t have it. Forcing resident role.');
+    } else if (activeRole === 'resident' && !hasResidentRole) {
+      // User requested resident but doesn't have it - this shouldn't happen, but fallback to profile role
+      activeRole = userProfile.role || 'resident';
+      console.warn('[Mobile API] Dashboard: User requested resident role but doesn\'t have it. Using profile role.');
+    }
 
     // If user is a resident (or requesting resident role), return resident-specific stats
     if (activeRole === 'resident') {
@@ -113,37 +146,41 @@ export async function GET(request: NextRequest) {
 
 
       // Get resident-specific stats
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+
       const [
         paymentsResult,
         incidentsResult,
         complaintsResult,
-        balancesResult,
+        feesResult,
       ] = await Promise.all([
         // Total payments for this resident
         supabase
           .from('payments')
-          .select('id, amount, status, paid_at')
+          .select('id, amount, status, paid_at, created_at')
           .eq('user_id', userId)
           .eq('residence_id', residenceId),
         
         // Incidents for this resident
         supabase
           .from('incidents')
-          .select('id, status')
+          .select('id, status, created_at')
           .eq('user_id', userId)
           .eq('residence_id', residenceId),
         
         // Complaints for this resident
         supabase
           .from('complaints')
-          .select('id, status')
+          .select('id, status, created_at')
           .eq('complainant_id', userId)
           .eq('residence_id', residenceId),
         
-        // Get balances (resident's payment status)
+        // Get fees (resident's payment obligations)
         supabase
           .from('fees')
-          .select('amount, status')
+          .select('id, amount, status, due_date, created_at')
           .eq('user_id', userId)
           .eq('residence_id', residenceId),
       ]);
@@ -151,15 +188,64 @@ export async function GET(request: NextRequest) {
       const allPayments = paymentsResult.data || [];
       const allIncidents = incidentsResult.data || [];
       const allComplaints = complaintsResult.data || [];
-      const allFees = balancesResult.data || [];
+      const allFees = feesResult.data || [];
 
-      // Calculate stats
+      // Calculate payment stats
       const totalPayments = allPayments.length;
+      const completedPayments = allPayments.filter((p: any) => p.status === 'completed' || p.status === 'paid').length;
       const pendingPayments = allPayments.filter((p: any) => p.status === 'pending').length;
-      const overduePayments = allFees.filter((f: any) => f.status === 'overdue').length;
+      const totalPaidAmount = allPayments
+        .filter((p: any) => p.status === 'completed' || p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+      
+      // Monthly payment stats
+      const monthlyPayments = allPayments.filter((p: any) => {
+        if (!p.paid_at) return false;
+        const paidDate = new Date(p.paid_at);
+        return paidDate >= startOfMonth;
+      });
+      const monthlyPaidAmount = monthlyPayments
+        .filter((p: any) => p.status === 'completed' || p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+
+      // Fee stats
+      const totalFees = allFees.length;
+      const pendingFees = allFees.filter((f: any) => f.status === 'pending' || f.status === 'unpaid').length;
+      const overdueFees = allFees.filter((f: any) => {
+        if (f.status === 'overdue') return true;
+        if (f.due_date) {
+          const dueDate = new Date(f.due_date);
+          return dueDate < now && (f.status === 'pending' || f.status === 'unpaid');
+        }
+        return false;
+      }).length;
+      const totalOwedAmount = allFees
+        .filter((f: any) => f.status === 'pending' || f.status === 'unpaid' || f.status === 'overdue')
+        .reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0);
+      const overdueAmount = allFees
+        .filter((f: any) => {
+          if (f.status === 'overdue') return true;
+          if (f.due_date) {
+            const dueDate = new Date(f.due_date);
+            return dueDate < now && (f.status === 'pending' || f.status === 'unpaid');
+          }
+          return false;
+        })
+        .reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0);
+
+      // Incident stats
       const totalIncidents = allIncidents.length;
       const openIncidents = allIncidents.filter((i: any) => 
         i.status === 'open' || i.status === 'in_progress'
+      ).length;
+      const resolvedIncidents = allIncidents.filter((i: any) => 
+        i.status === 'resolved' || i.status === 'closed'
+      ).length;
+
+      // Complaint stats
+      const totalComplaints = allComplaints.length;
+      const openComplaints = allComplaints.filter((c: any) => 
+        c.status === 'submitted' || c.status === 'reviewed'
       ).length;
 
       // Get recent activities
@@ -192,11 +278,28 @@ export async function GET(request: NextRequest) {
         {
           success: true,
           stats: {
+            // Payment stats
             totalPayments,
+            completedPayments,
             pendingPayments,
-            overduePayments,
+            totalPaidAmount,
+            monthlyPaidAmount,
+            monthlyPaymentsCount: monthlyPayments.length,
+            // Fee stats
+            totalFees,
+            pendingFees,
+            overdueFees,
+            totalOwedAmount,
+            overdueAmount,
+            // Incident stats
             totalIncidents,
             openIncidents,
+            resolvedIncidents,
+            // Complaint stats
+            totalComplaints,
+            openComplaints,
+            // Legacy fields for backward compatibility
+            overduePayments: overdueFees,
           },
           user: {
             name: userProfile.full_name || 'Resident',
@@ -231,23 +334,30 @@ export async function GET(request: NextRequest) {
       const residenceId = syndicRes.id;
 
       // Get syndic dashboard stats
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
       const [
         residentsResult,
         paymentsResult,
         incidentsResult,
         complaintsResult,
         feesResult,
+        expensesResult,
       ] = await Promise.all([
-        // Total residents
+        // Total residents (excluding syndic)
         supabase
           .from('profile_residences')
-          .select('profile_id')
+          .select('profile_id, profiles!inner(role)')
           .eq('residence_id', residenceId),
         
         // All payments
         supabase
           .from('payments')
-          .select('id, amount, status, paid_at')
+          .select('id, amount, status, paid_at, created_at')
           .eq('residence_id', residenceId),
         
         // All incidents
@@ -259,34 +369,127 @@ export async function GET(request: NextRequest) {
         // All complaints
         supabase
           .from('complaints')
-          .select('id, status')
+          .select('id, status, created_at')
           .eq('residence_id', residenceId),
         
         // All fees
         supabase
           .from('fees')
-          .select('amount, status')
+          .select('id, amount, status, due_date, created_at')
+          .eq('residence_id', residenceId),
+        
+        // All expenses
+        supabase
+          .from('expenses')
+          .select('id, amount, expense_date, category')
           .eq('residence_id', residenceId),
       ]);
 
-      const totalResidents = residentsResult.data?.length || 0;
+      const allResidents = residentsResult.data?.filter((r: any) => 
+        r.profiles?.role !== 'syndic'
+      ) || [];
+      const totalResidents = allResidents.length;
       const allPayments = paymentsResult.data || [];
       const allIncidents = incidentsResult.data || [];
       const allComplaints = complaintsResult.data || [];
       const allFees = feesResult.data || [];
+      const allExpenses = expensesResult.data || [];
 
-      // Calculate stats
+      // Payment stats
       const totalPayments = allPayments.length;
-      const totalRevenue = allPayments
-        .filter((p: any) => p.status === 'completed')
-        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+      const completedPayments = allPayments.filter((p: any) => p.status === 'completed' || p.status === 'paid').length;
       const pendingPayments = allPayments.filter((p: any) => p.status === 'pending').length;
-      const overdueFees = allFees.filter((f: any) => f.status === 'overdue').length;
+      const totalRevenue = allPayments
+        .filter((p: any) => p.status === 'completed' || p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+      
+      // Monthly revenue stats
+      const monthlyPayments = allPayments.filter((p: any) => {
+        if (!p.paid_at) return false;
+        const paidDate = new Date(p.paid_at);
+        return paidDate >= startOfMonth;
+      });
+      const monthlyRevenue = monthlyPayments
+        .filter((p: any) => p.status === 'completed' || p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+      
+      // Last month revenue for comparison
+      const lastMonthPayments = allPayments.filter((p: any) => {
+        if (!p.paid_at) return false;
+        const paidDate = new Date(p.paid_at);
+        return paidDate >= lastMonthStart && paidDate <= lastMonthEnd;
+      });
+      const lastMonthRevenue = lastMonthPayments
+        .filter((p: any) => p.status === 'completed' || p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+      
+      const revenueGrowth = lastMonthRevenue > 0 
+        ? ((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 
+        : 0;
+
+      // Fee stats
+      const totalFees = allFees.length;
+      const pendingFees = allFees.filter((f: any) => f.status === 'pending' || f.status === 'unpaid').length;
+      const overdueFees = allFees.filter((f: any) => {
+        if (f.status === 'overdue') return true;
+        if (f.due_date) {
+          const dueDate = new Date(f.due_date);
+          return dueDate < now && (f.status === 'pending' || f.status === 'unpaid');
+        }
+        return false;
+      }).length;
+      const totalExpectedRevenue = allFees.reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0);
+      const pendingAmount = allFees
+        .filter((f: any) => f.status === 'pending' || f.status === 'unpaid')
+        .reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0);
+      const overdueAmount = allFees
+        .filter((f: any) => {
+          if (f.status === 'overdue') return true;
+          if (f.due_date) {
+            const dueDate = new Date(f.due_date);
+            return dueDate < now && (f.status === 'pending' || f.status === 'unpaid');
+          }
+          return false;
+        })
+        .reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0);
+      
+      // Collection rate
+      const collectionRate = totalExpectedRevenue > 0 
+        ? (totalRevenue / totalExpectedRevenue) * 100 
+        : 0;
+
+      // Expense stats
+      const totalExpenses = allExpenses.length;
+      const monthlyExpenses = allExpenses.filter((e: any) => {
+        if (!e.expense_date) return false;
+        const expenseDate = new Date(e.expense_date);
+        return expenseDate >= startOfMonth;
+      });
+      const monthlyExpensesAmount = monthlyExpenses.reduce((sum: number, e: any) => 
+        sum + (Number(e.amount) || 0), 0);
+      const totalExpensesAmount = allExpenses.reduce((sum: number, e: any) => 
+        sum + (Number(e.amount) || 0), 0);
+
+      // Net profit (revenue - expenses)
+      const monthlyProfit = monthlyRevenue - monthlyExpensesAmount;
+      const totalProfit = totalRevenue - totalExpensesAmount;
+
+      // Incident stats
+      const totalIncidents = allIncidents.length;
       const openIncidents = allIncidents.filter((i: any) => 
         i.status === 'open' || i.status === 'in_progress'
       ).length;
+      const resolvedIncidents = allIncidents.filter((i: any) => 
+        i.status === 'resolved' || i.status === 'closed'
+      ).length;
+
+      // Complaint stats
+      const totalComplaints = allComplaints.length;
       const openComplaints = allComplaints.filter((c: any) => 
-        c.status === 'submitted' || c.status === 'in_review'
+        c.status === 'submitted' || c.status === 'reviewed'
+      ).length;
+      const resolvedComplaints = allComplaints.filter((c: any) => 
+        c.status === 'resolved'
       ).length;
 
       // Get recent activities
@@ -319,13 +522,40 @@ export async function GET(request: NextRequest) {
         {
           success: true,
           stats: {
+            // Resident stats
             totalResidents,
+            // Payment stats
             totalPayments,
-            totalRevenue,
+            completedPayments,
             pendingPayments,
+            totalRevenue,
+            monthlyRevenue,
+            monthlyPaymentsCount: monthlyPayments.length,
+            revenueGrowth,
+            // Fee stats
+            totalFees,
+            pendingFees,
             overdueFees,
+            totalExpectedRevenue,
+            pendingAmount,
+            overdueAmount,
+            collectionRate,
+            // Expense stats
+            totalExpenses,
+            monthlyExpenses: monthlyExpenses.length,
+            monthlyExpensesAmount,
+            totalExpensesAmount,
+            // Profit stats
+            monthlyProfit,
+            totalProfit,
+            // Incident stats
+            totalIncidents,
             openIncidents,
+            resolvedIncidents,
+            // Complaint stats
+            totalComplaints,
             openComplaints,
+            resolvedComplaints,
           },
           user: {
             name: userProfile.full_name || 'Syndic',

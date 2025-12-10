@@ -59,24 +59,25 @@ export async function GET(request: NextRequest) {
 
     console.log('[Mobile API] Residents: Role:', requestedRole, 'Profile role:', userProfile.role);
 
-    // Determine the effective role: use requested role if provided, otherwise use profile role
-    const effectiveRole = requestedRole || userProfile.role;
-
-    // Only syndics can view all residents (must be in syndic mode)
-    if (effectiveRole !== 'syndic') {
-      console.error('[Mobile API] Residents: User is not in syndic mode. Effective role:', effectiveRole);
-      return NextResponse.json(
-        { success: false, error: 'Only syndics can view all residents. Please switch to syndic mode.' },
-        { status: 403, headers: getCorsHeaders() }
-      );
-    }
-
-    // Get residence ID - verify user is actually a syndic
+    // CRITICAL: Verify user is actually a syndic (check database, not just role parameter)
     const { data: residence } = await supabase
       .from('residences')
       .select('id')
       .eq('syndic_user_id', userId)
       .maybeSingle();
+
+    // Only syndics can view all residents - verify they are actually a syndic
+    if (!residence) {
+      console.error('[Mobile API] Residents: User is not a syndic. User ID:', userId);
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can view all residents. You do not have syndic privileges.' },
+        { status: 403, headers: getCorsHeaders() }
+      );
+    }
+
+    // Determine the effective role: use requested role if provided, otherwise use profile role
+    // But since we've verified they're a syndic, we can safely use 'syndic'
+    const effectiveRole = 'syndic'; // Force to syndic since we've verified they are one
 
     if (!residence) {
       console.error('[Mobile API] Residents: User is not a syndic of any residence:', userId);
