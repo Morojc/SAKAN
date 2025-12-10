@@ -41,11 +41,6 @@ export async function GET(
       );
     }
 
-    const id = parseInt(params.id);
-    if (isNaN(id)) {
-      return NextResponse.json({ success: false, error: 'Invalid fee ID' }, { status: 400 });
-    }
-
     const supabase = createSupabaseAdminClient();
     const id = parseInt(params.id);
     if (isNaN(id)) {
