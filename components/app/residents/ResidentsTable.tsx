@@ -54,6 +54,7 @@ export default function ResidentsTable({
   onDelete,
   onAddFee,
   loading,
+  currentUserId,
   selectedResidentIds = new Set(),
   onSelectionChange,
   onSelectAll,

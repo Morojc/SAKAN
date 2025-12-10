@@ -184,8 +184,7 @@ export async function POST(req: Request) {
       isAddingSelf: isAddingSelf, // Flag to indicate syndic is adding themselves
       existsInOtherResidence: existsInOtherResidence, // Flag to indicate user exists in another residence
       existingProfileData: existingProfileData, // Profile data to show in read-only fields
-      canUse: canUse,
-      error: errorMessage
+      canUse: canUse
     });
 
   } catch (error: any) {

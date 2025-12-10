@@ -324,7 +324,8 @@ export async function getComplaints(filters?: {
 
     // If no residence_id provided, get from user's role
     if (!residenceId) {
-      residenceId = await getUserResidenceId(userId, userRole, adminSupabase);
+      const fetchedResidenceId = await getUserResidenceId(userId, userRole, adminSupabase);
+      residenceId = fetchedResidenceId || undefined;
     }
 
     if (!residenceId) {
@@ -585,7 +586,7 @@ export async function updateComplaintStatus(data: UpdateComplaintStatusData) {
     // Set resolved_at when status is resolved
     if (data.status === 'resolved') {
       updateData.resolved_at = new Date().toISOString();
-    } else if (existingComplaint.status === 'resolved' && data.status !== 'resolved') {
+    } else if ((existingComplaint.status as string) === 'resolved' && (data.status as string) !== 'resolved') {
       // Clear resolved_at if status changed from resolved
       updateData.resolved_at = null;
     }

@@ -40,6 +40,7 @@ export default function ResidentsGrid({
   onDelete,
   onAddFee,
   loading,
+  currentUserId,
 }: ResidentsGridProps) {
   console.log('[ResidentsGrid] Rendering with', residents.length, 'residents');
 

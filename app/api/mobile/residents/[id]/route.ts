@@ -30,7 +30,7 @@ export async function OPTIONS() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const mobileUser = await getMobileUser(request);
@@ -42,7 +42,7 @@ export async function GET(
     }
 
     const supabase = createSupabaseAdminClient();
-    const id = params.id;
+    const id = (await params).id;
 
     // Get resident from profile_residences
     const { data: residentLink, error: linkError } = await supabase
@@ -82,13 +82,16 @@ export async function GET(
       .eq('id', id)
       .maybeSingle();
 
+    // residentLink.profiles is now an array from the select('profiles(*)')
+    const profile = Array.isArray(residentLink.profiles) ? residentLink.profiles[0] : residentLink.profiles;
+    
     const resident = {
       id: residentLink.profile_id,
-      full_name: residentLink.profiles?.full_name || 'Unknown',
+      full_name: profile?.full_name || 'Unknown',
       email: user?.email || '',
-      phone_number: residentLink.profiles?.phone_number || null,
+      phone_number: profile?.phone_number || null,
       apartment_number: residentLink.apartment_number || null,
-      role: residentLink.profiles?.role || 'resident',
+      role: profile?.role || 'resident',
       verified: residentLink.verified || false,
     };
 
@@ -107,7 +110,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const mobileUser = await getMobileUser(request);
@@ -149,7 +152,7 @@ export async function PATCH(
       );
     }
 
-    const id = params.id;
+    const id = (await params).id;
     const body = await request.json();
 
     // Update profile if provided
@@ -203,7 +206,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const mobileUser = await getMobileUser(request);
@@ -248,7 +251,7 @@ export async function DELETE(
       );
     }
 
-    const id = params.id;
+    const id = (await params).id;
 
     // Get residence ID to ensure we only delete from the syndic's residence
     const { data: residence } = await supabase

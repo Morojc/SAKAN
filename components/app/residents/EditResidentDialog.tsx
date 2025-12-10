@@ -137,8 +137,8 @@ export default function EditResidentDialog({
         console.log('[EditResidentDialog] Residences fetched:', result.residences.length);
         setResidences(result.residences);
       } else {
-        console.error('[EditResidentDialog] Error fetching residences:', result.error);
-        toast.error(result.error || 'Failed to load residences');
+        console.error('[EditResidentDialog] Error fetching residences');
+        toast.error('Failed to load residences');
       }
     } catch (error: any) {
       console.error('[EditResidentDialog] Error fetching residences:', error);
@@ -236,7 +236,7 @@ export default function EditResidentDialog({
         const updatedResident: ResidentWithFees = {
           ...resident,
           full_name: result.resident.full_name,
-          apartment_number: result.resident.apartment_number,
+          apartment_number: result.resident.apartment_number || null,
           phone_number: result.resident.phone_number,
           role: result.resident.role,
           residence_id: Number(residenceId),

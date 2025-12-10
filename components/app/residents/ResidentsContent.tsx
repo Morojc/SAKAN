@@ -81,7 +81,7 @@ export default function ResidentsContent({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [_loading, setLoading] = useState(false);
+  const [loading, ] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   
   // Bulk selection state

@@ -80,8 +80,8 @@ export default function AddFeeDialog({
         console.log('[AddFeeDialog] Residences fetched:', result.residences.length);
         setResidences(result.residences);
       } else {
-        console.error('[AddFeeDialog] Error fetching residences:', result.error);
-        toast.error(result.error || 'Failed to load residences');
+        console.error('[AddFeeDialog] Error fetching residences');
+        toast.error('Failed to load residences');
       }
     } catch (error: any) {
       console.error('[AddFeeDialog] Error fetching residences:', error);

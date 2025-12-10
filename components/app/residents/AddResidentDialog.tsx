@@ -446,8 +446,8 @@ export default function AddResidentDialog({
         console.log('[AddResidentDialog] Residences fetched:', result.residences.length);
         setResidences(result.residences);
       } else {
-        console.error('[AddResidentDialog] Error fetching residences:', result.error);
-        toast.error(result.error || 'Failed to load residences');
+        console.error('[AddResidentDialog] Error fetching residences');
+        toast.error('Failed to load residences');
       }
     } catch (error: any) {
       console.error('[AddResidentDialog] Error fetching residences:', error);
