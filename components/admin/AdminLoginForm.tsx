@@ -42,7 +42,7 @@ export function AdminLoginForm({ accessHash, adminEmail }: AdminLoginFormProps) 
       } else {
         setError(data.error || 'Email ou mot de passe incorrect')
       }
-    } catch (_err) {
+    } catch {
       setError('Une erreur est survenue. Veuillez réessayer.')
     } finally {
       setIsLoading(false)

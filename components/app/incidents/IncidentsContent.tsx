@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, AlertCircle, Filter, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import { Plus, AlertCircle, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -168,7 +168,7 @@ export default function IncidentsContent({
   // Check permissions
   const canReportIncident = currentUserRole === 'resident' || currentUserRole === 'syndic';
   const canManageIncidents = currentUserRole === 'syndic';
-  const canViewAll = currentUserRole === 'syndic' || currentUserRole === 'guard';
+  // const canViewAll = currentUserRole === 'syndic' || currentUserRole === 'guard';
 
   return (
     <div className="space-y-8 relative pb-20 px-1">

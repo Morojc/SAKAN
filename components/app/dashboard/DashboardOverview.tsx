@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, Users, Wallet, Clock, Target, TrendingUp, TrendingDown, Plus, ArrowRight, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Building2, Users, Wallet, Target, TrendingUp, TrendingDown, Plus, ArrowRight, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -65,10 +65,10 @@ export default function DashboardOverview({ stats, loading }: DashboardOverviewP
 	// Calculate metrics
 	const activeResidents = stats.totalResidents;
 	const residentsChange = stats.residentsChange || 0;
-	const avgTimeToResolve = 18; // days (placeholder)
-	const timeChange = -3; // days (placeholder)
+	// const avgTimeToResolve = 18; // days (placeholder)
+	// const timeChange = -3; // days (placeholder)
 	const fillRate = stats.fillRate || 100;
-	const fillRateChange = 5; // % (placeholder)
+	// const fillRateChange = 5; // % (placeholder)
 
 	const container = {
 		hidden: { opacity: 0 },

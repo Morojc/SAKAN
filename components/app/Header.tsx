@@ -15,16 +15,16 @@ import { useSidebar } from "./SidebarProvider";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const pathname = usePathname();
+  // const pathname = usePathname();
   const { t } = useI18n();
   const { isCollapsed, toggleSidebar } = useSidebar();
 
-  const isActive = (path: string) => {
-    if (path === "/app") {
-      return pathname === "/app" || pathname === "/app/";
-    }
-    return pathname?.startsWith(path);
-  };
+  // const isActive = (path: string) => {
+  //   if (path === "/app") {
+  //     return pathname === "/app" || pathname === "/app/";
+  //   }
+  //   return pathname?.startsWith(path);
+  // };
 
   return (
     <>

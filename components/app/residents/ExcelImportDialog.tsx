@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -48,7 +48,7 @@ export default function ExcelImportDialog({
   const [parsedData, setParsedData] = useState<ParsedResident[]>([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [_errors, setErrors] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ valid: ParsedResident[]; invalid: { row: number; data: any; error: string }[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,7 +195,7 @@ export default function ExcelImportDialog({
   };
 
   // Validate a row
-  const validateRow = (name: string, email: string, apartment: string, rowNum: number): string | null => {
+  const validateRow = (name: string, email: string, apartment: string, _rowNum: number): string | null => {
     if (!name || name.length < 2) {
       return 'Name is required and must be at least 2 characters';
     }
@@ -230,10 +230,10 @@ export default function ExcelImportDialog({
     XLSX.utils.book_append_sheet(wb, ws, 'Residents');
 
     // Style header row
-    const headerStyle = {
-      font: { bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '4472C4' } },
-    };
+    // const headerStyle = {
+    //   font: { bold: true, color: { rgb: 'FFFFFF' } },
+    //   fill: { fgColor: { rgb: '4472C4' } },
+    // };
 
     XLSX.writeFile(wb, 'residents_import_template.xlsx');
     toast.success('Template downloaded!');

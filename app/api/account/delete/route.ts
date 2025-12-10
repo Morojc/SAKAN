@@ -117,7 +117,7 @@ async function deleteResidenceRecursively(supabase: any, residenceId: number) {
 }
 
 // Helper to delete user account data
-export async function deleteUserAccount(userId: string, userEmail?: string | null, skipDeletionRequestCheck: boolean = false) {
+async function deleteUserAccount(userId: string, userEmail?: string | null, skipDeletionRequestCheck: boolean = false) {
   const adminSupabase = createSupabaseAdminClient();
   
   // Create a client configured for dbasakan schema with service role

@@ -56,7 +56,7 @@ export default function EditResidentDialog({
   const [role, setRole] = useState<'resident' | 'guard'>('resident');
   const [originalRole, setOriginalRole] = useState<string>(''); // Store original role to preserve syndic
   const [existsInOtherResidence, setExistsInOtherResidence] = useState(false); // Check if resident exists in other residences
-  const [checkingOtherResidences, setCheckingOtherResidences] = useState(false);
+  const [_checkingOtherResidences, setCheckingOtherResidences] = useState(false);
 
   // Validation errors
   const [errors, setErrors] = useState<{

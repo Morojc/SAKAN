@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { motion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import TermsAndConditionsDialog from './TermsAndConditionsDialog';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Trash2, AlertCircle, UserCheck, Search, X, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 

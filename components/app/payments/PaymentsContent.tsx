@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Wallet, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AddPaymentDialog from './AddPaymentDialog';
 import PaymentsTable from './PaymentsTable';
 import { getBalances } from '@/app/actions/payments';

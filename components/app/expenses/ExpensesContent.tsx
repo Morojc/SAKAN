@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Receipt, Calendar, Filter } from 'lucide-react';
+import { Plus, Receipt, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,7 +13,7 @@ import EditExpenseDialog from './EditExpenseDialog';
 import DeleteExpenseDialog from './DeleteExpenseDialog';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
-import { createExpense, updateExpense, deleteExpense } from '@/app/app/expenses/actions';
+import { deleteExpense } from '@/app/app/expenses/actions';
 
 /**
  * Expense data structure
@@ -65,7 +65,6 @@ const EXPENSE_CATEGORIES = [
  */
 export default function ExpensesContent({ 
   initialExpenses, 
-  currentUserId,
   currentUserRole,
   currentUserResidenceId,
   residenceName,

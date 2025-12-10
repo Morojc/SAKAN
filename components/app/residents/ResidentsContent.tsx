@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ResidentsTable from './ResidentsTable';
 import ResidentsGrid from './ResidentsGrid';
-import ResidentsViewToggle from './ResidentsViewToggle';
+// import ResidentsViewToggle from './ResidentsViewToggle';
 import AddResidentDialog from './AddResidentDialog';
 import BulkDeleteDialog from './BulkDeleteDialog';
 import ExcelImportDialog from './ExcelImportDialog';
@@ -81,7 +81,7 @@ export default function ResidentsContent({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   
   // Bulk selection state

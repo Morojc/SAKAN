@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Receipt, Loader2, Upload, X } from 'lucide-react';
+import { Receipt, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -82,7 +82,7 @@ export function Sidebar() {
     <div className="h-full flex flex-col bg-white border-r border-gray-100 w-full shrink-0">
       {/* Navigation */}
       <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto custom-scrollbar">
-        {navigationItems.map((section, idx) => (
+        {navigationItems.map((section) => (
           <div key={section.category} className="space-y-2">
             <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
               {section.category}

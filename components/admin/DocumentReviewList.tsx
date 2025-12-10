@@ -208,7 +208,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
             )
             toast.error(result.error || 'Erreur lors de l\'approbation')
           }
-        } catch (_error) {
+        } catch {
           // Revert optimistic update on error
           setOptimisticSubmissions(prev => 
             prev.map(sub => 
@@ -285,7 +285,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
           )
           toast.error(result.error || 'Erreur lors de la mise à jour')
         }
-      } catch (_error) {
+      } catch {
         // Revert optimistic update on error
         setOptimisticSubmissions(prev => 
           prev.map(sub => 

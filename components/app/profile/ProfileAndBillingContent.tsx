@@ -5,7 +5,7 @@ import PortalButton from '@/components/stripe/PortalButton';
 import CheckoutButton from "@/components/CheckoutButton";
 import { PlanChangeButton } from '@/components/stripe/PlanChangeButton';
 import DeleteAccountButton from '@/components/app/profile/DeleteAccountButton';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
 import { RefreshCw } from 'lucide-react';
 

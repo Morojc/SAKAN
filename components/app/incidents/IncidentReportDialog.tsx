@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, Loader2, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { AlertCircle, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MoreVertical, Edit, Trash2, DollarSign, ArrowUpDown, ArrowUp, ArrowDown, Users, ChevronDown } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, DollarSign, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -53,10 +53,7 @@ export default function ResidentsTable({
   onEdit,
   onDelete,
   onAddFee,
-  onUpdateFee,
   loading,
-  currentUserId,
-  currentUserRole,
   selectedResidentIds = new Set(),
   onSelectionChange,
   onSelectAll,
@@ -119,7 +116,7 @@ export default function ResidentsTable({
 
   // Check if all visible residents are selected
   const allSelected = sortedResidents.length > 0 && sortedResidents.every((r) => selectedResidentIds.has(r.id));
-  const someSelected = sortedResidents.some((r) => selectedResidentIds.has(r.id));
+  // const someSelected = sortedResidents.some((r) => selectedResidentIds.has(r.id));
 
   // Format currency
   const formatCurrency = (amount: number) => {

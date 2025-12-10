@@ -59,21 +59,21 @@ export default function AddResidentDialog({
 
   // Email validation state
   const [emailChecking, setEmailChecking] = useState(false);
-  const [emailExists, setEmailExists] = useState(false);
+  const [_emailExists, setEmailExists] = useState(false);
   const [isSyndic, setIsSyndic] = useState(false);
   const [existingRole, setExistingRole] = useState<string | null>(null);
   const [syndicError, setSyndicError] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isAddingSelf, setIsAddingSelf] = useState(false);
-  const [currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; phone_number: string | null } | null>(null);
+  const [_currentUserProfile, setCurrentUserProfile] = useState<{ full_name: string; phone_number: string | null } | null>(null);
   const [existsInOtherResidence, setExistsInOtherResidence] = useState(false);
-  const [existingProfileData, setExistingProfileData] = useState<{ full_name: string; phone_number: string | null } | null>(null);
+  const [_existingProfileData, setExistingProfileData] = useState<{ full_name: string; phone_number: string | null } | null>(null);
 
   // Apartment validation state
   const [apartmentChecking, setApartmentChecking] = useState(false);
   const [apartmentTaken, setApartmentTaken] = useState(false);
   const [apartmentError, setApartmentError] = useState<string | null>(null);
-  const [apartmentReservedBy, setApartmentReservedBy] = useState<string | null>(null);
+  const [_apartmentReservedBy, setApartmentReservedBy] = useState<string | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState<{

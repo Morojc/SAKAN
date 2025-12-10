@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit, Trash2, DollarSign, Mail, Phone, MapPin, User, Building2, MoreVertical, AlertCircle, Crown } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Edit, Trash2, DollarSign, Mail, Phone, User, Building2, MoreVertical, Crown } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,10 +39,7 @@ export default function ResidentsGrid({
   onEdit,
   onDelete,
   onAddFee,
-  onUpdateFee,
   loading,
-  currentUserId,
-  currentUserRole,
 }: ResidentsGridProps) {
   console.log('[ResidentsGrid] Rendering with', residents.length, 'residents');
 
