@@ -6,13 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Check, X, Loader2 } from 'lucide-react'
 import { reviewDocument } from '@/app/admin/documents/actions'
 import { useRouter } from 'next/navigation'
@@ -64,7 +57,7 @@ export function DocumentReviewModal({
   const [residenceBankRib, setResidenceBankRib] = useState('')
 
   // Filter residences that don't have a syndic or only show all for now
-  const availableResidences = residences.filter(r => !r.syndic_user_id || r.syndic_user_id === submission.user_id)
+  // const availableResidences = residences.filter(r => !r.syndic_user_id || r.syndic_user_id === submission.user_id)
 
   // Check if syndic already has a residence
   const existingSyndicResidence = residences.find(r => r.syndic_user_id === submission.user_id)

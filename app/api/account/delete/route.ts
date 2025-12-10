@@ -3,7 +3,6 @@ import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe/client';
 import { getCustomerByUserId } from '@/lib/stripe/services/customer.service';
-import { revalidatePath } from 'next/cache';
 import { getUserResidenceId } from '@/lib/residence-utils';
 
 // Helper to cancel Stripe subscriptions
@@ -307,7 +306,7 @@ export async function POST(req: Request) {
 
       // Parse request body for successorId
       const body = await req.json().catch(() => ({}));
-      const { successorId } = body;
+      const _successorId = body.successorId;
 
       // Query residents from profile_residences in dbasakan schema
       const { data: otherResidents, error: residentsCheckError } = await dbasakanClient

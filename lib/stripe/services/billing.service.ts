@@ -1,5 +1,5 @@
 import { stripe } from '@/lib/stripe/client';
-import { getCustomerIdByUserId, getOrCreateCustomer } from './customer.service';
+import { getCustomerIdByUserId } from './customer.service';
 
 /**
  * Stripe Billing Service

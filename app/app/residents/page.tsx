@@ -168,7 +168,7 @@ async function ResidentsData() {
           .select('id, email')
           .in('id', userIds);
         users = usersData;
-      } catch (error) {
+      } catch (_error) {
         console.warn('Error fetching emails');
       }
     }

@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
     // Generate session token
     const sessionToken = crypto.randomUUID()
 
-    // Create JWT token
-    const token = await new SignJWT({
+    // Create JWT token (not used currently but kept for future)
+    await new SignJWT({
       adminId: admin.admin_id,
       email: admin.email,
       fullName: admin.full_name,

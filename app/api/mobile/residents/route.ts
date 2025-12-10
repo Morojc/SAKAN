@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     // Determine the effective role: use requested role if provided, otherwise use profile role
     // But since we've verified they're a syndic, we can safely use 'syndic'
-    const effectiveRole = 'syndic'; // Force to syndic since we've verified they are one
+    // const effectiveRole = 'syndic'; // Force to syndic since we've verified they are one
 
     if (!residence) {
       console.error('[Mobile API] Residents: User is not a syndic of any residence:', userId);
@@ -372,7 +372,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create profile_residences link
-    const { data: newResident, error: createError } = await supabase
+    const { error: createError } = await supabase
       .from('profile_residences')
       .insert({
         profile_id: finalUserId,

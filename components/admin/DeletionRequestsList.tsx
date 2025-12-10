@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { 
   Trash2, 
-  User, 
   Building2, 
   Phone, 
   Mail, 

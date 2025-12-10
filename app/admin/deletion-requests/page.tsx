@@ -1,4 +1,3 @@
-import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import { DeletionRequestsList } from "@/components/admin/DeletionRequestsList"
 
 export const dynamic = 'force-dynamic'

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
-import { CheckCircle2, XCircle, Loader2, AlertCircle, Mail, KeyRound, RefreshCw, X } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Mail, KeyRound, RefreshCw, X } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import config from '@/config';
 import { AuthNavigationManager } from '@/lib/auth-navigation';

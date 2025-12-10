@@ -1,5 +1,3 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-
 export async function getUserResidenceId(supabase: any, userId: string, role?: string) {
     if (!userId) return null;
 

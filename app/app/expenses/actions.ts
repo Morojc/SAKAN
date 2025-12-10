@@ -366,7 +366,7 @@ export async function uploadExpenseAttachment(formData: FormData): Promise<{ suc
     const filePath = `expenses/${fileName}`;
 
     const arrayBuffer = await file.arrayBuffer();
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('SAKAN')
       .upload(filePath, arrayBuffer, {
         contentType: file.type,

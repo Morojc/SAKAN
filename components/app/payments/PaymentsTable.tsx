@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { generateCashReceiptPDF, downloadPDF } from '@/lib/pdf/generator';
 import toast from 'react-hot-toast';
 

@@ -77,11 +77,11 @@ export function CanceledSubscriptionAlert({
 	};
 
 	// Different alert styles based on days remaining
-	const getAlertVariant = () => {
-		if (daysRemaining <= 3) return 'destructive'; // Red
-		if (daysRemaining <= 7) return 'default'; // Amber (will be styled)
-		return 'default'; // Yellow
-	};
+	// const getAlertVariant = () => {
+	// 	if (daysRemaining <= 3) return 'destructive'; // Red
+	// 	if (daysRemaining <= 7) return 'default'; // Amber (will be styled)
+	// 	return 'default'; // Yellow
+	// };
 
 	const getAlertStyles = () => {
 		if (daysRemaining <= 3) {

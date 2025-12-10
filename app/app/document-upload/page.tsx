@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Upload, FileText, CheckCircle2, XCircle, Loader2, AlertCircle, Eye, X, CreditCard, LogOut } from 'lucide-react';
-import { uploadDocument, getDocumentStatus, cancelSubmission } from './actions';
+import { uploadDocument, getDocumentStatus } from './actions';
 import { toast } from 'react-hot-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { signOut, useSession } from 'next-auth/react';

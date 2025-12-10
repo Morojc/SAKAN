@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMobileUser } from '@/lib/auth/mobile';
-import { createCashPayment, getBalances, getResidents } from '@/app/actions/payments';
+import { createCashPayment } from '@/app/actions/payments';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 /**

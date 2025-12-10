@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
-import { getSupabaseClient, createSupabaseAdminClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -112,14 +112,14 @@ export async function createResident(data: CreateResidentData) {
     
     // Check if existing user is a syndic - if so, allow them to be added as resident
     // (their syndic role will be preserved automatically)
-    let isExistingSyndic = false;
+    // let isExistingSyndic = false;
     if (existingUser) {
-      const { data: existingProfile } = await adminSupabase
+      const { data: _existingProfile } = await adminSupabase
         .from('profiles')
         .select('role')
         .eq('id', existingUser.id)
         .maybeSingle();
-      isExistingSyndic = existingProfile?.role === 'syndic';
+      // isExistingSyndic = _existingProfile?.role === 'syndic';
     }
 
     // Note: Role validation is not needed here because:

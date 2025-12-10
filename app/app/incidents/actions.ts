@@ -424,7 +424,7 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
     const filePath = `incidents/${fileName}`;
 
     const arrayBuffer = await file.arrayBuffer();
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('SAKAN')
       .upload(filePath, arrayBuffer, {
         contentType: file.type,

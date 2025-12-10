@@ -18,7 +18,6 @@ export function generateVerificationCode(): string {
  * Send email verification code to user
  */
 export async function sendVerificationCode(email: string, code: string, userName?: string): Promise<void> {
-	const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 	const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
 	try {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMobileUser } from '@/lib/auth/mobile';
-import { createIncident } from '@/app/app/incidents/actions';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 
 /**
@@ -21,7 +20,7 @@ export async function OPTIONS() {
 /**
  * Helper to get user's residence ID
  */
-async function getUserResidenceId(userId: string, userRole: string, supabase: any): Promise<number | null> {
+async function _getUserResidenceId(userId: string, userRole: string, supabase: any): Promise<number | null> {
   if (userRole === 'syndic') {
     const { data } = await supabase.from('residences').select('id').eq('syndic_user_id', userId).maybeSingle();
     return data?.id || null;

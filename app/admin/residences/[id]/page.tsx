@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button"
 
 export const dynamic = 'force-dynamic'
 
-export default async function ResidenceDetailsPage({ params }: { params: { id: string } }) {
+export default async function ResidenceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = createSupabaseAdminClient()
   
   // Fetch residence
   const { data: residence, error: residenceError } = await supabase
     .from('residences')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (residenceError || !residence) {
@@ -27,7 +28,7 @@ export default async function ResidenceDetailsPage({ params }: { params: { id: s
   const { data: profileResidences } = await supabase
     .from('profile_residences')
     .select('profile_id')
-    .eq('residence_id', params.id)
+    .eq('residence_id', id)
   
   const profileIds = profileResidences?.map(pr => pr.profile_id) || []
   

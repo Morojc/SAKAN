@@ -115,7 +115,7 @@ export async function POST(req: Request) {
  * POST /api/verify-email-code/resend
  * Resends the verification code
  */
-export async function PUT(req: Request) {
+export async function PUT(_req: Request) {
 	try {
 		const session = await auth();
 		if (!session?.user?.id || !session?.user?.email) {

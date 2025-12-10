@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAdminId } from '@/lib/admin-auth';
 
@@ -15,7 +14,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated as admin' }, { status: 401 });
     }
 
-    const supabase = createSupabaseAdminClient();
     const { createClient } = await import('@supabase/supabase-js');
     const dbasakanClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

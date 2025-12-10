@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 // TODO: Implement these functions for evidence upload feature
+// import { auth } from '@/lib/auth';
 // import { uploadComplaintEvidence, addComplaintEvidence } from '@/app/app/complaints/actions';
 
 /**
@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
  * POST /api/mobile/complaints/evidence - Upload evidence file
  */
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   // TODO: Implement complaint evidence upload feature
   // This endpoint requires uploadComplaintEvidence and addComplaintEvidence functions
   return NextResponse.json(

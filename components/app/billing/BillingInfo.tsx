@@ -1,15 +1,14 @@
-import { createSupabaseAdminClient, getSupabaseClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from "@/lib/auth"
 import PortalButton from '@/components/stripe/PortalButton';
-import { stripe } from '@/lib/stripe/client';
 import config from '@/config';
 import RefundButton from '@/components/stripe/RefundButton';
 import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';
 import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
 
 // Helper function to get plan name from price ID
-function getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
-	for (const [planType, planData] of Object.entries(config.stripe)) {
+function _getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
+	for (const [_planType, planData] of Object.entries(config.stripe)) {
 		if (planData.monthPriceId === priceId) {
 			return { name: planData.name, interval: 'month' };
 		}

@@ -4,7 +4,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const cookieStore = await cookies()
     const sessionToken = cookieStore.get('admin_session')?.value
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Also support GET for simple logout links
-  return POST(request)
+  return POST(_request)
 }
 

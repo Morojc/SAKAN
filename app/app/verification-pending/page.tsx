@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, ArrowLeft, LogOut, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Clock, FileText, RefreshCw, Upload, LogOut, Trash2 } from 'lucide-react';
 import { getDocumentStatus } from '../document-upload/actions';
 import { toast } from 'react-hot-toast';
 import { signOut, useSession } from 'next-auth/react';

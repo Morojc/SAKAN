@@ -1,15 +1,13 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
+import React from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { 
-  ArrowRight, Building2, Users, Wallet, Shield, Zap, 
-  BarChart3, Layers, Globe, MessageSquare, Menu, X, 
-  ChevronRight, CheckCircle2, LayoutDashboard, ChevronDown,
-  Play
+  ArrowRight, Building2, Users, Wallet, Zap, 
+  BarChart3, Layers, Menu, X, 
+  ChevronRight
 } from 'lucide-react'
-import Image from 'next/image'
 import config from '@/config'
 import UserMenu from '@/components/user/UserMenu'
 import SignIn from '@/components/sign-in'

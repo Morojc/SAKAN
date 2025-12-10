@@ -3,7 +3,6 @@ import config from "@/config";
 import "./globals.css";
 import { GoogleTagManager } from '@next/third-parties/google'
 import { OpenPanelComponent } from '@openpanel/nextjs';
-import { SessionProvider } from "next-auth/react"
 import { Toaster } from 'react-hot-toast';
 import FooterWrapper from "@/components/ui/FooterWrapper";
 import { Providers } from "@/components/providers";

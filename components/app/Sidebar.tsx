@@ -7,14 +7,8 @@ import {
   Users, 
   CreditCard, 
   AlertCircle, 
-  Megaphone, 
-  UserCircle,
-  FileText,
-  Calendar,
   Settings,
-  BarChart3,
   MessageSquare,
-  LogOut,
   ChevronRight,
   Receipt
 } from "lucide-react";

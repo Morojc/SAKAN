@@ -209,7 +209,6 @@ export async function POST(request: NextRequest) {
 						const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
 						
 						const priceId = subscription.items.data[0]?.price?.id;
-						const productId = subscription.items.data[0]?.price?.product;
 						const amount = subscription.items.data[0]?.price?.unit_amount || 0;
 						const currency = subscription.currency || 'usd';
 						const interval = subscription.items.data[0]?.price?.recurring?.interval || 'month';
@@ -217,7 +216,7 @@ export async function POST(request: NextRequest) {
 						// Determine plan name from price ID
 						let planName = 'Unknown';
 						if (priceId) {
-							for (const [planType, planData] of Object.entries(config.stripe)) {
+							for (const [_planType, planData] of Object.entries(config.stripe)) {
 								if (planData.monthPriceId === priceId || planData.yearPriceId === priceId) {
 									planName = planData.name;
 									break;
@@ -402,7 +401,6 @@ export async function POST(request: NextRequest) {
 
 						// Get subscription details for plan information
 						const priceId = subscription.items.data[0]?.price?.id;
-						const productId = subscription.items.data[0]?.price?.product;
 						const amount = subscription.items.data[0]?.price?.unit_amount || 0;
 						const currency = subscription.currency || 'usd';
 						const interval = subscription.items.data[0]?.price?.recurring?.interval || 'month';
@@ -410,7 +408,7 @@ export async function POST(request: NextRequest) {
 						// Determine plan name from price ID
 						let planName = 'Unknown';
 						if (priceId) {
-							for (const [planType, planData] of Object.entries(config.stripe)) {
+							for (const [_planType, planData] of Object.entries(config.stripe)) {
 								if (planData.monthPriceId === priceId || planData.yearPriceId === priceId) {
 									planName = planData.name;
 									break;
@@ -555,7 +553,7 @@ export async function POST(request: NextRequest) {
 					// Determine plan name from price ID
 					let planName = 'Unknown';
 					if (priceId) {
-						for (const [planType, planData] of Object.entries(config.stripe)) {
+						for (const [_planType, planData] of Object.entries(config.stripe)) {
 							if (planData.monthPriceId === priceId || planData.yearPriceId === priceId) {
 								planName = planData.name;
 								break;
@@ -767,7 +765,7 @@ export async function POST(request: NextRequest) {
 						// Determine plan name from price ID
 						let planName = 'Unknown';
 						if (priceId) {
-							for (const [planType, planData] of Object.entries(config.stripe)) {
+							for (const [_planType, planData] of Object.entries(config.stripe)) {
 								if (planData.monthPriceId === priceId || planData.yearPriceId === priceId) {
 									planName = planData.name;
 									break;
@@ -900,7 +898,7 @@ export async function POST(request: NextRequest) {
 							// Determine plan name from price ID
 							let planName = 'Unknown';
 							if (subPriceId) {
-								for (const [planType, planData] of Object.entries(config.stripe)) {
+								for (const [_planType, planData] of Object.entries(config.stripe)) {
 									if (planData.monthPriceId === subPriceId || planData.yearPriceId === subPriceId) {
 										planName = planData.name;
 										break;

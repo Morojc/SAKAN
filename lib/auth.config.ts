@@ -21,7 +21,7 @@ const authConfig = {
 		schema: 'dbasakan',
 	}),
 	callbacks: {
-		async signIn({ user, account, profile }: { user: any; account: any; profile?: any }): Promise<boolean> {
+		async signIn({ }: { user: any; account: any; profile?: any }): Promise<boolean> {
 			return true;
 		},
 		async session({ session, user }: { session: any; user: any }) {

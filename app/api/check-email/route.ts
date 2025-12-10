@@ -95,7 +95,6 @@ export async function POST(req: Request) {
     
     // Check if syndic is adding themselves to their own residence
     let isAddingSelf = false;
-    let errorMessage: string | null = null;
     
     // Check if user exists in another residence (to determine if only apartment number can be updated)
     let existsInOtherResidence = false;

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle, Clock, Eye, Loader2, RefreshCw, FileText } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Eye, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 interface Submission {

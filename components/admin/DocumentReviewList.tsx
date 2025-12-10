@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { FileText, Check, X, Eye, Building2, User, Phone, Calendar, Download, Search, GripVertical, Clock, Sparkles, ArrowRight } from 'lucide-react'
+import { FileText, Check, X, Eye, Building2, Phone, Calendar, Search, GripVertical, Clock, Sparkles, ArrowRight } from 'lucide-react'
 import { DocumentReviewModal } from './DocumentReviewModal'
 import { reviewDocument } from '@/app/admin/documents/actions'
 import { useRouter } from 'next/navigation'
@@ -208,7 +208,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
             )
             toast.error(result.error || 'Erreur lors de l\'approbation')
           }
-        } catch (error) {
+        } catch (_error) {
           // Revert optimistic update on error
           setOptimisticSubmissions(prev => 
             prev.map(sub => 
@@ -285,7 +285,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
           )
           toast.error(result.error || 'Erreur lors de la mise à jour')
         }
-      } catch (error) {
+      } catch (_error) {
         // Revert optimistic update on error
         setOptimisticSubmissions(prev => 
           prev.map(sub => 

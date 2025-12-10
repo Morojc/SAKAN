@@ -23,9 +23,8 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 			};
 		}
 
-		const file = formData.get('file') as File;
-		const idCardFile = formData.get('idCard') as File | null;
-		const documentType = formData.get('documentType') as string; // 'proces-verbal' or 'id-card'
+	const file = formData.get('file') as File;
+	const idCardFile = formData.get('idCard') as File | null;
 		
 		if (!file && !idCardFile) {
 			return {
@@ -162,15 +161,15 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 			const fileName = `${session.user.id}/proces-verbal-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 			const filePath = `syndic-documents/${fileName}`;
 
-			const arrayBuffer = await file.arrayBuffer();
-			const { data: uploadData, error: uploadError } = await supabase.storage
-				.from('SAKAN')
-				.upload(filePath, arrayBuffer, {
-					contentType: file.type,
-					upsert: false,
-				});
+		const arrayBuffer = await file.arrayBuffer();
+		const { error: uploadError } = await supabase.storage
+			.from('SAKAN')
+			.upload(filePath, arrayBuffer, {
+				contentType: file.type,
+				upsert: false,
+			});
 
-			if (uploadError) {
+		if (uploadError) {
 				console.error('[Document Upload] Storage error:', uploadError);
 				return {
 					success: false,
@@ -192,15 +191,15 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 			const fileName = `${session.user.id}/id-card-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 			const filePath = `syndic-documents/${fileName}`;
 
-			const arrayBuffer = await idCardFile.arrayBuffer();
-			const { data: uploadData, error: uploadError } = await supabase.storage
-				.from('SAKAN')
-				.upload(filePath, arrayBuffer, {
-					contentType: idCardFile.type,
-					upsert: false,
-				});
+		const arrayBuffer = await idCardFile.arrayBuffer();
+		const { error: uploadError } = await supabase.storage
+			.from('SAKAN')
+			.upload(filePath, arrayBuffer, {
+				contentType: idCardFile.type,
+				upsert: false,
+			});
 
-			if (uploadError) {
+		if (uploadError) {
 				console.error('[ID Card Upload] Storage error:', uploadError);
 				return {
 					success: false,

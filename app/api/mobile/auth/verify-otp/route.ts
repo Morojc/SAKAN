@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Generate a session token using Supabase admin API
     // Create a session for the user that can be used for API authentication
     let accessToken: string | null = null;
-    let refreshToken: string | null = null;
+    const refreshToken = null;
     
     try {
       // Use admin API to generate a session for the existing user

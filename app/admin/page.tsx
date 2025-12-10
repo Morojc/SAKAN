@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileCheck, Building2, Users, TrendingUp } from 'lucide-react'
+import { FileCheck, Building2, Users } from 'lucide-react'
+import Link from 'next/link'
 
 export default async function AdminDashboardPage() {
   const supabase = createSupabaseAdminClient()
@@ -80,7 +81,7 @@ export default async function AdminDashboardPage() {
             <CardDescription>Accès rapide aux fonctions principales</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <a
+            <Link
               href="/admin/documents"
               className="block p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
             >
@@ -91,9 +92,9 @@ export default async function AdminDashboardPage() {
                   <p className="text-sm text-gray-600">{pendingDocs || 0} documents en attente</p>
                 </div>
               </div>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/admin/residences/new"
               className="block p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
             >
@@ -104,9 +105,9 @@ export default async function AdminDashboardPage() {
                   <p className="text-sm text-gray-600">Créer une nouvelle résidence</p>
                 </div>
               </div>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/admin/syndics"
               className="block p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
             >
@@ -117,7 +118,7 @@ export default async function AdminDashboardPage() {
                   <p className="text-sm text-gray-600">Voir tous les syndics</p>
                 </div>
               </div>
-            </a>
+            </Link>
           </CardContent>
         </Card>
 

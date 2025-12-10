@@ -4,7 +4,7 @@ import { Database } from '@/types/database.types'
 export async function createSupabaseClient() {
 
   const session = await auth()
-  // @ts-ignore
+  // @ts-ignore - supabaseAccessToken is added by our auth callback
   const { supabaseAccessToken } = session
   console.log(supabaseAccessToken)
 

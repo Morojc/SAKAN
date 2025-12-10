@@ -49,7 +49,7 @@ export function ResidenceResidentsList({ residents, residenceId, currentSyndicId
       } else {
         toast.error(result.error || 'Erreur lors du transfert du rôle')
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Une erreur est survenue')
     } finally {
       setIsPromoting(null)

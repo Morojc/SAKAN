@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { Database } from '@/types/database.types'
 
 /**
  * Get authenticated Supabase client for server components and API routes

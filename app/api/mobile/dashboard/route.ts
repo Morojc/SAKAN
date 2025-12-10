@@ -148,7 +148,6 @@ export async function GET(request: NextRequest) {
       // Get resident-specific stats
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
 
       const [
         paymentsResult,
@@ -336,7 +335,6 @@ export async function GET(request: NextRequest) {
       // Get syndic dashboard stats
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
