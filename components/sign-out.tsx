@@ -1,5 +1,4 @@
 import { handleSignOut } from "@/app/actions/auth"
-import config from "@/config";
 
 export default function SignOutButton() {
 	return (

@@ -1,13 +1,14 @@
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from "@/lib/auth"
 import PortalButton from '@/components/stripe/PortalButton';
-import { stripe } from '@/utils/stripe';
 import config from '@/config';
 import RefundButton from '@/components/stripe/RefundButton';
+import { getSubscriptionDetails } from '@/lib/stripe/services/subscription.service';
+import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
 
 // Helper function to get plan name from price ID
-function getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
-	for (const [planType, planData] of Object.entries(config.stripe)) {
+function _getPlanNameFromPriceId(priceId: string): { name: string; interval: string } {
+	for (const [_planType, planData] of Object.entries(config.stripe)) {
 		if (planData.monthPriceId === priceId) {
 			return { name: planData.name, interval: 'month' };
 		}
@@ -79,53 +80,78 @@ function getIntervalBadgeStyle(planName: string): { bgColor: string; textColor: 
 }
 
 export async function BillingInfo() {
-	const supabase = await getSupabaseClient();
-	const session = await auth()
+	console.log('[BillingInfo] Rendering billing info component');
 
-	const userId = session?.user?.id
+	const session = await auth();
+	const userId = session?.user?.id;
+
 	if (!userId) {
-		return <div>User not found</div>
+		console.error('[BillingInfo] User not found');
+		return <div>User not found</div>;
 	}
 
+	// Get user data from database
+	const supabase = createSupabaseAdminClient();
 	const { data: userData, error: userError } = await supabase
 		.from('users')
 		.select('*')
 		.eq('id', userId)
 		.single();
 
-	// Get subscription data  
-	const { data: subscriptionData, error: _subscriptionError } = await supabase
-		.from('stripe_customers')
-		.select('*')
-		.eq('user_id', userId)
-		.eq('plan_active', true)
-		.single();
-
-	let planName = 'Free';
-	let planInterval = 'month';
-	if (subscriptionData?.subscription_id) {
-		const subscription = await stripe.subscriptions.retrieve(subscriptionData.subscription_id);
-		const priceId = subscription.items.data[0].price.id;
-		const planInfo = getPlanNameFromPriceId(priceId);
-		planName = planInfo.name;
-		planInterval = planInfo.interval;
-	}
-
 	if (userError) {
-		console.error('Error fetching user data:', userError);
+		console.error('[BillingInfo] Error fetching user data:', userError);
 		return <div>Error fetching user data</div>;
 	}
 
-	if (_subscriptionError) {
-		console.log('Error fetching subscription data:', _subscriptionError);
-	}
-
 	if (!userData) {
+		console.error('[BillingInfo] User data not found');
 		return <div>User data not found</div>;
 	}
 
+	// Get subscription data using Stripe SDK directly
+	console.log('[BillingInfo] Getting subscription details from Stripe SDK');
+	const subscriptionDetails = await getSubscriptionDetails(userId);
+
+	const planName = subscriptionDetails.planName;
+	const planInterval = subscriptionDetails.planInterval;
+
+	// Format subscription data for display
+	const subscriptionData = subscriptionDetails.customerId
+		? {
+				subscription_id: subscriptionDetails.subscriptionId || null,
+				stripe_customer_id: subscriptionDetails.customerId,
+				plan_active: subscriptionDetails.status === 'active',
+				plan_expires: subscriptionDetails.currentPeriodEnd
+					? subscriptionDetails.currentPeriodEnd.getTime()
+					: null,
+				cancel_at: subscriptionDetails.cancelAt,
+				cancel_at_period_end: subscriptionDetails.cancelAtPeriodEnd,
+				canceled_at: subscriptionDetails.canceledAt,
+				days_remaining: subscriptionDetails.daysRemaining,
+			}
+		: null;
+
+	console.log('[BillingInfo] Subscription details loaded:', {
+		planName,
+		planInterval,
+		hasActiveSubscription: !!subscriptionData,
+		cancelAtPeriodEnd: subscriptionDetails.cancelAtPeriodEnd,
+		daysRemaining: subscriptionDetails.daysRemaining,
+	});
+
 	return (
 		<div className="bg-[var(--background)] shadow rounded-lg p-6 space-y-8">
+			{/* Canceled Subscription Alert */}
+			{subscriptionData?.cancel_at_period_end && subscriptionData.days_remaining !== null && subscriptionData.plan_expires && (
+				<CanceledSubscriptionAlert
+					planName={planName}
+					planInterval={planInterval}
+					daysRemaining={subscriptionData.days_remaining}
+					accessUntil={new Date(subscriptionData.plan_expires)}
+					canceledAt={subscriptionData.canceled_at || null}
+				/>
+			)}
+
 			{/* Subscription Information */}
 			<div>
 				<h2 className="text-xl font-semibold mb-4">Subscription Status</h2>
@@ -137,7 +163,7 @@ export async function BillingInfo() {
 								const style = getPlanBadgeStyle(planName);
 								const intervalStyle = getIntervalBadgeStyle(planName);
 								return (
-									<div className="flex items-center gap-3 mt-1">
+									<div className="flex items-center gap-3 mt-1 flex-wrap">
 										<span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border ${style.bgColor} ${style.textColor} ${style.borderColor}`}>
 											{planName}
 											{planName.toLowerCase() === 'pro' && (
@@ -149,6 +175,14 @@ export async function BillingInfo() {
 										<span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border ${intervalStyle.bgColor} ${intervalStyle.textColor} ${intervalStyle.borderColor}`}>
 											{planInterval === 'year' ? 'Yearly' : 'Monthly'} Plan
 										</span>
+										{subscriptionData?.cancel_at_period_end && (
+											<span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border bg-amber-100 text-amber-800 border-amber-200">
+												<svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+												Ending Soon
+											</span>
+										)}
 									</div>
 								);
 							})()}
@@ -160,8 +194,22 @@ export async function BillingInfo() {
 									<div className="mt-1">
 										{subscriptionData.plan_active ? (
 											<div className="flex items-center gap-2">
-												<div className="w-2 h-2 rounded-full bg-green-500"></div>
-												<span className="font-medium text-green-700">Active</span>
+												{subscriptionData.cancel_at_period_end ? (
+													<>
+														<div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+														<span className="font-medium text-amber-700 flex items-center gap-1.5">
+															<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+															</svg>
+															Active (Scheduled for Cancellation)
+														</span>
+													</>
+												) : (
+													<>
+														<div className="w-2 h-2 rounded-full bg-green-500"></div>
+														<span className="font-medium text-green-700">Active</span>
+													</>
+												)}
 											</div>
 										) : (
 											<div className="flex items-center gap-2">
@@ -173,7 +221,9 @@ export async function BillingInfo() {
 								</div>
 								{subscriptionData.plan_expires && (
 									<div>
-										<label className="text-sm text-gray-600">Plan Expires</label>
+										<label className="text-sm text-gray-600">
+											{subscriptionData.cancel_at_period_end ? 'Access Until' : 'Next Billing Date'}
+										</label>
 										<div className="mt-1 flex flex-col gap-1">
 											<div className="flex items-center gap-2">
 												<svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,6 +242,11 @@ export async function BillingInfo() {
 													}).replace(/^(\d):/, '0$1:')}
 												</time>
 											</div>
+											{subscriptionData.days_remaining !== null && !subscriptionData.cancel_at_period_end && (
+												<p className="text-xs text-gray-500 ml-6">
+													{subscriptionData.days_remaining} {subscriptionData.days_remaining === 1 ? 'day' : 'days'} remaining
+												</p>
+											)}
 										</div>
 									</div>
 								)}

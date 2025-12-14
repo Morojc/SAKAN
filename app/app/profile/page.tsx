@@ -4,8 +4,11 @@ import ProfileAndBillingContent from '@/components/app/profile/ProfileAndBilling
 
 export default function ProfilePage() {
 	return (
-		<div className="max-w-7xl mx-auto p-4 sm:px-6">
-			<h1 className="text-2xl font-bold mb-6">Profile</h1>
+		<div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+			<div className="mb-8">
+				<h1 className="text-3xl font-bold text-gray-900 mb-2">Profile and Settings</h1>
+				<p className="text-gray-600">Manage your account information and subscription</p>
+			</div>
 			<Suspense fallback={<Loading />}>
 				<ProfileAndBillingContent />
 			</Suspense>

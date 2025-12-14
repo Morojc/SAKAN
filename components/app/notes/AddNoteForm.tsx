@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { addNote } from '../../../app/app/notes/actions';
 import { useRouter } from 'next/navigation';
-import config from "@/config";
 
 function AddNoteForm() {
   const [title, setTitle] = useState('');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { stripe } from '@/utils/stripe';
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { stripe } from '@/lib/stripe/client';
+import { getSupabaseClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
 export async function POST(request: Request) {
 	try {
@@ -43,24 +43,52 @@ export async function POST(request: Request) {
 			throw priceError;
 		}
 		
-		const supabase = await getSupabaseClient();
+		// Get authenticated Supabase client (throws error if not authenticated)
+		let supabase;
+		try {
+			supabase = await getSupabaseClient({ throwOnUnauthenticated: true });
+		} catch (error: any) {
+			if (error.message === 'User not authenticated') {
+				return NextResponse.json({ message: 'User not authenticated' }, { status: 401 });
+			}
+			throw error;
+		}
 
-		const { data: subscriptionData, error: _subscriptionError } = await supabase
+		// Check if user has an active subscription
+		// If they do, we'll handle plan change through subscription update instead
+		const { data: subscriptionData } = await supabase
 			.from('stripe_customers')
 			.select('*')
 			.eq('user_id', userId)
 			.eq('plan_active', true)
-			.single();
+			.limit(1);
 
-		if (subscriptionData) {
-			return NextResponse.json({ message: 'User already subscribed' }, { status: 400 });
+		if (subscriptionData && subscriptionData.length > 0) {
+			// User already has subscription - redirect to use subscription update API instead
+			return NextResponse.json({ 
+				message: 'User already subscribed. Please use the subscription update endpoint to change plans.',
+				error: 'already_subscribed',
+				hasSubscription: true
+			}, { status: 400 });
 		}
 
+		// Get origin from request header, or use environment variable for ngrok, or fallback to localhost
+		const origin = request.headers.get('origin') 
+			|| process.env.NEXT_PUBLIC_APP_URL 
+			|| process.env.NGROK_URL 
+			|| 'http://localhost:3000';
+		
 		const session = await stripe.checkout.sessions.create({
 			metadata: {
 				user_id: userId,
 			},
 			customer_email: email,
+			// Pass metadata to subscription and customer when they are created
+			subscription_data: {
+				metadata: {
+					user_id: userId,
+				},
+			},
 			payment_method_types: ['card'],
 			line_items: [
 				{
@@ -69,8 +97,8 @@ export async function POST(request: Request) {
 				}
 			],
 			mode: 'subscription',
-			success_url: `${request.headers.get('origin')}/success`,
-			cancel_url: `${request.headers.get('origin')}/cancel`,
+			success_url: `${origin}/app`,
+			cancel_url: `${origin}/cancel`,
 		});
 
 

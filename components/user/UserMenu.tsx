@@ -1,15 +1,41 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, LogOut, User } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
+import { AuthNavigationManager } from '@/lib/auth-navigation';
 
 export default function UserMenu() {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const { data: session } = useSession();
 	const user = session?.user;
 
-	const handleSignOut = () => {
-		signOut();
+	// Save auth state when user is logged in
+	useEffect(() => {
+		if (user?.id) {
+			AuthNavigationManager.saveAuthState(user.id);
+		}
+	}, [user?.id]);
+
+	// Prevent back button after logout
+	useEffect(() => {
+		const cleanup = AuthNavigationManager.preventBackAfterLogout();
+		return cleanup;
+	}, []);
+
+	const handleSignOut = async (e: React.MouseEvent) => {
+		// Prevent any default behavior or confirmation
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Close menu
+		setIsMenuOpen(false);
+		
+		// Mark logout as user action (not browser navigation)
+		AuthNavigationManager.markLogout();
+		AuthNavigationManager.clearAuthState();
+		
+		// Sign out and use replace to prevent back button issues
+		await signOut({ callbackUrl: '/', redirect: true });
 	};
 
 	if (!user) return null;

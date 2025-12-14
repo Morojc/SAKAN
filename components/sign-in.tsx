@@ -1,5 +1,4 @@
 import { handleSignIn } from "@/app/actions/auth"
-import config from "@/config";
 
 export default function SignIn() {
 	return (

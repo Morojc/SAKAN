@@ -1,5 +1,5 @@
 import AddNoteForm from '../../../components/app/notes/AddNoteForm';
-import { getSupabaseClient } from '@/utils/supabase/server';
+import { getSupabaseClient } from '@/lib/supabase/server';
 import { Suspense } from 'react';
 
 async function NotesList() {
