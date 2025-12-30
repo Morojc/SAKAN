@@ -15,7 +15,13 @@ interface I18nContextType {
   translations: Translations;
 }
 
-const I18nContext = createContext<I18nContextType | undefined>(undefined);
+// Create context with a default value to prevent SSR issues
+const I18nContext = createContext<I18nContextType>({
+  locale: 'fr',
+  setLocale: () => {},
+  t: (key: string) => key,
+  translations: {},
+});
 
 // Load translations
 async function loadTranslations(locale: Locale): Promise<Translations> {
@@ -38,10 +44,14 @@ function getNestedValue(obj: any, path: string): string {
 export function I18nProvider({ children, initialLocale = 'fr' }: { children: ReactNode; initialLocale?: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const [translations, setTranslations] = useState<Translations>({});
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     // Load translations when locale changes
-    loadTranslations(locale).then(setTranslations);
+    loadTranslations(locale).then((trans) => {
+      setTranslations(trans);
+      setIsLoaded(true);
+    });
 
     // Save locale to localStorage
     if (typeof window !== 'undefined') {
@@ -71,6 +81,11 @@ export function I18nProvider({ children, initialLocale = 'fr' }: { children: Rea
   };
 
   const t = (key: string, params?: Record<string, string | number>): string => {
+    // Return empty string if translations not loaded yet
+    if (!isLoaded) {
+      return '';
+    }
+
     let translation = getNestedValue(translations, key);
     
     // If translation not found, return the key
@@ -97,9 +112,6 @@ export function I18nProvider({ children, initialLocale = 'fr' }: { children: Rea
 
 export function useI18n() {
   const context = useContext(I18nContext);
-  if (context === undefined) {
-    throw new Error('useI18n must be used within an I18nProvider');
-  }
   return context;
 }
 
