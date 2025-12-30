@@ -183,7 +183,18 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 
 			// Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
 			// Production builds may differ from types due to minification/bundling
-			documentUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+			// Also handle case where urlData might be undefined
+			const publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+			
+			if (!publicUrl) {
+				console.error('[Document Upload] Failed to get public URL for procès verbal file:', filePath, 'urlData:', urlData);
+				return {
+					success: false,
+					error: 'Failed to generate file URL',
+				};
+			}
+			
+			documentUrl = publicUrl;
 		}
 
 		// Upload ID card document
@@ -215,7 +226,18 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 
 			// Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
 			// Production builds may differ from types due to minification/bundling
-			idCardUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+			// Also handle case where urlData might be undefined
+			const publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+			
+			if (!publicUrl) {
+				console.error('[Document Upload] Failed to get public URL for ID card file:', filePath, 'urlData:', urlData);
+				return {
+					success: false,
+					error: 'Failed to generate file URL',
+				};
+			}
+			
+			idCardUrl = publicUrl;
 		}
 
 		let submissionId: number;

@@ -445,7 +445,16 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
 
     // Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
     // Production builds may differ from types due to minification/bundling
+    // Also handle case where urlData might be undefined
     const publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+    
+    if (!publicUrl) {
+      console.error('[Incidents Actions] Failed to get public URL for file:', filePath, 'urlData:', urlData);
+      return {
+        success: false,
+        error: 'Failed to generate file URL',
+      };
+    }
     
     console.log('[Incidents Actions] File uploaded successfully:', publicUrl);
     
