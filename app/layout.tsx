@@ -8,15 +8,28 @@ import FooterWrapper from "@/components/ui/FooterWrapper";
 import { Providers } from "@/components/providers";
 import { DevelopmentBanner } from "@/components/DevelopmentBanner";
 import { auth } from "@/lib/auth";
+import { checkRequiredEnvVars } from "@/lib/env-check";
 
 export const metadata: Metadata = config.metadata;
+
+// Check environment variables on server startup
+if (typeof window === 'undefined') {
+  checkRequiredEnvVars();
+}
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
+  // Safely get session with error handling
+  let session = null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error('[Root Layout] Failed to get session:', error);
+    // Session will be null, but app will still render
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>
