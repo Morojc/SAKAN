@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   // Transpile ESM packages that need to be processed by Next.js
   transpilePackages: ['cmdk', '@radix-ui/react-popover'],
   
+  // Enable standalone output for Docker
+  output: 'standalone',
+  
   // Optimize for faster development with Turbopack
   experimental: {
     // Enable optimized package imports for faster builds
