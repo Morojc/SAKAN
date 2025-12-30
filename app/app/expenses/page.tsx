@@ -4,6 +4,8 @@ import ExpensesContent from '@/components/app/expenses/ExpensesContent';
 import { Receipt } from 'lucide-react';
 import { auth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Server component to fetch expenses data
  * Joins expenses with profiles and residences

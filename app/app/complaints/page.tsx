@@ -4,6 +4,8 @@ import ComplaintsContent from '@/components/app/complaints/ComplaintsContent';
 import { AlertCircle } from 'lucide-react';
 import { auth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Server component to fetch complaints data
  * Joins complaints with profiles and residences

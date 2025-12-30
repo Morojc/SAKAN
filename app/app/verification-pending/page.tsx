@@ -58,7 +58,6 @@ export default function VerificationPendingPage() {
 			loadStatus(true);
 		});
 		return cleanup;
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	useEffect(() => {
@@ -69,7 +68,6 @@ export default function VerificationPendingPage() {
 		}, 30000);
 
 		return () => clearInterval(interval);
-	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const loadStatus = async (silent = false) => {
