@@ -381,15 +381,19 @@ export async function uploadExpenseAttachment(formData: FormData): Promise<{ suc
       };
     }
 
-    const { data: urlData } = supabase.storage
+    const urlData = supabase.storage
       .from('SAKAN')
       .getPublicUrl(filePath);
 
-    console.log('[Expenses Actions] File uploaded successfully:', urlData.publicUrl);
+    // getPublicUrl returns { publicUrl: string } directly (runtime behavior)
+    // TypeScript types may be incorrect, so we use type assertion via unknown
+    const publicUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
+    
+    console.log('[Expenses Actions] File uploaded successfully:', publicUrl);
     
     return {
       success: true,
-      url: urlData.publicUrl,
+      url: publicUrl,
     };
 
   } catch (error: any) {

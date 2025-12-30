@@ -177,11 +177,13 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 				};
 			}
 
-			const { data: urlData } = supabase.storage
+			const urlData = supabase.storage
 				.from('SAKAN')
 				.getPublicUrl(filePath);
 
-			documentUrl = urlData.publicUrl;
+			// getPublicUrl returns { publicUrl: string } directly (runtime behavior)
+			// TypeScript types may be incorrect, so we use type assertion via unknown
+			documentUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
 		}
 
 		// Upload ID card document
@@ -207,11 +209,13 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 				};
 			}
 
-			const { data: urlData } = supabase.storage
+			const urlData = supabase.storage
 				.from('SAKAN')
 				.getPublicUrl(filePath);
 
-			idCardUrl = urlData.publicUrl;
+			// getPublicUrl returns { publicUrl: string } directly (runtime behavior)
+			// TypeScript types may be incorrect, so we use type assertion via unknown
+			idCardUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
 		}
 
 		let submissionId: number;

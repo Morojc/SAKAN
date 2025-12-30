@@ -439,15 +439,19 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
       };
     }
 
-    const { data: urlData } = supabase.storage
+    const urlData = supabase.storage
       .from('SAKAN')
       .getPublicUrl(filePath);
 
-    console.log('[Incidents Actions] File uploaded successfully:', urlData.publicUrl);
+    // getPublicUrl returns { publicUrl: string } directly (runtime behavior)
+    // TypeScript types may be incorrect, so we use type assertion via unknown
+    const publicUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
+    
+    console.log('[Incidents Actions] File uploaded successfully:', publicUrl);
     
     return {
       success: true,
-      url: urlData.publicUrl,
+      url: publicUrl,
     };
 
   } catch (error: any) {
