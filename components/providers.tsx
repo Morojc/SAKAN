@@ -3,8 +3,15 @@
 import { SessionProvider } from "next-auth/react";
 import { useEffect } from "react";
 import { I18nProvider } from "@/lib/i18n/client";
+import type { Session } from "next-auth";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ 
+	children, 
+	session 
+}: { 
+	children: React.ReactNode;
+	session: Session | null;
+}) {
 	// Clean up browser extension attributes that cause hydration mismatches
 	useEffect(() => {
 		// Remove extension-added attributes from body tag after hydration
@@ -25,7 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 	}, []);
 
 	return (
-		<SessionProvider>
+		<SessionProvider session={session}>
 			<I18nProvider>
 				{children}
 			</I18nProvider>

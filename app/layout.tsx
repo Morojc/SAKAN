@@ -7,18 +7,21 @@ import { Toaster } from 'react-hot-toast';
 import FooterWrapper from "@/components/ui/FooterWrapper";
 import { Providers } from "@/components/providers";
 import { DevelopmentBanner } from "@/components/DevelopmentBanner";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = config.metadata;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html lang="en" suppressHydrationWarning>
 			<body className="antialiased min-h-screen flex flex-col" suppressHydrationWarning>
-				<Providers>
+				<Providers session={session}>
           <DevelopmentBanner />
           <div className="pt-12 sm:pt-10">
             <Toaster position="top-center" />
