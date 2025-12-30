@@ -77,7 +77,6 @@ export default function WaitingResidencePage() {
       const interval = setInterval(checkResidenceAssignment, 10000)
       return () => clearInterval(interval)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session?.user?.id])
 
   const handleSignOut = async (e: React.MouseEvent) => {

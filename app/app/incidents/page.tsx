@@ -4,6 +4,8 @@ import IncidentsContent from '@/components/app/incidents/IncidentsContent';
 import { AlertCircle } from 'lucide-react';
 import { auth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Server component to fetch incidents data
  * Joins incidents with profiles and residences

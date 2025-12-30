@@ -4,6 +4,8 @@ import ResidentsContent from '@/components/app/residents/ResidentsContent';
 import { Users } from 'lucide-react';
 import { auth } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Server component to fetch residents data
  * Joins profiles with users and fetches related fees
