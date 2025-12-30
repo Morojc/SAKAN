@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -68,13 +68,6 @@ export default function SubmitComplaintDialog({
     description?: string;
   }>({});
 
-  // Fetch residents when dialog opens
-  useEffect(() => {
-    if (open && currentUserResidenceId) {
-      fetchResidents();
-    }
-  }, [open, currentUserResidenceId]);
-
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open) {
@@ -82,7 +75,7 @@ export default function SubmitComplaintDialog({
     }
   }, [open]);
 
-  const fetchResidents = async () => {
+  const fetchResidents = useCallback(async () => {
     if (!currentUserResidenceId) return;
 
     setLoadingResidents(true);
@@ -99,7 +92,14 @@ export default function SubmitComplaintDialog({
     } finally {
       setLoadingResidents(false);
     }
-  };
+  }, [currentUserResidenceId]);
+
+  // Fetch residents when dialog opens
+  useEffect(() => {
+    if (open && currentUserResidenceId) {
+      fetchResidents();
+    }
+  }, [open, currentUserResidenceId, fetchResidents]);
 
   const resetForm = () => {
     setComplainedAboutId('');

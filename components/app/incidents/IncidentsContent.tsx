@@ -73,7 +73,7 @@ export default function IncidentsContent({
       currentIncidentsCount: incidents.length,
     });
     setIncidents(initialIncidents);
-  }, [initialIncidents]);
+  }, [initialIncidents, incidents.length]);
 
   // Debug: Log state changes
   useEffect(() => {

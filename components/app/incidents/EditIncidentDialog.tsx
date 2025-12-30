@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -74,14 +74,7 @@ export default function EditIncidentDialog({
     description?: string;
   }>({});
 
-  // Load assignable users if syndic
-  useEffect(() => {
-    if (open && canManage && currentUserResidenceId) {
-      loadAssignableUsers();
-    }
-  }, [open, canManage, currentUserResidenceId]);
-
-  const loadAssignableUsers = async () => {
+  const loadAssignableUsers = useCallback(async () => {
     if (!currentUserResidenceId) return;
     
     setLoadingAssignableUsers(true);
@@ -98,7 +91,14 @@ export default function EditIncidentDialog({
     } finally {
       setLoadingAssignableUsers(false);
     }
-  };
+  }, [currentUserResidenceId]);
+
+  // Load assignable users if syndic
+  useEffect(() => {
+    if (open && canManage && currentUserResidenceId) {
+      loadAssignableUsers();
+    }
+  }, [open, canManage, currentUserResidenceId, loadAssignableUsers]);
 
   // Initialize form when incident changes
   useEffect(() => {

@@ -75,7 +75,7 @@ export default function ComplaintsContent({
       currentComplaintsCount: complaints.length,
     });
     setComplaints(initialComplaints);
-  }, [initialComplaints]);
+  }, [initialComplaints, complaints.length]);
 
   // Filter complaints based on search, status, and reason
   const filteredComplaints = useMemo(() => {

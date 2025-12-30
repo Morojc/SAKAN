@@ -326,7 +326,7 @@ export default function AddResidentDialog({
         setEmailChecking(false);
       }
     },
-    [currentUserEmail, currentUserRole, currentUserResidenceId, residenceId]
+    [currentUserEmail, currentUserRole, currentUserResidenceId, residenceId, fetchCurrentUserProfile]
   );
 
   // Debounce email check

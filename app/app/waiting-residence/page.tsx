@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +21,7 @@ export default function WaitingResidencePage() {
   }, [status, router])
 
   // Check for residence assignment
-  const checkResidenceAssignment = async () => {
+  const checkResidenceAssignment = useCallback(async () => {
     if (!session?.user?.id || isChecking) {
       console.log('[Waiting Page] Skipping check:', { hasUser: !!session?.user?.id, isChecking })
       return
@@ -47,7 +47,7 @@ export default function WaitingResidencePage() {
     } finally {
       setIsChecking(false)
     }
-  }
+  }, [session?.user?.id, isChecking])
 
   // Prevent back navigation
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function WaitingResidencePage() {
       const interval = setInterval(checkResidenceAssignment, 10000)
       return () => clearInterval(interval)
     }
-  }, [status, session?.user?.id])
+  }, [status, session?.user?.id, checkResidenceAssignment])
 
   const handleSignOut = async (e: React.MouseEvent) => {
     e.preventDefault()

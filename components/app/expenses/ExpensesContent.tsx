@@ -91,7 +91,7 @@ export default function ExpensesContent({
       currentExpensesCount: expenses.length,
     });
     setExpenses(initialExpenses);
-  }, [initialExpenses]);
+  }, [initialExpenses, expenses.length]);
 
   // Debug: Log state changes
   useEffect(() => {

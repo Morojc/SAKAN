@@ -73,7 +73,7 @@ export function DocumentReviewList({ submissions, residences }: DocumentReviewLi
     if (!isProcessing && !draggedSubmission) {
       setOptimisticSubmissions(submissions)
     }
-  }, [submissions])
+  }, [submissions, isProcessing, draggedSubmission])
 
   // Use optimistic submissions for immediate UI updates
   const displaySubmissions = optimisticSubmissions.length > 0 ? optimisticSubmissions : submissions

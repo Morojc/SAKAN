@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,40 @@ export default function VerificationPendingPage() {
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+	const loadStatus = useCallback(async (silent = false) => {
+		if (!silent) {
+			setIsLoading(true);
+		} else {
+			setIsRefreshing(true);
+		}
+
+		try {
+			const result = await getDocumentStatus();
+			if (result.success) {
+				const previousStatus = submission?.status;
+				setSubmission(result.submission);
+				
+				// If approved, redirect to dashboard immediately
+				if (result.submission?.status === 'approved') {
+					// Show success message if status just changed to approved
+					if (previousStatus !== 'approved') {
+						toast.success('Document approuvé ! Redirection vers le tableau de bord...');
+					}
+					// Redirect immediately
+					router.push('/app');
+				}
+			}
+		} catch (error) {
+			console.error('Error loading status:', error);
+			if (!silent) {
+				toast.error('Failed to load status');
+			}
+		} finally {
+			setIsLoading(false);
+			setIsRefreshing(false);
+		}
+	}, [router, submission?.status]);
 
 	// Save auth state
 	useEffect(() => {
@@ -58,7 +92,7 @@ export default function VerificationPendingPage() {
 			loadStatus(true);
 		});
 		return cleanup;
-	}, []);
+	}, [loadStatus]);
 
 	useEffect(() => {
 		loadStatus();
@@ -68,41 +102,7 @@ export default function VerificationPendingPage() {
 		}, 30000);
 
 		return () => clearInterval(interval);
-	}, []);
-
-	const loadStatus = async (silent = false) => {
-		if (!silent) {
-			setIsLoading(true);
-		} else {
-			setIsRefreshing(true);
-		}
-
-		try {
-			const result = await getDocumentStatus();
-			if (result.success) {
-				const previousStatus = submission?.status;
-				setSubmission(result.submission);
-				
-				// If approved, redirect to dashboard immediately
-				if (result.submission?.status === 'approved') {
-					// Show success message if status just changed to approved
-					if (previousStatus !== 'approved') {
-						toast.success('Document approuvé ! Redirection vers le tableau de bord...');
-					}
-					// Redirect immediately
-					router.push('/app');
-				}
-			}
-		} catch (error) {
-			console.error('Error loading status:', error);
-			if (!silent) {
-				toast.error('Failed to load status');
-			}
-		} finally {
-			setIsLoading(false);
-			setIsRefreshing(false);
-		}
-	};
+	}, [loadStatus]);
 
 	const handleDeleteAccount = async () => {
 		setIsDeleting(true);

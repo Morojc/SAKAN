@@ -48,7 +48,7 @@ export default function PaymentsContent() {
 		}
 
 		fetchBalances();
-	}, [refreshTrigger]);
+	}, [refreshTrigger, t]);
 
 	// Refresh data after payment added
 	const handlePaymentAdded = () => {

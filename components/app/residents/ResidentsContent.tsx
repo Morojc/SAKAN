@@ -98,7 +98,7 @@ export default function ResidentsContent({
     });
     setResidents(initialResidents);
     setFees(initialFees);
-  }, [initialResidents, initialFees]);
+  }, [initialResidents, initialFees, residents.length]);
 
   // Debug: Log state changes
   useEffect(() => {
