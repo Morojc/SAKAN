@@ -443,9 +443,9 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
       .from('SAKAN')
       .getPublicUrl(filePath);
 
-    // getPublicUrl returns { publicUrl: string } directly (runtime behavior)
-    // TypeScript types may be incorrect, so we use type assertion via unknown
-    const publicUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
+    // Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
+    // Production builds may differ from types due to minification/bundling
+    const publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
     
     console.log('[Incidents Actions] File uploaded successfully:', publicUrl);
     

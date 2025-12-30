@@ -181,9 +181,9 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 				.from('SAKAN')
 				.getPublicUrl(filePath);
 
-			// getPublicUrl returns { publicUrl: string } directly (runtime behavior)
-			// TypeScript types may be incorrect, so we use type assertion via unknown
-			documentUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
+			// Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
+			// Production builds may differ from types due to minification/bundling
+			documentUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
 		}
 
 		// Upload ID card document
@@ -213,9 +213,9 @@ export async function uploadDocument(formData: FormData): Promise<DocumentUpload
 				.from('SAKAN')
 				.getPublicUrl(filePath);
 
-			// getPublicUrl returns { publicUrl: string } directly (runtime behavior)
-			// TypeScript types may be incorrect, so we use type assertion via unknown
-			idCardUrl = (urlData as unknown as { publicUrl: string }).publicUrl;
+			// Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
+			// Production builds may differ from types due to minification/bundling
+			idCardUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
 		}
 
 		let submissionId: number;
