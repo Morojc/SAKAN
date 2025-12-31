@@ -26,21 +26,31 @@ export async function getDashboardStats() {
 
 		const supabase = createSupabaseAdminClient();
 
+		// Verify Supabase client is initialized
+		if (!supabase) {
+			console.error('[Dashboard Actions] Supabase client not initialized');
+			throw new Error('Database service not available');
+		}
+
 		// Get user's profile
-		const { data: profile, error: profileError } = await supabase
+		const profileResult = await supabase
 			.from('profiles')
 			.select('id, full_name, role, onboarding_completed')
 			.eq('id', userId)
 			.maybeSingle();
 
+		// Safely destructure - handle case where query might return undefined
+		const { data: profile, error: profileError } = profileResult || { data: null, error: null };
+
 		// Handle case where profile doesn't exist
 		if (profileError || !profile) {
 			console.error('[Dashboard Actions] Error getting profile or not found:', profileError);
-			const { data: userData } = await supabase
+			const userDataResult = await supabase
 				.from('users')
 				.select('email, name, image')
 				.eq('id', userId)
 				.maybeSingle();
+			const { data: userData } = userDataResult || { data: null };
 			
 			return {
 				success: true,
@@ -73,25 +83,28 @@ export async function getDashboardStats() {
         let residenceData = null;
 
         if (profile.role === 'syndic') {
-            const { data: res } = await supabase.from('residences').select('id, name, address, city').eq('syndic_user_id', userId).maybeSingle();
+            const resResult = await supabase.from('residences').select('id, name, address, city').eq('syndic_user_id', userId).maybeSingle();
+            const { data: res } = resResult || { data: null };
             if (res) {
                 residenceId = res.id;
                 residenceData = res;
             }
         } else if (profile.role === 'guard') {
-            const { data: res } = await supabase.from('residences').select('id, name, address, city').eq('guard_user_id', userId).maybeSingle();
+            const resResult = await supabase.from('residences').select('id, name, address, city').eq('guard_user_id', userId).maybeSingle();
+            const { data: res } = resResult || { data: null };
             if (res) {
                 residenceId = res.id;
                 residenceData = res;
             }
         } else {
             // Resident
-            const { data: prLink } = await supabase
+            const prLinkResult = await supabase
                 .from('profile_residences')
                 .select('residence_id, residences(id, name, address, city)')
                 .eq('profile_id', userId)
                 .limit(1)
                 .maybeSingle();
+            const { data: prLink } = prLinkResult || { data: null };
             
             if (prLink && prLink.residences) {
                 residenceId = prLink.residence_id;
@@ -105,11 +118,12 @@ export async function getDashboardStats() {
 			console.log('[Dashboard Actions] User has no residence assigned - returning empty stats');
 			
 			// Get user email for display
-			const { data: userData } = await supabase
+			const userDataResult = await supabase
 				.from('users')
 				.select('email, name, image')
 				.eq('id', userId)
 				.maybeSingle();
+			const { data: userData } = userDataResult || { data: null };
 
 			return {
 				success: true,
@@ -138,23 +152,15 @@ export async function getDashboardStats() {
 		}
 
 		// Get user email from users table
-		const { data: userData } = await supabase
+		const userDataResult = await supabase
 			.from('users')
 			.select('email, name, image')
 			.eq('id', userId)
 			.maybeSingle();
+		const { data: userData } = userDataResult || { data: null };
 
-		// Fetch all stats in parallel
-		const [
-			totalResidentsResult,
-			allResidentsResult,
-			outstandingFeesResult,
-			allFeesResult,
-			openIncidentsResult,
-			recentAnnouncementsResult,
-			balancesResult,
-			recentPaymentsResult,
-		] = await Promise.all([
+		// Fetch all stats in parallel - wrap in Promise.allSettled to handle individual failures
+		const results = await Promise.allSettled([
 			// Total verified residents
 			supabase
 				.from('profile_residences')
@@ -224,21 +230,33 @@ export async function getDashboardStats() {
 				.limit(10),
 		]);
 
-		// Process results
-		const totalResidents = totalResidentsResult.count || 0;
+		// Safely extract results from Promise.allSettled
+		const totalResidentsResult = results[0].status === 'fulfilled' ? results[0].value : null;
+		const allResidentsResult = results[1].status === 'fulfilled' ? results[1].value : null;
+		const outstandingFeesResult = results[2].status === 'fulfilled' ? results[2].value : null;
+		const allFeesResult = results[3].status === 'fulfilled' ? results[3].value : null;
+		const openIncidentsResult = results[4].status === 'fulfilled' ? results[4].value : null;
+		const recentAnnouncementsResult = results[5].status === 'fulfilled' ? results[5].value : null;
+		const balancesResult = results[6].status === 'fulfilled' ? results[6].value : null;
+		const recentPaymentsResult = results[7].status === 'fulfilled' ? results[7].value : null;
+
+		// Process results - safely handle undefined results
+		const totalResidents = (totalResidentsResult && 'count' in totalResidentsResult) ? (totalResidentsResult.count || 0) : 0;
 
 		const outstandingFees =
-			outstandingFeesResult.data?.reduce((sum: number, fee: any) => sum + Number(fee.amount), 0) || 0;
+			(outstandingFeesResult && outstandingFeesResult.data) 
+				? outstandingFeesResult.data.reduce((sum: number, fee: any) => sum + Number(fee.amount), 0) 
+				: 0;
 
-		const openIncidents = openIncidentsResult.count || 0;
+		const openIncidents = (openIncidentsResult && 'count' in openIncidentsResult) ? (openIncidentsResult.count || 0) : 0;
 
-		const recentAnnouncementsCount = recentAnnouncementsResult.count || 0;
+		const recentAnnouncementsCount = (recentAnnouncementsResult && 'count' in recentAnnouncementsResult) ? (recentAnnouncementsResult.count || 0) : 0;
 
-		const cashOnHand = balancesResult.cashOnHand || 0;
-		const bankBalance = balancesResult.bankBalance || 0;
+		const cashOnHand = (balancesResult && balancesResult.cashOnHand !== undefined) ? balancesResult.cashOnHand : 0;
+		const bankBalance = (balancesResult && balancesResult.bankBalance !== undefined) ? balancesResult.bankBalance : 0;
 
 		// Calculate recent payments stats
-		const recentPayments = recentPaymentsResult.data || [];
+		const recentPayments = (recentPaymentsResult && recentPaymentsResult.data) ? recentPaymentsResult.data : [];
 		const todayPayments = recentPayments.filter((p: any) => {
 			const paymentDate = new Date(p.paid_at);
 			const today = new Date();
@@ -249,8 +267,8 @@ export async function getDashboardStats() {
 		const monthlyPayments = recentPayments.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
 		// Calculate top residents with payment compliance
-		const residentLinks = allResidentsResult.data || [];
-        const allFeesData = allFeesResult.data || [];
+		const residentLinks = (allResidentsResult && allResidentsResult.data) ? allResidentsResult.data : [];
+        const allFeesData = (allFeesResult && allFeesResult.data) ? allFeesResult.data : [];
 
 		// Calculate payment compliance for each resident
 		const residentsWithCompliance = residentLinks.map((link: any) => {

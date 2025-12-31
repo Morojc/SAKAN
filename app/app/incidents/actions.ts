@@ -418,6 +418,15 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
 
     const supabase = createSupabaseAdminClient();
 
+    // Verify Supabase client is initialized
+    if (!supabase || !supabase.storage) {
+      console.error('[Incidents Actions] Supabase client or storage not initialized');
+      return {
+        success: false,
+        error: 'Storage service not available',
+      };
+    }
+
     // Upload file
     const fileExt = file.name.split('.').pop();
     const fileName = `${session.user.id}/incident-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -439,14 +448,24 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
       };
     }
 
-    const urlData = supabase.storage
-      .from('SAKAN')
-      .getPublicUrl(filePath);
+    // Get public URL - ensure we handle undefined return value
+    let publicUrl: string | undefined;
+    try {
+      const urlData = supabase.storage
+        .from('SAKAN')
+        .getPublicUrl(filePath);
 
-    // Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
-    // Production builds may differ from types due to minification/bundling
-    // Also handle case where urlData might be undefined
-    const publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+      // Handle both API structure: { data: { publicUrl } } and direct: { publicUrl }
+      // Production builds may differ from types due to minification/bundling
+      // Also handle case where urlData might be undefined
+      publicUrl = urlData?.data?.publicUrl || (urlData as any)?.publicUrl;
+    } catch (error) {
+      console.error('[Incidents Actions] Error getting public URL:', error);
+      return {
+        success: false,
+        error: 'Failed to generate file URL',
+      };
+    }
     
     if (!publicUrl) {
       console.error('[Incidents Actions] Failed to get public URL for file:', filePath, 'urlData:', urlData);
