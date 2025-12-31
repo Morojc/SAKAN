@@ -8,6 +8,26 @@ const authConfig = {
     pages: {
         signIn: '/auth/signin',
     },
+	cookies: {
+		pkceCodeVerifier: {
+			name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}authjs.pkce.code_verifier`,
+			options: {
+				httpOnly: true,
+				sameSite: 'lax',
+				path: '/',
+				secure: process.env.NODE_ENV === 'production',
+			},
+		},
+		sessionToken: {
+			name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}authjs.session-token`,
+			options: {
+				httpOnly: true,
+				sameSite: 'lax',
+				path: '/',
+				secure: process.env.NODE_ENV === 'production',
+			},
+		},
+	},
 	providers: [
 		GoogleProvider({
 			allowDangerousEmailAccountLinking: true,
