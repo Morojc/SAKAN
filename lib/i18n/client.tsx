@@ -97,9 +97,23 @@ export function I18nProvider({ children, initialLocale = 'fr' }: { children: Rea
 
 export function useI18n() {
   const context = useContext(I18nContext);
+  
+  // During SSR or if context is not available, provide a fallback
   if (context === undefined) {
+    // Return a safe fallback during SSR
+    if (typeof window === 'undefined') {
+      // Server-side: return a minimal implementation
+      return {
+        locale: 'fr' as Locale,
+        setLocale: () => {},
+        t: (key: string) => key, // Return key as fallback
+        translations: {},
+      };
+    }
+    // Client-side but no provider: throw error
     throw new Error('useI18n must be used within an I18nProvider');
   }
+  
   return context;
 }
 
