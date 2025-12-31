@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from "@/lib/auth"
+import Image from 'next/image';
 import PortalButton from '@/components/stripe/PortalButton';
 import config from '@/config';
 import RefundButton from '@/components/stripe/RefundButton';
@@ -273,11 +274,14 @@ export async function BillingInfo() {
 				<div>
 					<h2 className="text-xl font-semibold mb-4">Profile Image</h2>
 					{userData.image ? (
-						<img
-							src={userData.image}
-							alt="User avatar"
-							className="w-20 h-20 rounded-full"
-						/>
+						<div className="relative w-20 h-20">
+							<Image
+								src={userData.image}
+								alt="User avatar"
+								fill
+								className="rounded-full object-cover"
+							/>
+						</div>
 					) : (
 						<p className="text-gray-600">No avatar set</p>
 					)}

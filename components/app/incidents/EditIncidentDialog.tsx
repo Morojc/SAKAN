@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { AlertCircle, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -371,11 +372,14 @@ export default function EditIncidentDialog({
             {existingPhotoUrl && !selectedFile && (
               <div className="mb-2 p-2 bg-gray-50 rounded border">
                 <p className="text-sm text-muted-foreground mb-2">Current photo:</p>
-                <img
-                  src={existingPhotoUrl}
-                  alt="Current incident photo"
-                  className="max-w-xs max-h-48 rounded border"
-                />
+                <div className="relative w-full max-w-xs h-48">
+                  <Image
+                    src={existingPhotoUrl}
+                    alt="Current incident photo"
+                    fill
+                    className="rounded border object-contain"
+                  />
+                </div>
               </div>
             )}
             <div className="flex items-center gap-4">
@@ -405,11 +409,13 @@ export default function EditIncidentDialog({
               )}
             </div>
             {filePreview && (
-              <div className="mt-2">
-                <img
+              <div className="mt-2 relative w-full max-w-xs h-48">
+                <Image
                   src={filePreview}
                   alt="Preview"
-                  className="max-w-xs max-h-48 rounded border"
+                  fill
+                  unoptimized
+                  className="rounded border object-contain"
                 />
               </div>
             )}

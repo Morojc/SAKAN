@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { ChevronDown, LogOut, User } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { AuthNavigationManager } from '@/lib/auth-navigation';
@@ -46,11 +47,14 @@ export default function UserMenu() {
 				className="flex items-center space-x-3 focus:outline-none"
 				onClick={() => setIsMenuOpen(!isMenuOpen)}
 			>
-				<img
-					src={user.image || "https://www.gravatar.com/avatar/?d=mp"}
-					alt={`${user.name || 'User'} avatar`}
-					className="h-8 w-8 rounded-full object-cover"
-				/>
+				<div className="relative h-8 w-8">
+					<Image
+						src={user.image || "https://www.gravatar.com/avatar/?d=mp"}
+						alt={`${user.name || 'User'} avatar`}
+						fill
+						className="rounded-full object-cover"
+					/>
+				</div>
 				<span className="hidden md:flex items-center space-x-1">
 					<span className="text-sm font-medium text-gray-700">{user.name || user.email}</span>
 					<ChevronDown className="h-4 w-4 text-gray-500" />

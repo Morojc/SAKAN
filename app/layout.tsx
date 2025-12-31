@@ -12,6 +12,9 @@ import { checkRequiredEnvVars } from "@/lib/env-check";
 
 export const metadata: Metadata = config.metadata;
 
+// Force dynamic rendering since we need to check authentication
+export const dynamic = 'force-dynamic';
+
 // Check environment variables on server startup
 if (typeof window === 'undefined') {
   checkRequiredEnvVars();

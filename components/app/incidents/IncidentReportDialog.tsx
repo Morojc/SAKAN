@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { AlertCircle, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -305,11 +306,13 @@ export default function IncidentReportDialog({
               )}
             </div>
             {filePreview && (
-              <div className="mt-2">
-                <img
+              <div className="mt-2 relative w-full max-w-xs h-48">
+                <Image
                   src={filePreview}
                   alt="Preview"
-                  className="max-w-xs max-h-48 rounded border"
+                  fill
+                  unoptimized
+                  className="rounded border object-contain"
                 />
               </div>
             )}

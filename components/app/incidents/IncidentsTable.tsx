@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { MoreVertical, Edit, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import {
   Table,
@@ -332,11 +333,14 @@ export default function IncidentsTable({
                 {selectedIncident.photo_url && (
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-2">Photo</p>
-                    <img
-                      src={selectedIncident.photo_url}
-                      alt="Incident photo"
-                      className="max-w-full max-h-64 rounded border"
-                    />
+                    <div className="relative w-full h-64">
+                      <Image
+                        src={selectedIncident.photo_url}
+                        alt="Incident photo"
+                        fill
+                        className="rounded border object-contain"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -569,11 +573,14 @@ export default function IncidentsTable({
               {selectedIncident.photo_url && (
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-2">Photo</p>
-                  <img
-                    src={selectedIncident.photo_url}
-                    alt="Incident photo"
-                    className="max-w-full max-h-64 rounded border"
-                  />
+                  <div className="relative w-full h-64">
+                    <Image
+                      src={selectedIncident.photo_url}
+                      alt="Incident photo"
+                      fill
+                      className="rounded border object-contain"
+                    />
+                  </div>
                 </div>
               )}
             </div>

@@ -450,8 +450,9 @@ export async function uploadIncidentPhoto(formData: FormData): Promise<{ success
 
     // Get public URL - ensure we handle undefined return value
     let publicUrl: string | undefined;
+    let urlData: any = null;
     try {
-      const urlData = supabase.storage
+      urlData = supabase.storage
         .from('SAKAN')
         .getPublicUrl(filePath);
 

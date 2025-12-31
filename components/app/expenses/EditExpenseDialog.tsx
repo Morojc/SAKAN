@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Receipt, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -423,11 +424,13 @@ export default function EditExpenseDialog({
               )}
             </div>
             {filePreview && (
-              <div className="mt-2">
-                <img
+              <div className="mt-2 relative w-full max-w-xs h-32">
+                <Image
                   src={filePreview}
                   alt="Preview"
-                  className="max-w-xs max-h-32 rounded border"
+                  fill
+                  unoptimized
+                  className="rounded border object-contain"
                 />
               </div>
             )}

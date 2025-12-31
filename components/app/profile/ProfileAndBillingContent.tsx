@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import PortalButton from '@/components/stripe/PortalButton';
 import CheckoutButton from "@/components/CheckoutButton";
 import { PlanChangeButton } from '@/components/stripe/PlanChangeButton';
@@ -241,11 +242,12 @@ export default function ProfileAndBillingContent() {
 
 						{userData?.image && (
 							<div className="col-span-1 md:col-span-2 flex items-center gap-4 bg-gray-50 p-5 rounded-xl border border-gray-100">
-								<div>
-									<img
+								<div className="relative w-20 h-20">
+									<Image
 										src={userData.image}
 										alt="User avatar"
-										className="w-20 h-20 rounded-full border-4 border-gray-200 shadow-md"
+										fill
+										className="rounded-full border-4 border-gray-200 shadow-md object-cover"
 									/>
 								</div>
 								<div>

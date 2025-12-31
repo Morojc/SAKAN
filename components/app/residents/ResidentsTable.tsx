@@ -246,7 +246,6 @@ export default function ResidentsTable({
                     onClick={() => handleSort('name')}
                     className="flex items-center gap-1.5 hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded px-2 py-1 -ml-2"
                     aria-label="Sort by name"
-                    aria-sort={sortField === 'name' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Name
                     {getSortIcon('name')}
@@ -257,7 +256,6 @@ export default function ResidentsTable({
                     onClick={() => handleSort('apartment')}
                     className="flex items-center gap-1.5 hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded px-2 py-1 -ml-2"
                     aria-label="Sort by apartment number"
-                    aria-sort={sortField === 'apartment' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Apartment
                     {getSortIcon('apartment')}
@@ -272,7 +270,6 @@ export default function ResidentsTable({
                     onClick={() => handleSort('outstandingFees')}
                     className="flex items-center gap-1.5 hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded px-2 py-1 -ml-2"
                     aria-label="Sort by outstanding fees"
-                    aria-sort={sortField === 'outstandingFees' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Outstanding Fees
                     {getSortIcon('outstandingFees')}
@@ -283,7 +280,6 @@ export default function ResidentsTable({
                     onClick={() => handleSort('feeCount')}
                     className="flex items-center gap-1.5 hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded px-2 py-1 -ml-2"
                     aria-label="Sort by total fee count"
-                    aria-sort={sortField === 'feeCount' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
                     Total Fees
                     {getSortIcon('feeCount')}

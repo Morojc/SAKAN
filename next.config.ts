@@ -2,7 +2,24 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: ['lh3.googleusercontent.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.gravatar.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'gravatar.com',
+      },
+    ],
   },
   serverExternalPackages: ['@react-email/render', 'prettier'],
   
