@@ -70,12 +70,15 @@ USER nextjs
 # Expose port (Coolify will handle port mapping)
 EXPOSE 3000
 
+# PORT will be set by Coolify (usually 80)
+# Default to 3000 for local development
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Health check using curl (Coolify requirement)
+# Uses PORT environment variable dynamically - Coolify sets PORT=80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD sh -c 'curl -f http://localhost:${PORT:-3000}/api/health || exit 1'
 
 # Start the application using standalone server.js
 CMD ["node", "server.js"]
