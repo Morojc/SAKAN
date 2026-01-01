@@ -46,6 +46,8 @@ const formSchema = z.object({
   coveragePeriodType: z.enum(['week', 'month', 'year']),
   startDate: z.date(),
   isActive: z.boolean(),
+  reminderEnabled: z.boolean(),
+  reminderDaysBefore: z.number().min(0, 'Must be 0 or more days').max(30, 'Maximum 30 days'),
 });
 
 interface AddRecurringFeeDialogProps {
@@ -71,6 +73,8 @@ export default function AddRecurringFeeDialog({
       coveragePeriodType: 'month',
       startDate: new Date(),
       isActive: true,
+      reminderEnabled: true,
+      reminderDaysBefore: 3,
     },
   });
 
@@ -89,6 +93,8 @@ export default function AddRecurringFeeDialog({
         coveragePeriodValue: values.coveragePeriodValue,
         coveragePeriodType: values.coveragePeriodType,
         isActive: values.isActive,
+        reminderEnabled: values.reminderEnabled,
+        reminderDaysBefore: values.reminderDaysBefore,
         residenceId: parseInt(user.residenceId),
       });
 
@@ -257,6 +263,51 @@ export default function AddRecurringFeeDialog({
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="reminderEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Email Reminders</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Send automatic payment reminders to residents
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="reminderDaysBefore"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reminder Days Before Due Date</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="3" 
+                      min="0"
+                      max="30"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 3)}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Send reminder email X days before the payment is due (0-30 days)
+                  </p>
+                  <FormMessage />
                 </FormItem>
               )}
             />

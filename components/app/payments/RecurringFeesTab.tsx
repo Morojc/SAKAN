@@ -120,7 +120,7 @@ export default function RecurringFeesTab() {
                   <div>
                     <CardTitle>{setting.title}</CardTitle>
                     <CardDescription className="capitalize">
-                      {setting.frequency} Payment
+                      {setting.coverage_period_value} {setting.coverage_period_type}{setting.coverage_period_value > 1 ? 's' : ''} Coverage
                     </CardDescription>
                   </div>
                   <Badge variant={setting.is_active ? 'default' : 'secondary'}>
@@ -138,9 +138,10 @@ export default function RecurringFeesTab() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Next Due: {new Date(setting.next_due_date).toLocaleDateString()}</span>
                 </div>
-                {setting.coverage_months > 1 && (
+                {(setting.coverage_period_value > 1 || setting.coverage_period_type !== 'month') && (
                   <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded">
-                    <strong className="text-blue-600 dark:text-blue-400">Coverage:</strong> {setting.coverage_months} months
+                    <strong className="text-blue-600 dark:text-blue-400">Coverage:</strong>{' '}
+                    {setting.coverage_period_value} {setting.coverage_period_type}{setting.coverage_period_value > 1 ? 's' : ''}
                     {setting.coverage_end_date && (
                       <span> (until {new Date(setting.coverage_end_date).toLocaleDateString()})</span>
                     )}

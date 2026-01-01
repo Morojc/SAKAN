@@ -17,6 +17,9 @@ export interface RecurringFeeSetting {
   next_due_date: string;
   coverage_end_date?: string;
   is_active: boolean;
+  reminder_days_before: number;
+  reminder_enabled: boolean;
+  last_reminder_sent_at?: string;
 }
 
 export async function createRecurringFee(data: {
@@ -27,6 +30,8 @@ export async function createRecurringFee(data: {
   coveragePeriodValue: number;
   coveragePeriodType: 'week' | 'month' | 'year';
   isActive: boolean;
+  reminderDaysBefore: number;
+  reminderEnabled: boolean;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -35,18 +40,8 @@ export async function createRecurringFee(data: {
 
   const supabase = await createSupabaseAdminClient();
 
-  // Validate "only one role" constraint
-  const { data: existing } = await supabase
-    .from('recurring_fee_settings')
-    .select('id')
-    .eq('residence_id', data.residenceId)
-    .eq('is_active', true)
-    .single();
-
-  if (existing) {
-    return { error: 'You can only have one active payment rule.' };
-  }
-
+  // Note: Removed single active rule constraint to allow multiple rules
+  
   const nextDueDate = new Date(data.startDate);
   
   // Calculate coverage end date based on period type
@@ -72,6 +67,8 @@ export async function createRecurringFee(data: {
     coverage_end_date: coverageEndDate.toISOString(),
     created_by: session.user.id,
     is_active: data.isActive,
+    reminder_days_before: data.reminderDaysBefore,
+    reminder_enabled: data.reminderEnabled,
   });
 
   if (error) {
@@ -301,6 +298,8 @@ export async function updateRecurringFee(data: {
   coveragePeriodValue: number;
   coveragePeriodType: 'week' | 'month' | 'year';
   isActive: boolean;
+  reminderDaysBefore: number;
+  reminderEnabled: boolean;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -331,6 +330,8 @@ export async function updateRecurringFee(data: {
       next_due_date: data.nextDueDate.toISOString(),
       coverage_end_date: coverageEndDate.toISOString(),
       is_active: data.isActive,
+      reminder_days_before: data.reminderDaysBefore,
+      reminder_enabled: data.reminderEnabled,
       updated_at: new Date().toISOString(),
     })
     .eq('id', data.id);

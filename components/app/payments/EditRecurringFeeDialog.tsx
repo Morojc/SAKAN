@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
+import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { updateRecurringFee, RecurringFeeSetting } from '@/app/actions/recurring-fees';
@@ -44,24 +45,30 @@ export default function EditRecurringFeeDialog({
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState(setting.title);
   const [amount, setAmount] = useState(setting.amount);
-  const [frequency, setFrequency] = useState(setting.frequency);
-  const [coverageMonths, setCoverageMonths] = useState(setting.coverage_months || 1);
+  const [coveragePeriodType, setCoveragePeriodType] = useState(setting.coverage_period_type);
+  const [coveragePeriodValue, setCoveragePeriodValue] = useState(setting.coverage_period_value);
   const [nextDueDate, setNextDueDate] = useState(new Date(setting.next_due_date));
+  const [isActive, setIsActive] = useState(setting.is_active);
+  const [reminderEnabled, setReminderEnabled] = useState(setting.reminder_enabled);
+  const [reminderDaysBefore, setReminderDaysBefore] = useState(setting.reminder_days_before);
 
   useEffect(() => {
     if (open) {
       setTitle(setting.title);
       setAmount(setting.amount);
-      setFrequency(setting.frequency);
-      setCoverageMonths(setting.coverage_months || 1);
+      setCoveragePeriodType(setting.coverage_period_type);
+      setCoveragePeriodValue(setting.coverage_period_value);
       setNextDueDate(new Date(setting.next_due_date));
+      setIsActive(setting.is_active);
+      setReminderEnabled(setting.reminder_enabled);
+      setReminderDaysBefore(setting.reminder_days_before);
     }
   }, [open, setting]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     
-    if (!title || !amount || !frequency) {
+    if (!title || !amount || !coveragePeriodType) {
       toast.error('Please fill all fields');
       return;
     }
@@ -72,9 +79,12 @@ export default function EditRecurringFeeDialog({
         id: setting.id,
         title,
         amount,
-        frequency,
-        coverageMonths,
+        coveragePeriodType,
+        coveragePeriodValue,
         nextDueDate,
+        isActive,
+        reminderEnabled,
+        reminderDaysBefore,
       });
 
       if (result.error) {
@@ -126,33 +136,32 @@ export default function EditRecurringFeeDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="frequency">Frequency</Label>
-            <Select value={frequency} onValueChange={(val) => setFrequency(val as any)}>
+            <Label htmlFor="coveragePeriodType">Coverage Period Type</Label>
+            <Select value={coveragePeriodType} onValueChange={(val) => setCoveragePeriodType(val as any)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select frequency" />
+                <SelectValue placeholder="Select period type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="quarterly">Quarterly</SelectItem>
-                <SelectItem value="yearly">Yearly</SelectItem>
+                <SelectItem value="week">Weekly</SelectItem>
+                <SelectItem value="month">Monthly</SelectItem>
+                <SelectItem value="year">Yearly</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="coverageMonths">Coverage Period (Months)</Label>
+            <Label htmlFor="coveragePeriodValue">Coverage Duration</Label>
             <Input
-              id="coverageMonths"
+              id="coveragePeriodValue"
               type="number"
               placeholder="1"
               min="1"
-              max="12"
-              value={coverageMonths}
-              onChange={(e) => setCoverageMonths(parseInt(e.target.value) || 1)}
+              value={coveragePeriodValue}
+              onChange={(e) => setCoveragePeriodValue(parseInt(e.target.value) || 1)}
               required
             />
             <p className="text-xs text-muted-foreground">
-              How many months does one payment cover?
+              How many weeks/months/years does one payment cover?
             </p>
           </div>
 
@@ -183,6 +192,49 @@ export default function EditRecurringFeeDialog({
                 />
               </PopoverContent>
             </Popover>
+          </div>
+
+          <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label className="text-base">Active Status</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable this rule to generate payments
+              </p>
+            </div>
+            <Switch
+              checked={isActive}
+              onCheckedChange={setIsActive}
+            />
+          </div>
+
+          <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label className="text-base">Email Reminders</Label>
+              <p className="text-sm text-muted-foreground">
+                Send automatic payment reminders to residents
+              </p>
+            </div>
+            <Switch
+              checked={reminderEnabled}
+              onCheckedChange={setReminderEnabled}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reminderDaysBefore">Reminder Days Before Due Date</Label>
+            <Input
+              id="reminderDaysBefore"
+              type="number"
+              placeholder="3"
+              min="0"
+              max="30"
+              value={reminderDaysBefore}
+              onChange={(e) => setReminderDaysBefore(parseInt(e.target.value) || 3)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Send reminder email X days before the payment is due (0-30 days)
+            </p>
           </div>
 
           <DialogFooter>
