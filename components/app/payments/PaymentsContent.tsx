@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Wallet, Building2 } from 'lucide-react';
+import { Plus, Wallet, Building2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddPaymentDialog from './AddPaymentDialog';
+import MarkPaymentDialog from './MarkPaymentDialog';
 import PaymentsTable from './PaymentsTable';
 import RecurringFeesTab from './RecurringFeesTab';
 import { getBalances } from '@/app/actions/payments';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 /**
  * Payments Content Component
@@ -19,8 +21,11 @@ import { useI18n } from '@/lib/i18n/client';
  */
 export default function PaymentsContent() {
 	const { t } = useI18n();
+	const { user } = useAuth();
 	const searchParams = useSearchParams();
 	const [showAddDialog, setShowAddDialog] = useState(false);
+	const [showMarkPaymentDialog, setShowMarkPaymentDialog] = useState(false);
+	const [residents, setResidents] = useState<any[]>([]);
 	const [balances, setBalances] = useState({ cashOnHand: 0, bankBalance: 0 });
 	const [loading, setLoading] = useState(true);
 	const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -33,6 +38,25 @@ export default function PaymentsContent() {
 			setActiveTab('recurring');
 		}
 	}, [searchParams]);
+
+	// Fetch residents for the residence
+	useEffect(() => {
+		async function fetchResidents() {
+			if (!user?.residenceId) return;
+			
+			try {
+				const response = await fetch(`/api/residents?residenceId=${user.residenceId}`);
+				if (response.ok) {
+					const data = await response.json();
+					setResidents(data.residents || []);
+				}
+			} catch (error) {
+				console.error('Error fetching residents:', error);
+			}
+		}
+		
+		fetchResidents();
+	}, [user?.residenceId]);
 
 	// Fetch balances on mount and when refreshTrigger changes
 	useEffect(() => {
@@ -68,6 +92,12 @@ export default function PaymentsContent() {
 		console.log('[PaymentsContent] Payment added, refreshing data');
 		setRefreshTrigger((prev) => prev + 1);
 		setShowAddDialog(false);
+	};
+
+	// Refresh data after marking payment
+	const handlePaymentMarked = () => {
+		console.log('[PaymentsContent] Payment marked, refreshing data');
+		setRefreshTrigger((prev) => prev + 1);
 	};
 
 	// Format currency
@@ -140,13 +170,23 @@ export default function PaymentsContent() {
 								{t('payments.paymentRecordsDesc')}
 							</p>
 						</div>
-						<Button 
-							onClick={() => setShowAddDialog(true)} 
-							className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-						>
-							<Plus className="h-4 w-4" />
-							{t('payments.addPayment')}
-						</Button>
+						<div className="flex gap-2">
+							<Button 
+								onClick={() => setShowMarkPaymentDialog(true)} 
+								variant="outline"
+								className="gap-2"
+							>
+								<CheckCircle className="h-4 w-4" />
+								Mark Payment
+							</Button>
+							<Button 
+								onClick={() => setShowAddDialog(true)} 
+								className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+							>
+								<Plus className="h-4 w-4" />
+								{t('payments.addPayment')}
+							</Button>
+						</div>
 					</div>
 
 					{/* Payments Table */}
@@ -163,6 +203,14 @@ export default function PaymentsContent() {
 				open={showAddDialog}
 				onOpenChange={setShowAddDialog}
 				onSuccess={handlePaymentAdded}
+			/>
+
+			{/* Mark Payment Dialog */}
+			<MarkPaymentDialog
+				open={showMarkPaymentDialog}
+				onOpenChange={setShowMarkPaymentDialog}
+				residents={residents}
+				onSuccess={handlePaymentMarked}
 			/>
 		</div>
 	);
