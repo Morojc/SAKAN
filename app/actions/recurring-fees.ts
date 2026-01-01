@@ -15,6 +15,8 @@ export interface RecurringFeeSetting {
   custom_interval_days?: number;
   start_date: string;
   next_due_date: string;
+  coverage_months: number;
+  coverage_end_date?: string;
   is_active: boolean;
 }
 
@@ -24,6 +26,7 @@ export async function createRecurringFee(data: {
   frequency: string;
   startDate: Date;
   residenceId: number;
+  coverageMonths: number;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -44,15 +47,22 @@ export async function createRecurringFee(data: {
     return { error: 'You can only have one active payment rule.' };
   }
 
-  let nextDueDate = new Date(data.startDate);
+  const nextDueDate = new Date(data.startDate);
+  
+  // Calculate coverage end date (start date + coverage months - 1 day)
+  const coverageEndDate = new Date(data.startDate);
+  coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coverageMonths);
+  coverageEndDate.setDate(coverageEndDate.getDate() - 1); // End is inclusive
   
   const { error } = await supabase.from('recurring_fee_settings').insert({
     residence_id: data.residenceId,
     title: data.title,
     amount: data.amount,
     frequency: data.frequency,
+    coverage_months: data.coverageMonths,
     start_date: data.startDate.toISOString(),
     next_due_date: nextDueDate.toISOString(),
+    coverage_end_date: coverageEndDate.toISOString(),
     created_by: session.user.id,
     is_active: true,
   });
@@ -101,6 +111,13 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
   // 3. Create fees for each resident if not already created for this due date
   const feesToInsert = [];
   
+  // Calculate the coverage period text
+  const coverageStartDate = new Date(setting.next_due_date);
+  const coverageEndDate = new Date(setting.coverage_end_date || setting.next_due_date);
+  const coverageText = setting.coverage_months > 1 
+    ? ` (Covers ${coverageStartDate.toLocaleDateString()} - ${coverageEndDate.toLocaleDateString()})`
+    : '';
+  
   for (const resident of residents) {
     // Check duplicate
     const { data: existing } = await supabase
@@ -115,7 +132,7 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
       feesToInsert.push({
         residence_id: setting.residence_id,
         user_id: resident.profile_id,
-        title: `${setting.title} - ${new Date(setting.next_due_date).toLocaleDateString()}`,
+        title: `${setting.title}${coverageText}`,
         amount: setting.amount,
         due_date: setting.next_due_date,
         status: 'unpaid',
@@ -132,8 +149,22 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
     }
   }
 
-  // Note: We don't auto-advance next_due_date here. The user might want to generate reminders multiple times before moving to next month.
-  // Or maybe we should allow them to click "Move to Next Period" manually.
+  // 4. Update next_due_date and coverage_end_date for the next period
+  // The next due date should be coverage_months after the current next_due_date
+  const nextDueDate = new Date(setting.next_due_date);
+  nextDueDate.setMonth(nextDueDate.getMonth() + setting.coverage_months);
+  
+  const nextCoverageEndDate = new Date(nextDueDate);
+  nextCoverageEndDate.setMonth(nextCoverageEndDate.getMonth() + setting.coverage_months);
+  nextCoverageEndDate.setDate(nextCoverageEndDate.getDate() - 1);
+  
+  await supabase
+    .from('recurring_fee_settings')
+    .update({
+      next_due_date: nextDueDate.toISOString(),
+      coverage_end_date: nextCoverageEndDate.toISOString(),
+    })
+    .eq('id', settingId);
   
   revalidatePath('/app/payments');
   return { success: true, count: feesToInsert.length };
@@ -249,6 +280,7 @@ export async function updateRecurringFee(data: {
   amount: number;
   frequency: string;
   nextDueDate: Date;
+  coverageMonths: number;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -257,13 +289,20 @@ export async function updateRecurringFee(data: {
 
   const supabase = await createSupabaseAdminClient();
 
+  // Calculate coverage end date
+  const coverageEndDate = new Date(data.nextDueDate);
+  coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coverageMonths);
+  coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+
   const { error } = await supabase
     .from('recurring_fee_settings')
     .update({
       title: data.title,
       amount: data.amount,
       frequency: data.frequency,
+      coverage_months: data.coverageMonths,
       next_due_date: data.nextDueDate.toISOString(),
+      coverage_end_date: coverageEndDate.toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', data.id);

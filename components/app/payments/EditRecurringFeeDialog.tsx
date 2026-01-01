@@ -45,6 +45,7 @@ export default function EditRecurringFeeDialog({
   const [title, setTitle] = useState(setting.title);
   const [amount, setAmount] = useState(setting.amount);
   const [frequency, setFrequency] = useState(setting.frequency);
+  const [coverageMonths, setCoverageMonths] = useState(setting.coverage_months || 1);
   const [nextDueDate, setNextDueDate] = useState(new Date(setting.next_due_date));
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function EditRecurringFeeDialog({
       setTitle(setting.title);
       setAmount(setting.amount);
       setFrequency(setting.frequency);
+      setCoverageMonths(setting.coverage_months || 1);
       setNextDueDate(new Date(setting.next_due_date));
     }
   }, [open, setting]);
@@ -71,6 +73,7 @@ export default function EditRecurringFeeDialog({
         title,
         amount,
         frequency,
+        coverageMonths,
         nextDueDate,
       });
 
@@ -134,6 +137,23 @@ export default function EditRecurringFeeDialog({
                 <SelectItem value="yearly">Yearly</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="coverageMonths">Coverage Period (Months)</Label>
+            <Input
+              id="coverageMonths"
+              type="number"
+              placeholder="1"
+              min="1"
+              max="12"
+              value={coverageMonths}
+              onChange={(e) => setCoverageMonths(parseInt(e.target.value) || 1)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              How many months does one payment cover?
+            </p>
           </div>
 
           <div className="space-y-2">

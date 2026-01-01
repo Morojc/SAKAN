@@ -138,6 +138,14 @@ export default function RecurringFeesTab() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Next Due: {new Date(setting.next_due_date).toLocaleDateString()}</span>
                 </div>
+                {setting.coverage_months > 1 && (
+                  <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded">
+                    <strong className="text-blue-600 dark:text-blue-400">Coverage:</strong> {setting.coverage_months} months
+                    {setting.coverage_end_date && (
+                      <span> (until {new Date(setting.coverage_end_date).toLocaleDateString()})</span>
+                    )}
+                  </div>
+                )}
               </CardContent>
               <CardFooter className="pt-4 border-t flex gap-2">
                 <Button 

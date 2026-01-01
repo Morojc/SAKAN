@@ -42,6 +42,7 @@ const formSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   amount: z.number().positive('Amount must be positive'),
   frequency: z.enum(['monthly', 'quarterly', 'yearly', 'custom']),
+  coverageMonths: z.number().min(1, 'Coverage must be at least 1 month').max(12, 'Coverage cannot exceed 12 months'),
   startDate: z.date(),
 });
 
@@ -65,6 +66,7 @@ export default function AddRecurringFeeDialog({
       title: 'Syndic Fee',
       amount: 0,
       frequency: 'monthly',
+      coverageMonths: 1,
       startDate: new Date(),
     },
   });
@@ -160,6 +162,30 @@ export default function AddRecurringFeeDialog({
                       <SelectItem value="yearly">Yearly</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="coverageMonths"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Coverage Period (Months)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="1" 
+                      min="1"
+                      max="12"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    How many months does one payment cover? (e.g., 3 = payment covers 3 months)
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
