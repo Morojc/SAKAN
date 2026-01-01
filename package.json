@@ -19,6 +19,7 @@
   "dependencies": {
     "@auth/supabase-adapter": "^1.7.4",
     "@heroui/react": "^2.8.5",
+    "@hookform/resolvers": "^5.2.2",
     "@next/third-parties": "^16.1.1",
     "@openpanel/nextjs": "^1.0.7",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -43,6 +44,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
     "jose": "^5.10.0",
     "lucide-react": "^0.475.0",
@@ -53,8 +55,10 @@
     "pdf-lib": "^1.17.1",
     "pnpm": "^10.23.0",
     "react": "^19.2.0",
+    "react-day-picker": "^8.10.1",
     "react-dom": "^19.2.0",
     "react-email": "^3.0.7",
+    "react-hook-form": "^7.69.0",
     "react-hot-toast": "^2.5.2",
     "resend": "^4.8.0",
     "sonner": "^2.0.7",
@@ -63,7 +67,8 @@
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
     "task-master": "^2.3.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

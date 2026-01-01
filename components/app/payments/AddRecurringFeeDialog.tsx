@@ -40,7 +40,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 
 const formSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
-  amount: z.coerce.number().positive('Amount must be positive'),
+  amount: z.number().positive('Amount must be positive'),
   frequency: z.enum(['monthly', 'quarterly', 'yearly', 'custom']),
   startDate: z.date(),
 });
@@ -63,6 +63,7 @@ export default function AddRecurringFeeDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: 'Syndic Fee',
+      amount: 0,
       frequency: 'monthly',
       startDate: new Date(),
     },
@@ -129,7 +130,12 @@ export default function AddRecurringFeeDialog({
                 <FormItem>
                   <FormLabel>Amount (MAD)</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} />
+                    <Input 
+                      type="number" 
+                      placeholder="0.00" 
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
