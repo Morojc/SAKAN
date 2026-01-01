@@ -11,11 +11,10 @@ export interface RecurringFeeSetting {
   residence_id: number;
   title: string;
   amount: number;
-  frequency: 'monthly' | 'quarterly' | 'yearly' | 'custom';
-  custom_interval_days?: number;
+  coverage_period_value: number;
+  coverage_period_type: 'week' | 'month' | 'year';
   start_date: string;
   next_due_date: string;
-  coverage_months: number;
   coverage_end_date?: string;
   is_active: boolean;
 }
@@ -23,10 +22,11 @@ export interface RecurringFeeSetting {
 export async function createRecurringFee(data: {
   title: string;
   amount: number;
-  frequency: string;
   startDate: Date;
   residenceId: number;
-  coverageMonths: number;
+  coveragePeriodValue: number;
+  coveragePeriodType: 'week' | 'month' | 'year';
+  isActive: boolean;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -49,22 +49,29 @@ export async function createRecurringFee(data: {
 
   const nextDueDate = new Date(data.startDate);
   
-  // Calculate coverage end date (start date + coverage months - 1 day)
+  // Calculate coverage end date based on period type
   const coverageEndDate = new Date(data.startDate);
-  coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coverageMonths);
-  coverageEndDate.setDate(coverageEndDate.getDate() - 1); // End is inclusive
+  if (data.coveragePeriodType === 'week') {
+    coverageEndDate.setDate(coverageEndDate.getDate() + (data.coveragePeriodValue * 7) - 1);
+  } else if (data.coveragePeriodType === 'month') {
+    coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coveragePeriodValue);
+    coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+  } else if (data.coveragePeriodType === 'year') {
+    coverageEndDate.setFullYear(coverageEndDate.getFullYear() + data.coveragePeriodValue);
+    coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+  }
   
   const { error } = await supabase.from('recurring_fee_settings').insert({
     residence_id: data.residenceId,
     title: data.title,
     amount: data.amount,
-    frequency: data.frequency,
-    coverage_months: data.coverageMonths,
+    coverage_period_value: data.coveragePeriodValue,
+    coverage_period_type: data.coveragePeriodType,
     start_date: data.startDate.toISOString(),
     next_due_date: nextDueDate.toISOString(),
     coverage_end_date: coverageEndDate.toISOString(),
     created_by: session.user.id,
-    is_active: true,
+    is_active: data.isActive,
   });
 
   if (error) {
@@ -114,7 +121,7 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
   // Calculate the coverage period text
   const coverageStartDate = new Date(setting.next_due_date);
   const coverageEndDate = new Date(setting.coverage_end_date || setting.next_due_date);
-  const coverageText = setting.coverage_months > 1 
+  const periodText = setting.coverage_period_value > 1 || setting.coverage_period_type !== 'month'
     ? ` (Covers ${coverageStartDate.toLocaleDateString()} - ${coverageEndDate.toLocaleDateString()})`
     : '';
   
@@ -132,7 +139,7 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
       feesToInsert.push({
         residence_id: setting.residence_id,
         user_id: resident.profile_id,
-        title: `${setting.title}${coverageText}`,
+        title: `${setting.title}${periodText}`,
         amount: setting.amount,
         due_date: setting.next_due_date,
         status: 'unpaid',
@@ -150,13 +157,25 @@ export async function generateFeesForCurrentPeriod(settingId: number) {
   }
 
   // 4. Update next_due_date and coverage_end_date for the next period
-  // The next due date should be coverage_months after the current next_due_date
   const nextDueDate = new Date(setting.next_due_date);
-  nextDueDate.setMonth(nextDueDate.getMonth() + setting.coverage_months);
+  if (setting.coverage_period_type === 'week') {
+    nextDueDate.setDate(nextDueDate.getDate() + (setting.coverage_period_value * 7));
+  } else if (setting.coverage_period_type === 'month') {
+    nextDueDate.setMonth(nextDueDate.getMonth() + setting.coverage_period_value);
+  } else if (setting.coverage_period_type === 'year') {
+    nextDueDate.setFullYear(nextDueDate.getFullYear() + setting.coverage_period_value);
+  }
   
   const nextCoverageEndDate = new Date(nextDueDate);
-  nextCoverageEndDate.setMonth(nextCoverageEndDate.getMonth() + setting.coverage_months);
-  nextCoverageEndDate.setDate(nextCoverageEndDate.getDate() - 1);
+  if (setting.coverage_period_type === 'week') {
+    nextCoverageEndDate.setDate(nextCoverageEndDate.getDate() + (setting.coverage_period_value * 7) - 1);
+  } else if (setting.coverage_period_type === 'month') {
+    nextCoverageEndDate.setMonth(nextCoverageEndDate.getMonth() + setting.coverage_period_value);
+    nextCoverageEndDate.setDate(nextCoverageEndDate.getDate() - 1);
+  } else if (setting.coverage_period_type === 'year') {
+    nextCoverageEndDate.setFullYear(nextCoverageEndDate.getFullYear() + setting.coverage_period_value);
+    nextCoverageEndDate.setDate(nextCoverageEndDate.getDate() - 1);
+  }
   
   await supabase
     .from('recurring_fee_settings')
@@ -278,9 +297,10 @@ export async function updateRecurringFee(data: {
   id: number;
   title: string;
   amount: number;
-  frequency: string;
   nextDueDate: Date;
-  coverageMonths: number;
+  coveragePeriodValue: number;
+  coveragePeriodType: 'week' | 'month' | 'year';
+  isActive: boolean;
 }) {
   const session = await auth();
   if (!session?.user) {
@@ -289,20 +309,28 @@ export async function updateRecurringFee(data: {
 
   const supabase = await createSupabaseAdminClient();
 
-  // Calculate coverage end date
+  // Calculate coverage end date based on period type
   const coverageEndDate = new Date(data.nextDueDate);
-  coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coverageMonths);
-  coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+  if (data.coveragePeriodType === 'week') {
+    coverageEndDate.setDate(coverageEndDate.getDate() + (data.coveragePeriodValue * 7) - 1);
+  } else if (data.coveragePeriodType === 'month') {
+    coverageEndDate.setMonth(coverageEndDate.getMonth() + data.coveragePeriodValue);
+    coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+  } else if (data.coveragePeriodType === 'year') {
+    coverageEndDate.setFullYear(coverageEndDate.getFullYear() + data.coveragePeriodValue);
+    coverageEndDate.setDate(coverageEndDate.getDate() - 1);
+  }
 
   const { error } = await supabase
     .from('recurring_fee_settings')
     .update({
       title: data.title,
       amount: data.amount,
-      frequency: data.frequency,
-      coverage_months: data.coverageMonths,
+      coverage_period_value: data.coveragePeriodValue,
+      coverage_period_type: data.coveragePeriodType,
       next_due_date: data.nextDueDate.toISOString(),
       coverage_end_date: coverageEndDate.toISOString(),
+      is_active: data.isActive,
       updated_at: new Date().toISOString(),
     })
     .eq('id', data.id);

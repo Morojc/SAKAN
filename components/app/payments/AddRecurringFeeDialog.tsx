@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
+import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { createRecurringFee } from '@/app/actions/recurring-fees';
@@ -41,9 +42,10 @@ import { useAuth } from '@/lib/hooks/useAuth';
 const formSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   amount: z.number().positive('Amount must be positive'),
-  frequency: z.enum(['monthly', 'quarterly', 'yearly', 'custom']),
-  coverageMonths: z.number().min(1, 'Coverage must be at least 1 month').max(12, 'Coverage cannot exceed 12 months'),
+  coveragePeriodValue: z.number().min(1, 'Coverage value must be at least 1'),
+  coveragePeriodType: z.enum(['week', 'month', 'year']),
   startDate: z.date(),
+  isActive: z.boolean(),
 });
 
 interface AddRecurringFeeDialogProps {
@@ -65,9 +67,10 @@ export default function AddRecurringFeeDialog({
     defaultValues: {
       title: 'Syndic Fee',
       amount: 0,
-      frequency: 'monthly',
-      coverageMonths: 1,
+      coveragePeriodValue: 1,
+      coveragePeriodType: 'month',
       startDate: new Date(),
+      isActive: true,
     },
   });
 
@@ -80,7 +83,12 @@ export default function AddRecurringFeeDialog({
     setLoading(true);
     try {
       const result = await createRecurringFee({
-        ...values,
+        title: values.title,
+        amount: values.amount,
+        startDate: values.startDate,
+        coveragePeriodValue: values.coveragePeriodValue,
+        coveragePeriodType: values.coveragePeriodType,
+        isActive: values.isActive,
         residenceId: parseInt(user.residenceId),
       });
 
@@ -146,20 +154,20 @@ export default function AddRecurringFeeDialog({
 
             <FormField
               control={form.control}
-              name="frequency"
+              name="coveragePeriodType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Frequency</FormLabel>
+                  <FormLabel>Coverage Period Type</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select frequency" />
+                        <SelectValue placeholder="Select period type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="yearly">Yearly</SelectItem>
+                      <SelectItem value="week">Weekly</SelectItem>
+                      <SelectItem value="month">Monthly</SelectItem>
+                      <SelectItem value="year">Yearly</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -169,22 +177,21 @@ export default function AddRecurringFeeDialog({
 
             <FormField
               control={form.control}
-              name="coverageMonths"
+              name="coveragePeriodValue"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Coverage Period (Months)</FormLabel>
+                  <FormLabel>Coverage Duration</FormLabel>
                   <FormControl>
                     <Input 
                       type="number" 
                       placeholder="1" 
                       min="1"
-                      max="12"
                       {...field}
                       onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    How many months does one payment cover? (e.g., 3 = payment covers 3 months)
+                    How many weeks/months/years does one payment cover? (e.g., 3 months = payment covers 3 months)
                   </p>
                   <FormMessage />
                 </FormItem>
@@ -229,6 +236,27 @@ export default function AddRecurringFeeDialog({
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="isActive"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Active Status</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Enable this rule to start generating payments
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
