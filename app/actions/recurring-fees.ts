@@ -299,14 +299,14 @@ export async function getUnpaidFeesForResident(residentId: string) {
 
   const supabase = await createSupabaseAdminClient();
 
-  // Get the syndic's residence ID
-  const { data: syndicProfile } = await supabase
-    .from('profiles')
-    .select('residence_id')
-    .eq('id', session.user.id)
+  // Get the residence where the current user is the syndic
+  const { data: residence, error: residenceError } = await supabase
+    .from('residences')
+    .select('id')
+    .eq('syndic_user_id', session.user.id)
     .single();
 
-  if (!syndicProfile?.residence_id) {
+  if (residenceError || !residence) {
     return { error: 'Syndic residence not found' };
   }
 
@@ -315,7 +315,7 @@ export async function getUnpaidFeesForResident(residentId: string) {
     .from('profile_residences')
     .select('residence_id')
     .eq('profile_id', residentId)
-    .eq('residence_id', syndicProfile.residence_id)
+    .eq('residence_id', residence.id)
     .single();
 
   if (!residentProfile) {
@@ -333,7 +333,7 @@ export async function getUnpaidFeesForResident(residentId: string) {
       recurring_setting_id
     `)
     .eq('user_id', residentId)
-    .eq('residence_id', syndicProfile.residence_id)
+    .eq('residence_id', residence.id)
     .eq('status', 'unpaid')
     .order('due_date', { ascending: true });
 
