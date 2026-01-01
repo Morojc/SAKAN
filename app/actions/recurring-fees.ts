@@ -363,17 +363,19 @@ export async function markMultipleFeesPaid(data: {
       .from('fees')
       .select(`
         *,
-        profiles:user_id (full_name, email),
-        residences:residence_id (name, address)
+        profiles:user_id!inner (full_name, email),
+        residences:residence_id!inner (name, address)
       `)
       .in('id', data.feeIds);
 
     if (feesError) {
       console.error('Error fetching fees:', feesError);
-      return { error: 'Failed to fetch fees' };
+      console.error('Fee IDs attempted:', data.feeIds);
+      return { error: `Failed to fetch fees: ${feesError.message}` };
     }
 
     if (!fees || fees.length === 0) {
+      console.error('No fees found for IDs:', data.feeIds);
       return { error: 'No fees found' };
     }
 
@@ -404,6 +406,7 @@ export async function markMultipleFeesPaid(data: {
           method: data.paymentMethod,
           status: 'verified',
           verified_by: session.user.id,
+          paid_at: new Date().toISOString(),
         })
         .select()
         .single();
