@@ -46,13 +46,13 @@ export function Sidebar() {
       items: [
         { href: "/app", label: t('sidebar.overview'), icon: LayoutDashboard },
         { href: "/app/residents", label: t('sidebar.residents'), icon: Users },
-        { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
-        { href: "/app/payments?tab=recurring", label: "Payment Rules", icon: RefreshCw },
       ]
     },
     {
       category: t('sidebar.management'),
       items: [
+        { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
+        { href: "/app/payments?tab=recurring", label: "Recurring Rules", icon: RefreshCw },
         { href: "/app/expenses", label: t('sidebar.expenses'), icon: Receipt },
         { href: "/app/incidents", label: t('sidebar.incidents'), icon: AlertCircle },
         { href: "/app/complaints", label: t('sidebar.complaints'), icon: MessageSquare },
@@ -76,6 +76,17 @@ export function Sidebar() {
   const isActive = (href: string) => {
     if (href === "/app") {
       return pathname === "/app" || pathname === "/app/";
+    }
+    // Special handling for query parameters
+    if (href.includes("?")) {
+      const [path, query] = href.split("?");
+      if (pathname?.startsWith(path)) {
+        // Check if we're on the same page and query matches
+        if (typeof window !== 'undefined') {
+          return window.location.search.includes(query);
+        }
+      }
+      return false;
     }
     return pathname?.startsWith(href);
   };
