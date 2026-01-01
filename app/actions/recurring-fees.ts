@@ -358,14 +358,10 @@ export async function markMultipleFeesPaid(data: {
   const supabase = await createSupabaseAdminClient();
 
   try {
-    // Get all fees details
+    // Get all fees details - using simple select without nested joins
     const { data: fees, error: feesError } = await supabase
       .from('fees')
-      .select(`
-        *,
-        profiles:user_id!inner (full_name, email),
-        residences:residence_id!inner (name, address)
-      `)
+      .select('*')
       .in('id', data.feeIds);
 
     if (feesError) {
@@ -379,8 +375,32 @@ export async function markMultipleFeesPaid(data: {
       return { error: 'No fees found' };
     }
 
+    // Get additional data separately
+    const firstFee = fees[0];
+    
+    // Get user profile
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', firstFee.user_id)
+      .single();
+
+    // Get residence
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('name, address')
+      .eq('id', firstFee.residence_id)
+      .single();
+
+    // Attach profile and residence data to each fee
+    const feesWithDetails = fees.map(fee => ({
+      ...fee,
+      profiles: userProfile,
+      residences: residence,
+    }));
+
     // Check if any fee is already paid
-    const alreadyPaid = fees.filter((fee) => fee.status === 'paid');
+    const alreadyPaid = feesWithDetails.filter((fee) => fee.status === 'paid');
     if (alreadyPaid.length > 0) {
       return { error: `${alreadyPaid.length} fee(s) already paid` };
     }
@@ -389,12 +409,12 @@ export async function markMultipleFeesPaid(data: {
     const { data: profileResidence } = await supabase
       .from('profile_residences')
       .select('apartment_number')
-      .eq('profile_id', fees[0].user_id)
-      .eq('residence_id', fees[0].residence_id)
+      .eq('profile_id', firstFee.user_id)
+      .eq('residence_id', firstFee.residence_id)
       .single();
 
     // Create payment records and update fees
-    const paymentPromises = fees.map(async (fee) => {
+    const paymentPromises = feesWithDetails.map(async (fee) => {
       // Create payment record
       const { data: payment, error: paymentError } = await supabase
         .from('payments')
