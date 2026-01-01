@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { MoreVertical, Edit, Trash2, DollarSign, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, DollarSign, ArrowUpDown, ArrowUp, ArrowDown, Users, Send } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -26,6 +26,8 @@ import { ResidentWithFees, Fee } from './ResidentsContent';
 import AddFeeDialog from './AddFeeDialog';
 import EditResidentDialog from './EditResidentDialog';
 import DeleteResidentDialog from './DeleteResidentDialog';
+import { toast } from 'sonner';
+import { resendOnboardingCode } from '@/app/residents/actions';
 
 interface ResidentsTableProps {
   residents: ResidentWithFees[];
@@ -66,6 +68,7 @@ export default function ResidentsTable({
   const [selectedResidentForFee, setSelectedResidentForFee] = useState<string | null>(null);
   const [selectedResidentForEdit, setSelectedResidentForEdit] = useState<ResidentWithFees | null>(null);
   const [selectedResidentForDelete, setSelectedResidentForDelete] = useState<ResidentWithFees | null>(null);
+  const [sendingCode, setSendingCode] = useState<string | null>(null);
 
   // Handle sorting
   const handleSort = (field: SortField) => {
@@ -192,6 +195,29 @@ export default function ResidentsTable({
   const handleAddFee = (resident: ResidentWithFees) => {
     console.log('[ResidentsTable] Add fee clicked for resident:', resident.id, resident.full_name);
     setSelectedResidentForFee(resident.id);
+  };
+
+  // Handle resend code
+  const handleResendCode = async (resident: ResidentWithFees) => {
+    if (!resident.email) {
+      toast.error('Resident has no email address');
+      return;
+    }
+
+    setSendingCode(resident.id);
+    try {
+      const result = await resendOnboardingCode(resident.id, resident.email, resident.full_name);
+      if (result.success) {
+        toast.success(`Verification code sent to ${resident.email}`);
+      } else {
+        toast.error(result.error || 'Failed to send code');
+      }
+    } catch (error) {
+      console.error('Error sending code:', error);
+      toast.error('An unexpected error occurred');
+    } finally {
+      setSendingCode(null);
+    }
   };
 
   if (loading) {
@@ -395,6 +421,18 @@ export default function ResidentsTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {!resident.verified && resident.role === 'resident' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleResendCode(resident)}
+                          disabled={sendingCode === resident.id}
+                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          title="Resend verification code"
+                        >
+                          <Send className={`h-4 w-4 ${sendingCode === resident.id ? 'animate-pulse' : ''}`} />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -428,6 +466,16 @@ export default function ResidentsTable({
                             <Edit className="h-4 w-4 mr-2" />
                             Edit Resident
                           </DropdownMenuItem>
+                          {!resident.verified && resident.role === 'resident' && (
+                            <DropdownMenuItem
+                              onClick={() => handleResendCode(resident)}
+                              className="cursor-pointer"
+                              disabled={sendingCode === resident.id}
+                            >
+                              <Send className="h-4 w-4 mr-2" />
+                              Resend Code
+                            </DropdownMenuItem>
+                          )}
                           {/* Show remove/delete option for all residents
                               For syndics removing themselves: only removes from resident list, not account */}
                           <DropdownMenuItem
