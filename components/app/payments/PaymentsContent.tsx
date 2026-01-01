@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Plus, Wallet, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,10 +19,20 @@ import { useI18n } from '@/lib/i18n/client';
  */
 export default function PaymentsContent() {
 	const { t } = useI18n();
+	const searchParams = useSearchParams();
 	const [showAddDialog, setShowAddDialog] = useState(false);
 	const [balances, setBalances] = useState({ cashOnHand: 0, bankBalance: 0 });
 	const [loading, setLoading] = useState(true);
 	const [refreshTrigger, setRefreshTrigger] = useState(0);
+	const [activeTab, setActiveTab] = useState('history');
+
+	// Handle tab query parameter
+	useEffect(() => {
+		const tab = searchParams?.get('tab');
+		if (tab === 'recurring') {
+			setActiveTab('recurring');
+		}
+	}, [searchParams]);
 
 	// Fetch balances on mount and when refreshTrigger changes
 	useEffect(() => {
@@ -114,11 +125,11 @@ export default function PaymentsContent() {
 				</Card>
 			</div>
 
-			<Tabs defaultValue="history" className="space-y-4">
-				<TabsList>
-					<TabsTrigger value="history">Payment History</TabsTrigger>
-					<TabsTrigger value="recurring">Recurring Rules</TabsTrigger>
-				</TabsList>
+		<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+			<TabsList>
+				<TabsTrigger value="history">Payment History</TabsTrigger>
+				<TabsTrigger value="recurring">Recurring Rules</TabsTrigger>
+			</TabsList>
 
 				<TabsContent value="history" className="space-y-4">
 					{/* Add Payment Button */}

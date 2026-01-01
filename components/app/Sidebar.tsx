@@ -10,7 +10,8 @@ import {
   Settings,
   MessageSquare,
   ChevronRight,
-  Receipt
+  Receipt,
+  RefreshCw
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -46,6 +47,7 @@ export function Sidebar() {
         { href: "/app", label: t('sidebar.overview'), icon: LayoutDashboard },
         { href: "/app/residents", label: t('sidebar.residents'), icon: Users },
         { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
+        { href: "/app/payments?tab=recurring", label: "Payment Rules", icon: RefreshCw },
       ]
     },
     {

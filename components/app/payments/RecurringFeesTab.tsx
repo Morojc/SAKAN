@@ -44,7 +44,7 @@ export default function RecurringFeesTab() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold">Payment Rules</h2>
+          <h2 className="text-lg font-semibold text-foreground">Payment Rules</h2>
           <p className="text-sm text-muted-foreground">
             Manage recurring fees and process mass payments.
           </p>
@@ -69,7 +69,7 @@ export default function RecurringFeesTab() {
             <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
               <RefreshCw className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-medium">No Payment Rules</h3>
+            <h3 className="text-lg font-medium text-foreground">No Payment Rules</h3>
             <p className="text-muted-foreground mb-4">
               Create a recurring fee rule (e.g. Monthly Syndic Fee) to get started.
             </p>
@@ -96,15 +96,15 @@ export default function RecurringFeesTab() {
               <CardContent className="flex-1 space-y-4">
                 <div className="flex items-center gap-2 text-sm">
                   <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-semibold">{setting.amount} MAD</span>
+                  <span className="font-semibold text-foreground">{setting.amount} MAD</span>
                   <span className="text-muted-foreground">per resident</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-sm text-foreground">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Next Due: {new Date(setting.next_due_date).toLocaleDateString()}</span>
                 </div>
               </CardContent>
-              <CardFooter className="pt-4 border-t bg-muted/20">
+              <CardFooter className="pt-4 border-t">
                 <Button 
                   className="w-full" 
                   onClick={() => setSelectedSetting(setting)}
