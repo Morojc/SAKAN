@@ -208,7 +208,7 @@ export default function AddRecurringFeeDialog({
             />
 
             <DialogFooter>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading} className="text-white bg-blue-500 hover:bg-blue-600">
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Rule
               </Button>

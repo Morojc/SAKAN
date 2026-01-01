@@ -85,7 +85,7 @@ export default function RecurringFeesTab() {
           </p>
         </div>
         {settings.length === 0 && (
-          <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+          <Button onClick={() => setShowAddDialog(true)} className="gap-2 text-white bg-blue-500 hover:bg-blue-600">
             <Plus className="h-4 w-4" />
             Create Payment Rule
           </Button>
@@ -108,7 +108,7 @@ export default function RecurringFeesTab() {
             <p className="text-muted-foreground mb-4">
               Create a recurring fee rule (e.g. Monthly Syndic Fee) to get started.
             </p>
-            <Button onClick={() => setShowAddDialog(true)}>Create Rule</Button>
+            <Button onClick={() => setShowAddDialog(true)} className="text-white bg-blue-500 hover:bg-blue-600">Create Rule</Button>
           </CardContent>
         </Card>
       ) : (
@@ -141,7 +141,7 @@ export default function RecurringFeesTab() {
               </CardContent>
               <CardFooter className="pt-4 border-t flex gap-2">
                 <Button 
-                  className="flex-1" 
+                  className="flex-1 text-white bg-blue-500 hover:bg-blue-600" 
                   onClick={() => setSelectedSetting(setting)}
                 >
                   Process Payments

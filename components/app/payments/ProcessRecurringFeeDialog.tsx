@@ -156,7 +156,7 @@ export default function ProcessRecurringFeeDialog({
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleGenerate} disabled={generating || loading}>
+          <Button onClick={handleGenerate} disabled={generating || loading} className="text-white bg-blue-500 hover:bg-blue-600">
             {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Generate Fees for Period
           </Button>
@@ -210,6 +210,7 @@ export default function ProcessRecurringFeeDialog({
                           size="sm" 
                           onClick={() => handleMarkPaid(fee.id)}
                           disabled={processingId === fee.id}
+                          className="text-white bg-blue-500 hover:bg-blue-600"
                         >
                           {processingId === fee.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Mark Paid
