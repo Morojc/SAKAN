@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { Plus, Wallet, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddPaymentDialog from './AddPaymentDialog';
 import PaymentsTable from './PaymentsTable';
+import RecurringFeesTab from './RecurringFeesTab';
 import { getBalances } from '@/app/actions/payments';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
@@ -62,13 +64,13 @@ export default function PaymentsContent() {
 		return new Intl.NumberFormat('en-MA', {
 			style: 'currency',
 			currency: 'MAD',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0,
 		}).format(amount);
 	};
 
 	return (
 		<div className="space-y-6">
-			{/* Debug log */}
-
 			{/* Balance Cards */}
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				{/* Cash on Hand Card */}
@@ -112,25 +114,38 @@ export default function PaymentsContent() {
 				</Card>
 			</div>
 
-			{/* Add Payment Button */}
-			<div className="flex justify-between items-center">
-				<div>
-					<h2 className="text-lg font-semibold">{t('payments.paymentRecords')}</h2>
-					<p className="text-sm text-muted-foreground">
-						{t('payments.paymentRecordsDesc')}
-					</p>
-				</div>
-				<Button 
-					onClick={() => setShowAddDialog(true)} 
-					className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-				>
-					<Plus className="h-4 w-4" />
-					{t('payments.addPayment')}
-				</Button>
-			</div>
+			<Tabs defaultValue="history" className="space-y-4">
+				<TabsList>
+					<TabsTrigger value="history">Payment History</TabsTrigger>
+					<TabsTrigger value="recurring">Recurring Rules</TabsTrigger>
+				</TabsList>
 
-			{/* Payments Table */}
-			<PaymentsTable refreshTrigger={refreshTrigger} />
+				<TabsContent value="history" className="space-y-4">
+					{/* Add Payment Button */}
+					<div className="flex justify-between items-center">
+						<div>
+							<h2 className="text-lg font-semibold">{t('payments.paymentRecords')}</h2>
+							<p className="text-sm text-muted-foreground">
+								{t('payments.paymentRecordsDesc')}
+							</p>
+						</div>
+						<Button 
+							onClick={() => setShowAddDialog(true)} 
+							className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+						>
+							<Plus className="h-4 w-4" />
+							{t('payments.addPayment')}
+						</Button>
+					</div>
+
+					{/* Payments Table */}
+					<PaymentsTable refreshTrigger={refreshTrigger} />
+				</TabsContent>
+
+				<TabsContent value="recurring">
+					<RecurringFeesTab />
+				</TabsContent>
+			</Tabs>
 
 			{/* Add Payment Dialog */}
 			<AddPaymentDialog
@@ -141,4 +156,3 @@ export default function PaymentsContent() {
 		</div>
 	);
 }
-
