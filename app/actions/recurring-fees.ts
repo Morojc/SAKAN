@@ -242,3 +242,80 @@ export async function markRecurringFeePaid(feeId: number, paymentMethod: 'cash' 
   revalidatePath('/app/payments');
   return { success: true };
 }
+
+export async function updateRecurringFee(data: {
+  id: number;
+  title: string;
+  amount: number;
+  frequency: string;
+  nextDueDate: Date;
+}) {
+  const session = await auth();
+  if (!session?.user) {
+    return { error: 'Unauthorized' };
+  }
+
+  const supabase = await createSupabaseAdminClient();
+
+  const { error } = await supabase
+    .from('recurring_fee_settings')
+    .update({
+      title: data.title,
+      amount: data.amount,
+      frequency: data.frequency,
+      next_due_date: data.nextDueDate.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', data.id);
+
+  if (error) {
+    console.error('Error updating recurring fee:', error);
+    return { error: 'Failed to update payment rule' };
+  }
+
+  revalidatePath('/app/payments');
+  return { success: true };
+}
+
+export async function deleteRecurringFee(id: number) {
+  const session = await auth();
+  if (!session?.user) {
+    return { error: 'Unauthorized' };
+  }
+
+  const supabase = await createSupabaseAdminClient();
+
+  // Check if there are any fees associated with this setting
+  const { data: fees } = await supabase
+    .from('fees')
+    .select('id')
+    .eq('recurring_setting_id', id)
+    .limit(1);
+
+  if (fees && fees.length > 0) {
+    // Soft delete by setting is_active to false
+    const { error } = await supabase
+      .from('recurring_fee_settings')
+      .update({ is_active: false })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deactivating recurring fee:', error);
+      return { error: 'Failed to deactivate payment rule' };
+    }
+  } else {
+    // Hard delete if no fees exist
+    const { error } = await supabase
+      .from('recurring_fee_settings')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting recurring fee:', error);
+      return { error: 'Failed to delete payment rule' };
+    }
+  }
+
+  revalidatePath('/app/payments');
+  return { success: true };
+}

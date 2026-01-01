@@ -1,14 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, CreditCard, RefreshCw } from 'lucide-react';
+import { Plus, Calendar, CreditCard, RefreshCw, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { getRecurringFeeSettings, RecurringFeeSetting } from '@/app/actions/recurring-fees';
+import { getRecurringFeeSettings, deleteRecurringFee, RecurringFeeSetting } from '@/app/actions/recurring-fees';
 import AddRecurringFeeDialog from './AddRecurringFeeDialog';
+import EditRecurringFeeDialog from './EditRecurringFeeDialog';
 import ProcessRecurringFeeDialog from './ProcessRecurringFeeDialog';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import toast from 'react-hot-toast';
 
 export default function RecurringFeesTab() {
@@ -16,7 +27,10 @@ export default function RecurringFeesTab() {
   const [settings, setSettings] = useState<RecurringFeeSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState<RecurringFeeSetting | null>(null);
+  const [settingToDelete, setSettingToDelete] = useState<RecurringFeeSetting | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchSettings = async () => {
     if (!user?.residenceId) return;
@@ -33,6 +47,27 @@ export default function RecurringFeesTab() {
       toast.error('Failed to load payment rules');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!settingToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const result = await deleteRecurringFee(settingToDelete.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success('Payment rule deleted successfully');
+        fetchSettings();
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete payment rule');
+    } finally {
+      setDeleting(false);
+      setSettingToDelete(null);
     }
   };
 
@@ -104,12 +139,29 @@ export default function RecurringFeesTab() {
                   <span>Next Due: {new Date(setting.next_due_date).toLocaleDateString()}</span>
                 </div>
               </CardContent>
-              <CardFooter className="pt-4 border-t">
+              <CardFooter className="pt-4 border-t flex gap-2">
                 <Button 
-                  className="w-full" 
+                  className="flex-1" 
                   onClick={() => setSelectedSetting(setting)}
                 >
                   Process Payments
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setSelectedSetting(setting);
+                    setShowEditDialog(true);
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSettingToDelete(setting)}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </CardFooter>
             </Card>
@@ -126,7 +178,23 @@ export default function RecurringFeesTab() {
         }}
       />
 
-      {selectedSetting && (
+      {selectedSetting && showEditDialog && (
+        <EditRecurringFeeDialog
+          open={showEditDialog}
+          onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) setSelectedSetting(null);
+          }}
+          setting={selectedSetting}
+          onSuccess={() => {
+            setShowEditDialog(false);
+            setSelectedSetting(null);
+            fetchSettings();
+          }}
+        />
+      )}
+
+      {selectedSetting && !showEditDialog && (
         <ProcessRecurringFeeDialog
           open={!!selectedSetting}
           onOpenChange={(open) => !open && setSelectedSetting(null)}
@@ -136,6 +204,29 @@ export default function RecurringFeesTab() {
           }}
         />
       )}
+
+      <AlertDialog open={!!settingToDelete} onOpenChange={() => setSettingToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Payment Rule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{settingToDelete?.title}&quot;? 
+              {' '}This action cannot be undone. If fees have already been generated, 
+              the rule will be deactivated instead of deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
