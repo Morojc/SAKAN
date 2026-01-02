@@ -64,24 +64,61 @@ export default function FeesPage() {
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
-  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
+  const [residenceId, setResidenceId] = useState<number | null>(null);
 
   useEffect(() => {
-    async function loadFees() {
-      setLoading(true);
-      const result = await getAllFees();
+    loadUserResidence();
+  }, []);
 
-      if (result.success && result.data) {
-        setFees(result.data);
-      } else if (result.error) {
-        toast.error(result.error);
+  useEffect(() => {
+    if (residenceId) {
+      loadFees();
+    }
+  }, [residenceId, refreshTrigger]);
+
+  const loadUserResidence = async () => {
+    try {
+      const response = await fetch('/api/user/residence');
+      const result = await response.json();
+
+      if (result.success && result.data?.residence_id) {
+        setResidenceId(result.data.residence_id);
+      } else {
+        console.error('No residence found:', result);
+        // Fallback: Try to get residence from residences table
+        const fallbackResponse = await fetch('/api/residences');
+        const fallbackResult = await fallbackResponse.json();
+        
+        if (fallbackResult.success && fallbackResult.data?.length > 0) {
+          const firstResidence = fallbackResult.data[0];
+          setResidenceId(firstResidence.id);
+          console.warn('Using fallback residence:', firstResidence);
+        } else {
+          toast.error('Could not load your residence. Please contact support.');
+        }
       }
+    } catch (error: any) {
+      console.error('Error loading residence:', error);
+      toast.error('Failed to load residence information');
+    }
+  };
 
-      setLoading(false);
+  async function loadFees() {
+    setLoading(true);
+    // Note: getAllFees might need to be updated to support residenceId filter if it doesn't already
+    // For now assuming getAllFees fetches based on server-side context or returns all fees (which we might filter)
+    const result = await getAllFees();
+
+    if (result.success && result.data) {
+      // Filter by residenceId if getAllFees returns more than just the current residence
+      const residenceFees = result.data.filter((f: any) => f.residence_id === residenceId);
+      setFees(residenceFees);
+    } else if (result.error) {
+      toast.error(result.error);
     }
 
-    loadFees();
-  }, [refreshTrigger]);
+    setLoading(false);
+  }
 
   // Filter fees
   const filteredFees = fees.filter((fee) => {
@@ -128,7 +165,7 @@ export default function FeesPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !residenceId) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -147,21 +184,25 @@ export default function FeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            onClick={() => setShowBulkDialog(true)} 
-            variant="outline"
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Bulk Fee (Exceptional)
-          </Button>
-          <Button 
-            onClick={() => setShowAddDialog(true)} 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t('fees.addNewFee')}
-          </Button>
+          {residenceId && (
+            <>
+              <Button 
+                onClick={() => setShowBulkDialog(true)} 
+                variant="outline"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Bulk Fee (Exceptional)
+              </Button>
+              <Button 
+                onClick={() => setShowAddDialog(true)} 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {t('fees.addNewFee')}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -329,12 +370,23 @@ export default function FeesPage() {
       </Card>
 
       {/* Add Fee Dialog */}
-      <AddFeeDialog
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
-        residenceId={residenceId}
-      />
+      {residenceId && (
+        <>
+          <AddFeeDialog
+            open={showAddDialog}
+            onOpenChange={setShowAddDialog}
+            onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+            residenceId={residenceId}
+          />
+
+          <BulkFeeDialog
+            open={showBulkDialog}
+            onOpenChange={setShowBulkDialog}
+            onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+            residenceId={residenceId}
+          />
+        </>
+      )}
 
       {/* View Fee Dialog */}
       <ViewFeeDialog
@@ -342,15 +394,6 @@ export default function FeesPage() {
         onOpenChange={setShowViewDialog}
         fee={selectedFee}
       />
-
-      {/* Bulk Fee Dialog */}
-      <BulkFeeDialog
-        open={showBulkDialog}
-        onOpenChange={setShowBulkDialog}
-        onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
-        residenceId={residenceId}
-      />
     </div>
   );
 }
-

@@ -6,20 +6,20 @@ export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const residenceId = searchParams.get('residenceId');
 
-    if (!residenceId) {
+    if (!residenceId || isNaN(parseInt(residenceId))) {
       return NextResponse.json(
-        { error: 'Residence ID is required' },
+        { success: false, error: 'Valid Residence ID is required' },
         { status: 400 }
       );
     }
 
-    const supabase = await createSupabaseAdminClient();
+    const supabase = createSupabaseAdminClient();
 
     // Fetch all verified residents in the residence
     const { data: residents, error } = await supabase
@@ -40,25 +40,27 @@ export async function GET(request: Request) {
     if (error) {
       console.error('Error fetching apartments:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch apartments' },
+        { success: false, error: 'Failed to fetch apartments' },
         { status: 500 }
       );
     }
 
     // Format the data
     const apartments = (residents || []).map((resident: any) => ({
-      number: resident.apartment_number,
-      residentName: resident.profiles?.full_name || 'Unknown',
-      residentId: resident.profile_id,
+      apartment_number: resident.apartment_number,
+      resident_name: resident.profiles?.full_name || 'Unknown',
+      resident_id: resident.profile_id,
     }));
 
-    return NextResponse.json({ apartments });
+    return NextResponse.json({ 
+      success: true,
+      data: apartments 
+    });
   } catch (error: any) {
     console.error('Error in apartments API:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
 }
-

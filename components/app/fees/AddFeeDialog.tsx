@@ -47,14 +47,17 @@ export default function AddFeeDialog({
     try {
       const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
       if (response.ok) {
-        const data = await response.json();
-        console.log('[AddFeeDialog] Fetched apartments data:', data);
+        const result = await response.json();
+        console.log('[AddFeeDialog] Fetched apartments data:', result);
         
-        if (data.apartments && data.apartments.length > 0) {
-          const mappedResidents = data.apartments.map((apt: any) => ({
-            id: apt.residentId, // This is the profile_id which is used as user_id in fees table
-            name: apt.residentName || 'Unknown',
-            apartment: apt.number || 'N/A',
+        // Handle standardized API response format { success: true, data: [...] }
+        const apartmentsData = result.success ? result.data : (result.apartments || []);
+
+        if (apartmentsData && apartmentsData.length > 0) {
+          const mappedResidents = apartmentsData.map((apt: any) => ({
+            id: apt.resident_id || apt.residentId, // Handle both formats
+            name: apt.resident_name || apt.residentName || 'Unknown',
+            apartment: apt.apartment_number || apt.number || 'N/A',
           }));
           setResidents(mappedResidents);
           console.log('[AddFeeDialog] Mapped residents:', mappedResidents);
@@ -241,4 +244,3 @@ export default function AddFeeDialog({
     </Dialog>
   );
 }
-
