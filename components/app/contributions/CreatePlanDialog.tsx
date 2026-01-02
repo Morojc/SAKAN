@@ -26,13 +26,19 @@ export default function CreatePlanDialog({
   residenceId,
 }: CreatePlanDialogProps) {
   const [submitting, setSubmitting] = useState(false);
+  
+  // Default start date to the 1st of the current month
+  const today = new Date();
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1, 12);
+  const defaultStartDate = firstOfMonth.toISOString().split('T')[0];
+
   const [formData, setFormData] = useState<CreateContributionPlanDTO>({
     residence_id: residenceId,
     plan_name: '',
     description: '',
     amount_per_period: 0,
     period_type: 'monthly',
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: defaultStartDate,
     applies_to_all_apartments: true,
     auto_generate: true,
     generation_day: 1,
@@ -160,6 +166,9 @@ export default function CreatePlanDialog({
               onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
               className="mt-2"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Tip: Set this to the 1st of the month to include the full month.
+            </p>
           </div>
 
           {/* Generation Settings */}
@@ -299,4 +308,3 @@ export default function CreatePlanDialog({
     </Dialog>
   );
 }
-

@@ -33,21 +33,13 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profileError) {
-      console.error('[POST /api/contributions/generate] Profile error:', profileError);
       return NextResponse.json(
         { success: false, error: 'Failed to fetch user profile' },
         { status: 500 }
       );
     }
 
-    if (!profile) {
-      return NextResponse.json(
-        { success: false, error: 'User profile not found' },
-        { status: 404 }
-      );
-    }
-
-    if (profile?.role !== 'syndic') {
+    if (!profile || profile.role !== 'syndic') {
       return NextResponse.json(
         { success: false, error: 'Only syndics can generate contributions' },
         { status: 403 }
@@ -55,12 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the database function to generate contributions
-    console.log('[POST /api/contributions/generate] Calling RPC with:', {
-      p_residence_id: residence_id,
-      p_period_start: period_start,
-      p_period_end: period_end,
-    });
-
     const { data, error } = await supabase.rpc('generate_contributions_for_period', {
       p_residence_id: residence_id,
       p_period_start: period_start,
@@ -69,20 +55,54 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[POST /api/contributions/generate] RPC Error:', error);
-      console.error('[POST /api/contributions/generate] Error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
+      
+      // DIAGNOSTIC LOGIC: Help the user understand WHY it failed
+      if (error.message && error.message.includes('No active contribution plan')) {
+        
+        // 1. Check if ANY plan exists for this residence
+        const { data: plans } = await supabase
+          .from('contribution_plans')
+          .select('*')
+          .eq('residence_id', residence_id);
+          
+        if (!plans || plans.length === 0) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'No active contribution plan found. Please create a contribution plan first.',
+            details: 'No plans exist for this residence.'
+          }, { status: 400 });
+        }
+
+        // 2. Check for Active plans
+        const activePlans = plans.filter((p: any) => p.is_active);
+        
+        if (activePlans.length === 0) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'No active contribution plan found. Please activate a plan in settings.',
+            details: `Found ${plans.length} plans, but none are active.`
+          }, { status: 400 });
+        }
+
+        // 3. Check dates of active plans
+        const validDatePlans = activePlans.filter((p: any) => {
+          return p.start_date <= period_end && (!p.end_date || p.end_date >= period_start);
+        });
+
+        if (validDatePlans.length === 0) {
+          const plan = activePlans[0];
+          return NextResponse.json({ 
+            success: false, 
+            error: `Active plan found ("${plan.plan_name}"), but its dates don't cover this period.`,
+            details: `Plan starts ${plan.start_date}. Generating for ${period_start}. Please update the plan start date to be on or before the generation period, or run the SQL fix to allow overlaps.`
+          }, { status: 400 });
+        }
+      }
+
       return NextResponse.json(
         { 
           success: false, 
           error: error.message || 'Failed to generate contributions',
-          details: {
-            code: error.code,
-            hint: error.hint,
-          }
         },
         { status: 500 }
       );
@@ -101,4 +121,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
