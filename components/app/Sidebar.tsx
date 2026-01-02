@@ -13,7 +13,8 @@ import {
   Receipt,
   RefreshCw,
   UserPlus,
-  QrCode
+  QrCode,
+  TrendingUp
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -54,6 +55,7 @@ export function Sidebar() {
     {
       category: t('sidebar.management'),
       items: [
+        { href: "/app/contributions", label: "Contributions", icon: TrendingUp },
         { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
         { href: "/app/recurring-rules", label: "Recurring Rules", icon: RefreshCw },
         { href: "/app/expenses", label: t('sidebar.expenses'), icon: Receipt },
