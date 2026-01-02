@@ -152,15 +152,16 @@ export default function ContributionsPage() {
     let periodEnd: Date;
     
     if (plan.period_type === 'monthly') {
-      // Calculate months since plan start
+      // For monthly plans, periods are full months (1st to last day)
+      // Calculate which month period we're in based on plan's start month
       const monthsSincePlanStart = (currentYear - planYear) * 12 + (currentMonth - planMonth);
       
       // Current period is the period containing today
-      // Period 0 starts at plan start, period 1 starts one month after, etc.
+      // Period 0 is the month containing plan start, period 1 is the next month, etc.
       const periodIndex = monthsSincePlanStart;
       
-      // Calculate period start: plan start + periodIndex months
-      periodStart = new Date(planYear, planMonth + periodIndex, planDay);
+      // Calculate period start: first day of the month containing plan start + periodIndex months
+      periodStart = new Date(planYear, planMonth + periodIndex, 1);
       // Period end: last day of the same month
       periodEnd = new Date(planYear, planMonth + periodIndex + 1, 0);
     } else if (plan.period_type === 'quarterly') {
@@ -187,8 +188,8 @@ export default function ContributionsPage() {
       const halfYearsSincePlanStart = (currentYear - planYear) * 2 + (currentHalfYear - planHalfYear);
       
       const periodIndex = halfYearsSincePlanStart;
-      // Calculate period start: first month of the half-year containing plan start + periodIndex half-years
-      periodStart = new Date(planYear, planHalfYear * 6 + periodIndex * 6, planDay);
+      // Calculate period start: first day of the first month of the half-year containing plan start + periodIndex half-years
+      periodStart = new Date(planYear, planHalfYear * 6 + periodIndex * 6, 1);
       // Period end: last day of the half-year
       periodEnd = new Date(planYear, (planHalfYear + 1) * 6 + periodIndex * 6, 0);
     } else if (plan.period_type === 'annual') {
@@ -227,6 +228,13 @@ export default function ContributionsPage() {
     const period = calculatePeriodFromPlan(activePlan);
     const periodStart = period.start;
     const periodEnd = period.end;
+
+    console.log('[Contributions] Generating period:', {
+      plan_start_date: activePlan.start_date,
+      plan_period_type: activePlan.period_type,
+      calculated_period_start: periodStart,
+      calculated_period_end: periodEnd,
+    });
 
     try {
       const response = await fetch('/api/contributions/generate', {

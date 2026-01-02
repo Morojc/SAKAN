@@ -116,31 +116,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate period dates based on period_type
+    // Use the period dates from the request - they are already calculated based on plan's start_date
+    // The frontend calculates periods correctly based on the plan's start_date and period_type
     let calculatedPeriodStart = period_start;
     let calculatedPeriodEnd = period_end;
 
-    if (activePlan.period_type === 'quarterly') {
-      // For quarterly, align to quarter boundaries
-      const startDate = new Date(period_start);
-      const quarter = Math.floor(startDate.getMonth() / 3);
-      calculatedPeriodStart = new Date(startDate.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
-      calculatedPeriodEnd = new Date(startDate.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
-    } else if (activePlan.period_type === 'semi_annual') {
-      // For semi-annual, align to half-year boundaries
-      const startDate = new Date(period_start);
-      const halfYear = Math.floor(startDate.getMonth() / 6);
-      calculatedPeriodStart = new Date(startDate.getFullYear(), halfYear * 6, 1).toISOString().split('T')[0];
-      calculatedPeriodEnd = new Date(startDate.getFullYear(), (halfYear + 1) * 6, 0).toISOString().split('T')[0];
-    } else if (activePlan.period_type === 'annual') {
-      // For annual, align to year boundaries
-      const startDate = new Date(period_start);
-      calculatedPeriodStart = new Date(startDate.getFullYear(), 0, 1).toISOString().split('T')[0];
-      calculatedPeriodEnd = new Date(startDate.getFullYear(), 11, 31).toISOString().split('T')[0];
+    // Validate that the period aligns with the plan's start_date
+    // This ensures the period is a valid period for this plan
+    const planStartDate = new Date(activePlan.start_date);
+    const periodStartDate = new Date(period_start);
+    const periodEndDate = new Date(period_end);
+    
+    // Check if period is within plan's date range
+    if (periodStartDate < planStartDate) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Period start (${period_start}) is before plan start date (${activePlan.start_date})` 
+        },
+        { status: 400 }
+      );
     }
-    // For monthly, use the provided dates as-is
+    
+    if (activePlan.end_date) {
+      const planEndDate = new Date(activePlan.end_date);
+      if (periodEndDate > planEndDate) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `Period end (${period_end}) is after plan end date (${activePlan.end_date})` 
+          },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Check if contributions already exist for this plan and period (before calculating dates)
+    // Check if contributions already exist for this plan and period
     const { data: existingContributions, error: checkError } = await supabase
       .from('contributions')
       .select('id')
