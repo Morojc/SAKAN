@@ -15,18 +15,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
-    // Get user's residence from profile_residences and role from profiles
-    // Use maybeSingle() instead of single() to handle case where user has no residence link
+    // Use the same pattern as working API routes - simple query without joins
     const { data: profileResidence, error } = await supabase
       .from('profile_residences')
-      .select(`
-        residence_id,
-        apartment_number,
-        verified,
-        residence:residences(id, name, address, city)
-      `)
+      .select('residence_id, apartment_number, verified')
       .eq('profile_id', session.user.id)
-      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -69,12 +62,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch residence details separately (matching the working pattern)
+    const { data: residence } = await supabase
+      .from('residences')
+      .select('id, name, address, city')
+      .eq('id', profileResidence.residence_id)
+      .maybeSingle();
+
     // Get user's role from profiles table
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       success: true,
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         apartment_number: profileResidence.apartment_number,
         verified: profileResidence.verified,
         role: profile?.role || 'resident',
-        residence: profileResidence.residence,
+        residence: residence || null,
       },
     });
   } catch (error: any) {
