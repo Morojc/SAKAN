@@ -149,10 +149,10 @@ export async function approveRegistrationRequest(requestId: number) {
       }
     }
     
-    // Check if profile exists, create if it doesn't
+    // Check if profile exists, create if it doesn't, or update role if it does
     const { data: existingProfile } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, role')
       .eq('id', authUserId)
       .single();
 
@@ -175,6 +175,25 @@ export async function approveRegistrationRequest(requestId: number) {
         console.error('Error creating profile:', profileError);
         return { error: 'Failed to create user profile' };
       }
+    } else {
+      // Profile exists (possibly created by trigger), ensure it has the correct role and onboarding code
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          role: 'resident', // Ensure role is resident for registration requests
+          full_name: request.full_name,
+          phone_number: request.phone_number,
+          resident_onboarding_code: onboardingCode,
+          resident_onboarding_code_expires_at: expiresAt.toISOString(),
+          email_verified: false,
+          verified: false,
+        })
+        .eq('id', authUserId);
+
+      if (profileUpdateError) {
+        console.error('Error updating profile:', profileUpdateError);
+        return { error: 'Failed to update user profile' };
+      }
     }
   } else {
     // User doesn't exist, create new user in auth.users
@@ -194,6 +213,7 @@ export async function approveRegistrationRequest(requestId: number) {
     authUserId = authUser.user.id;
 
     // Create user record in users table (NextAuth table)
+    // Note: A trigger will auto-create a profile with role 'syndic', so we'll update it after
     const { error: userError } = await supabase
       .from('users')
       .insert({
@@ -209,22 +229,25 @@ export async function approveRegistrationRequest(requestId: number) {
       return { error: 'Failed to create user record' };
     }
 
-    // Create profile for new user
+    // The trigger will have created a profile with role 'syndic', so we need to update it to 'resident'
+    // Use upsert to handle both cases: if trigger created it (update) or if it didn't (insert)
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert({
+      .upsert({
         id: authUserId,
         full_name: request.full_name,
         phone_number: request.phone_number,
-        role: 'resident',
+        role: 'resident', // Override the trigger's default 'syndic' role
         resident_onboarding_code: onboardingCode,
         resident_onboarding_code_expires_at: expiresAt.toISOString(),
         email_verified: false,
         verified: false,
+      }, {
+        onConflict: 'id'
       });
 
     if (profileError) {
-      console.error('Error creating profile:', profileError);
+      console.error('Error upserting profile:', profileError);
       // Clean up
       await supabase.from('users').delete().eq('id', authUserId);
       await supabase.auth.admin.deleteUser(authUserId);
