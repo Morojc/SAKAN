@@ -166,11 +166,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Log the plan and period being used for debugging
+    console.log('[POST /api/contributions/generate] Using plan:', {
+      plan_id: activePlan.id,
+      period_type: activePlan.period_type,
+      original_period: { start: period_start, end: period_end },
+      calculated_period: { start: calculatedPeriodStart, end: calculatedPeriodEnd },
+    });
+
     // Call the database function to generate contributions
+    // Pass the plan_id we found to avoid the database function searching again
     const { data, error } = await supabase.rpc('generate_contributions_for_period', {
       p_residence_id: residence_id,
       p_period_start: calculatedPeriodStart,
       p_period_end: calculatedPeriodEnd,
+      p_plan_id: activePlan.id, // Pass the plan_id we already found
     });
 
     if (error) {
