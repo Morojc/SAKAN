@@ -15,12 +15,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
-    // Use the same pattern as working API routes - simple query without joins
+    // Use maybeSingle() to handle cases where no residence link exists
     const { data: profileResidence, error } = await supabase
       .from('profile_residences')
       .select('residence_id, apartment_number, verified')
       .eq('profile_id', session.user.id)
-      .limit(1)
       .maybeSingle();
 
     // Log for debugging
@@ -28,8 +27,8 @@ export async function GET(request: NextRequest) {
     console.log('[GET /api/user/residence] Query error:', error);
     console.log('[GET /api/user/residence] Profile residence data:', profileResidence);
 
-    // Check for actual database errors (not just "no rows found")
-    if (error && error.code !== 'PGRST116') {
+    // Check for actual database errors
+    if (error) {
       console.error('[GET /api/user/residence] Database error:', error);
       return NextResponse.json(
         { 
