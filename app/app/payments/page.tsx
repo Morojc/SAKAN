@@ -21,12 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Search, CheckCircle, XCircle, Eye, Link2 } from 'lucide-react';
+import { Loader2, Search, CheckCircle, XCircle, Eye, Link2, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { Payment } from '@/types/financial.types';
 import { format } from 'date-fns';
 import AllocatePaymentDialog from '@/components/app/payments/AllocatePaymentDialog';
+import AddPaymentDialog from '@/components/app/payments/AddPaymentDialog';
 
 export default function PaymentsPage() {
   const { t } = useI18n();
@@ -34,15 +35,62 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
-  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
+  const [residenceId, setResidenceId] = useState<number | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [showAllocateDialog, setShowAllocateDialog] = useState(false);
+  const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   useEffect(() => {
-    loadPayments();
-  }, [statusFilter]);
+    loadUserResidence();
+  }, []);
+
+  useEffect(() => {
+    if (residenceId) {
+      loadPayments();
+    }
+  }, [statusFilter, residenceId]);
+
+  const loadUserResidence = async () => {
+    try {
+      // Load user profile to get role
+      const profileResponse = await fetch('/api/current-user-profile');
+      const profileResult = await profileResponse.json();
+      
+      if (profileResult.success && profileResult.data?.role) {
+        setUserRole(profileResult.data.role);
+        console.log('[Payments] User role:', profileResult.data.role);
+      }
+
+      const response = await fetch('/api/user/residence');
+      const result = await response.json();
+
+      if (result.success && result.data?.residence_id) {
+        setResidenceId(result.data.residence_id);
+        console.log('[Payments] Residence ID loaded:', result.data.residence_id);
+      } else {
+        console.error('[Payments] No residence found:', result);
+        // Fallback: Try to get residence from residences table
+        const fallbackResponse = await fetch('/api/residences');
+        const fallbackResult = await fallbackResponse.json();
+        
+        if (fallbackResult.success && fallbackResult.data?.length > 0) {
+          const firstResidence = fallbackResult.data[0];
+          setResidenceId(firstResidence.id);
+          console.warn('[Payments] Using fallback residence:', firstResidence);
+        } else {
+          toast.error('Could not load your residence. Please contact support.');
+        }
+      }
+    } catch (error: any) {
+      console.error('[Payments] Error loading residence:', error);
+      toast.error('Failed to load residence information');
+    }
+  };
 
   const loadPayments = async () => {
+    if (!residenceId) return;
+    
     setLoading(true);
     try {
       const response = await fetch(
@@ -165,7 +213,7 @@ export default function PaymentsPage() {
     );
   };
 
-  if (loading) {
+  if (loading && !residenceId) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -182,6 +230,26 @@ export default function PaymentsPage() {
           <p className="text-muted-foreground mt-1">
             Review and verify resident payments
           </p>
+          {/* Debug info - remove in production */}
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Debug: ResidenceId={residenceId ? residenceId : 'null'}, Role={userRole || 'loading...'}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!residenceId && (
+            <span className="text-sm text-muted-foreground">Loading residence...</span>
+          )}
+          {residenceId && (
+            <Button 
+              onClick={() => setShowAddPaymentDialog(true)} 
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Payment
+            </Button>
+          )}
         </div>
       </div>
 
@@ -386,6 +454,16 @@ export default function PaymentsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Payment Dialog */}
+      <AddPaymentDialog
+        open={showAddPaymentDialog}
+        onOpenChange={setShowAddPaymentDialog}
+        onSuccess={() => {
+          loadPayments();
+          setShowAddPaymentDialog(false);
+        }}
+      />
 
       {/* Allocate Payment Dialog */}
       <AllocatePaymentDialog
