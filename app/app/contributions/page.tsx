@@ -194,13 +194,17 @@ export default function ContributionsPage() {
       
       // Calculate period start: first day of the month containing plan start + periodIndex months
       periodStart = new Date(planYear, planMonth + periodIndex, 1);
+      periodStart.setHours(0, 0, 0, 0); // Normalize to start of day
       // Period end: last day of the same month
       periodEnd = new Date(planYear, planMonth + periodIndex + 1, 0);
+      periodEnd.setHours(0, 0, 0, 0); // Normalize to start of day
       
       // Double-check: ensure period start is not before plan start date
-      if (periodStart < planStartDate) {
+      if (periodStart.getTime() < planStartDate.getTime()) {
         periodStart = new Date(planYear, planMonth, 1); // First day of plan start month
+        periodStart.setHours(0, 0, 0, 0);
         periodEnd = new Date(planYear, planMonth + 1, 0); // Last day of plan start month
+        periodEnd.setHours(0, 0, 0, 0);
       }
     } else if (plan.period_type === 'quarterly') {
       // Find which quarter the plan starts in (0-3)
@@ -215,13 +219,17 @@ export default function ContributionsPage() {
       const periodIndex = Math.max(0, quartersSincePlanStart);
       // Calculate period start: first day of the first month of the quarter containing plan start + periodIndex quarters
       periodStart = new Date(planYear, planQuarter * 3 + periodIndex * 3, 1);
+      periodStart.setHours(0, 0, 0, 0); // Normalize to start of day
       // Period end: last day of the quarter
       periodEnd = new Date(planYear, (planQuarter + 1) * 3 + periodIndex * 3, 0);
+      periodEnd.setHours(0, 0, 0, 0); // Normalize to start of day
       
       // Double-check: ensure period start is not before plan start date
-      if (periodStart < planStartDate) {
+      if (periodStart.getTime() < planStartDate.getTime()) {
         periodStart = new Date(planYear, planQuarter * 3, 1); // First day of plan start quarter
+        periodStart.setHours(0, 0, 0, 0);
         periodEnd = new Date(planYear, (planQuarter + 1) * 3, 0); // Last day of plan start quarter
+        periodEnd.setHours(0, 0, 0, 0);
       }
     } else if (plan.period_type === 'semi_annual') {
       // Find which half-year the plan starts in (0 or 1)
@@ -236,13 +244,17 @@ export default function ContributionsPage() {
       const periodIndex = Math.max(0, halfYearsSincePlanStart);
       // Calculate period start: first day of the first month of the half-year containing plan start + periodIndex half-years
       periodStart = new Date(planYear, planHalfYear * 6 + periodIndex * 6, 1);
+      periodStart.setHours(0, 0, 0, 0); // Normalize to start of day
       // Period end: last day of the half-year
       periodEnd = new Date(planYear, (planHalfYear + 1) * 6 + periodIndex * 6, 0);
+      periodEnd.setHours(0, 0, 0, 0); // Normalize to start of day
       
       // Double-check: ensure period start is not before plan start date
-      if (periodStart < planStartDate) {
+      if (periodStart.getTime() < planStartDate.getTime()) {
         periodStart = new Date(planYear, planHalfYear * 6, 1); // First day of plan start half-year
+        periodStart.setHours(0, 0, 0, 0);
         periodEnd = new Date(planYear, (planHalfYear + 1) * 6, 0); // Last day of plan start half-year
+        periodEnd.setHours(0, 0, 0, 0);
       }
     } else if (plan.period_type === 'annual') {
       // Annual periods: each period is one year from plan start
@@ -251,20 +263,56 @@ export default function ContributionsPage() {
       const periodIndex = Math.max(0, yearsSincePlanStart);
       
       periodStart = new Date(planYear + periodIndex, planMonth, planDay);
+      periodStart.setHours(0, 0, 0, 0); // Normalize to start of day
       periodEnd = new Date(planYear + periodIndex + 1, planMonth, planDay);
       periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period starts
+      periodEnd.setHours(0, 0, 0, 0); // Normalize to start of day
       
       // Double-check: ensure period start is not before plan start date
-      if (periodStart < planStartDate) {
+      if (periodStart.getTime() < planStartDate.getTime()) {
         periodStart = new Date(planStartDate); // Plan start date
+        periodStart.setHours(0, 0, 0, 0);
         periodEnd = new Date(planYear + 1, planMonth, planDay);
         periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period
+        periodEnd.setHours(0, 0, 0, 0);
       }
     } else {
       // Default to monthly (fallback)
       const month = currentMonth + 1;
       periodStart = new Date(currentYear, currentMonth, 1);
+      periodStart.setHours(0, 0, 0, 0);
       periodEnd = new Date(currentYear, month, 0);
+      periodEnd.setHours(0, 0, 0, 0);
+    }
+    
+    // Final safety check: ensure period start is never before plan start date
+    if (periodStart.getTime() < planStartDate.getTime()) {
+      console.warn('[calculatePeriodFromPlan] Period start was before plan start, using first period:', {
+        calculated_period_start: periodStart.toISOString().split('T')[0],
+        plan_start_date: planStartDate.toISOString().split('T')[0],
+        period_type: plan.period_type,
+      });
+      
+      // Use first period based on plan start
+      if (plan.period_type === 'monthly') {
+        periodStart = new Date(planYear, planMonth, 1);
+        periodEnd = new Date(planYear, planMonth + 1, 0);
+      } else if (plan.period_type === 'quarterly') {
+        const planQuarter = Math.floor(planMonth / 3);
+        periodStart = new Date(planYear, planQuarter * 3, 1);
+        periodEnd = new Date(planYear, (planQuarter + 1) * 3, 0);
+      } else if (plan.period_type === 'semi_annual') {
+        const planHalfYear = Math.floor(planMonth / 6);
+        periodStart = new Date(planYear, planHalfYear * 6, 1);
+        periodEnd = new Date(planYear, (planHalfYear + 1) * 6, 0);
+      } else if (plan.period_type === 'annual') {
+        periodStart = new Date(planStartDate);
+        const periodEndDate = new Date(planYear + 1, planMonth, planDay);
+        periodEndDate.setDate(periodEndDate.getDate() - 1);
+        periodEnd = periodEndDate;
+      }
+      periodStart.setHours(0, 0, 0, 0);
+      periodEnd.setHours(0, 0, 0, 0);
     }
     
     return {
