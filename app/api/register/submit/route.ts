@@ -25,15 +25,16 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createSupabaseAdminClient();
 
-    // Check for duplicate email in same residence
+    // Check for duplicate email in same residence (only verified residents)
     const { data: existingEmail } = await supabase
       .from('profile_residences')
       .select('profile_id, profiles:profile_id(email)')
-      .eq('residence_id', residenceId);
+      .eq('residence_id', residenceId)
+      .eq('verified', true);
 
     if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email === email)) {
       return NextResponse.json(
-        { error: 'This email is already registered in this residence' },
+        { error: 'This email is already registered as a resident in this residence' },
         { status: 400 }
       );
     }
