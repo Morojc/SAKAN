@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
+    // Get active contribution plan to understand period alignment
+    const { data: activePlan } = await supabase
+      .from('contribution_plans')
+      .select('id, start_date, period_type')
+      .eq('residence_id', residenceId)
+      .eq('is_active', true)
+      .maybeSingle();
+
     // Get all contributions for the year
     const { data: contributions, error } = await supabase
       .from('contributions')
@@ -36,6 +44,10 @@ export async function GET(request: NextRequest) {
           profile_id,
           apartment_number,
           profiles(full_name)
+        ),
+        contribution_plans(
+          start_date,
+          period_type
         )
       `)
       .eq('residence_id', residenceId)
@@ -74,12 +86,33 @@ export async function GET(request: NextRequest) {
 
       const apt = apartmentMap.get(aptNum)!;
       
-      // Format month key (e.g., "janv-25")
+      // Format period key based on plan's period_type
       const periodStart = new Date(contrib.period_start);
-      const monthNames = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
-      const monthKey = `${monthNames[periodStart.getMonth()]}-${year.toString().slice(-2)}`;
+      const planPeriodType = contrib.contribution_plans?.period_type || 'monthly';
+      const planStartDate = contrib.contribution_plans?.start_date 
+        ? new Date(contrib.contribution_plans.start_date)
+        : new Date(periodStart.getFullYear(), 0, 1);
       
-      apt.months[monthKey] = contrib.status;
+      let periodKey: string;
+      
+      if (planPeriodType === 'monthly') {
+        const monthNames = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+        periodKey = `${monthNames[periodStart.getMonth()]}-${year.toString().slice(-2)}`;
+      } else if (planPeriodType === 'quarterly') {
+        const quarter = Math.floor(periodStart.getMonth() / 3) + 1;
+        periodKey = `Q${quarter}-${year.toString().slice(-2)}`;
+      } else if (planPeriodType === 'semi_annual') {
+        const halfYear = Math.floor(periodStart.getMonth() / 6) + 1;
+        periodKey = `H${halfYear}-${year.toString().slice(-2)}`;
+      } else if (planPeriodType === 'annual') {
+        periodKey = year.toString();
+      } else {
+        // Default to monthly
+        const monthNames = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+        periodKey = `${monthNames[periodStart.getMonth()]}-${year.toString().slice(-2)}`;
+      }
+      
+      apt.months[periodKey] = contrib.status;
       apt.total_due += parseFloat(contrib.amount_due);
       apt.total_paid += parseFloat(contrib.amount_paid);
       

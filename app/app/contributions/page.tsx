@@ -36,7 +36,13 @@ export default function ContributionsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
   const [residenceId, setResidenceId] = useState<number | null>(null);
-  const [activePlan, setActivePlan] = useState<{ period_type: string; plan_name: string } | null>(null);
+  const [activePlan, setActivePlan] = useState<{ 
+    id: number;
+    period_type: string; 
+    plan_name: string;
+    start_date: string;
+    end_date: string | null;
+  } | null>(null);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [pendingPeriod, setPendingPeriod] = useState<{ start: string; end: string } | null>(null);
@@ -71,7 +77,13 @@ export default function ContributionsPage() {
       if (result.success && result.data) {
         const active = result.data.find((p: any) => p.is_active);
         if (active) {
-          setActivePlan({ period_type: active.period_type, plan_name: active.plan_name });
+          setActivePlan({ 
+            id: active.id,
+            period_type: active.period_type, 
+            plan_name: active.plan_name,
+            start_date: active.start_date,
+            end_date: active.end_date,
+          });
         } else {
           setActivePlan(null);
         }
@@ -125,43 +137,96 @@ export default function ContributionsPage() {
       row.resident_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper function to calculate current period based on plan's start_date
+  const calculatePeriodFromPlan = (plan: { start_date: string; period_type: string }, referenceDate: Date = new Date()) => {
+    const planStartDate = new Date(plan.start_date);
+    const planYear = planStartDate.getFullYear();
+    const planMonth = planStartDate.getMonth(); // 0-11
+    const planDay = planStartDate.getDate();
+    
+    const currentDate = referenceDate;
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    
+    let periodStart: Date;
+    let periodEnd: Date;
+    
+    if (plan.period_type === 'monthly') {
+      // Calculate months since plan start
+      const monthsSincePlanStart = (currentYear - planYear) * 12 + (currentMonth - planMonth);
+      
+      // Current period is the period containing today
+      // Period 0 starts at plan start, period 1 starts one month after, etc.
+      const periodIndex = monthsSincePlanStart;
+      
+      // Calculate period start: plan start + periodIndex months
+      periodStart = new Date(planYear, planMonth + periodIndex, planDay);
+      // Period end: last day of the same month
+      periodEnd = new Date(planYear, planMonth + periodIndex + 1, 0);
+    } else if (plan.period_type === 'quarterly') {
+      // Find which quarter the plan starts in (0-3)
+      const planQuarter = Math.floor(planMonth / 3);
+      // Find which quarter we're currently in
+      const currentQuarter = Math.floor(currentMonth / 3);
+      
+      // Calculate quarters since plan start
+      const quartersSincePlanStart = (currentYear - planYear) * 4 + (currentQuarter - planQuarter);
+      
+      const periodIndex = quartersSincePlanStart;
+      // Calculate period start: first month of the quarter containing plan start + periodIndex quarters
+      periodStart = new Date(planYear, planQuarter * 3 + periodIndex * 3, planDay);
+      // Period end: last day of the quarter
+      periodEnd = new Date(planYear, (planQuarter + 1) * 3 + periodIndex * 3, 0);
+    } else if (plan.period_type === 'semi_annual') {
+      // Find which half-year the plan starts in (0 or 1)
+      const planHalfYear = Math.floor(planMonth / 6);
+      // Find which half-year we're currently in
+      const currentHalfYear = Math.floor(currentMonth / 6);
+      
+      // Calculate half-years since plan start
+      const halfYearsSincePlanStart = (currentYear - planYear) * 2 + (currentHalfYear - planHalfYear);
+      
+      const periodIndex = halfYearsSincePlanStart;
+      // Calculate period start: first month of the half-year containing plan start + periodIndex half-years
+      periodStart = new Date(planYear, planHalfYear * 6 + periodIndex * 6, planDay);
+      // Period end: last day of the half-year
+      periodEnd = new Date(planYear, (planHalfYear + 1) * 6 + periodIndex * 6, 0);
+    } else if (plan.period_type === 'annual') {
+      // Annual periods: each period is one year from plan start
+      const yearsSincePlanStart = currentYear - planYear;
+      const periodIndex = yearsSincePlanStart;
+      
+      periodStart = new Date(planYear + periodIndex, planMonth, planDay);
+      periodEnd = new Date(planYear + periodIndex + 1, planMonth, planDay);
+      periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period starts
+    } else {
+      // Default to monthly (fallback)
+      const month = currentMonth + 1;
+      periodStart = new Date(currentYear, currentMonth, 1);
+      periodEnd = new Date(currentYear, month, 0);
+    }
+    
+    return {
+      start: periodStart.toISOString().split('T')[0],
+      end: periodEnd.toISOString().split('T')[0],
+    };
+  };
+
   const handleGenerateContributions = async (selectedPlanId?: number) => {
     if (!residenceId) {
       toast.error('Residence ID not loaded. Please refresh the page.');
       return;
     }
 
-    const now = new Date();
-    const year = now.getFullYear();
-    let periodStart: string;
-    let periodEnd: string;
-
-    // Use active plan's period type if no plan selected
-    const planToUse = activePlan;
-    
-    if (planToUse?.period_type === 'monthly') {
-      const month = now.getMonth() + 1;
-      periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
-    } else if (planToUse?.period_type === 'quarterly') {
-      const quarter = Math.floor(now.getMonth() / 3);
-      periodStart = new Date(year, quarter * 3, 1).toISOString().split('T')[0];
-      periodEnd = new Date(year, (quarter + 1) * 3, 0).toISOString().split('T')[0];
-    } else if (planToUse?.period_type === 'semi_annual') {
-      const halfYear = Math.floor(now.getMonth() / 6);
-      periodStart = new Date(year, halfYear * 6, 1).toISOString().split('T')[0];
-      periodEnd = new Date(year, (halfYear + 1) * 6, 0).toISOString().split('T')[0];
-    } else if (planToUse?.period_type === 'annual') {
-      periodStart = `${year}-01-01`;
-      periodEnd = `${year}-12-31`;
-    } else {
-      // Default to monthly
-      const month = now.getMonth() + 1;
-      periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+    if (!activePlan) {
+      toast.error('No active contribution plan found. Please create and activate a plan first.');
+      return;
     }
+
+    // Calculate period based on plan's start_date
+    const period = calculatePeriodFromPlan(activePlan);
+    const periodStart = period.start;
+    const periodEnd = period.end;
 
     try {
       const response = await fetch('/api/contributions/generate', {
@@ -238,19 +303,26 @@ export default function ContributionsPage() {
   const yearShort = selectedYear.toString().slice(-2);
 
   // Get column headers based on period type
+  // Keys must match what the status API returns
   const getColumnHeaders = () => {
     if (activePlan?.period_type === 'quarterly') {
-      return quarterNames.map((q, idx) => ({ key: `Q${idx + 1}`, label: q }));
+      return quarterNames.map((q, idx) => ({ 
+        key: `Q${idx + 1}-${yearShort}`, // Match API format: "Q1-25"
+        label: q 
+      }));
     } else if (activePlan?.period_type === 'semi_annual') {
       return [
-        { key: 'H1', label: 'H1 (Jan-Juin)' },
-        { key: 'H2', label: 'H2 (Juil-Déc)' }
+        { key: `H1-${yearShort}`, label: 'H1 (Jan-Juin)' }, // Match API format: "H1-25"
+        { key: `H2-${yearShort}`, label: 'H2 (Juil-Déc)' }  // Match API format: "H2-25"
       ];
     } else if (activePlan?.period_type === 'annual') {
-      return [{ key: 'YEAR', label: selectedYear.toString() }];
+      return [{ key: selectedYear.toString(), label: selectedYear.toString() }]; // Match API format: "2025"
     } else {
-      // Monthly (default)
-      return monthNames.map((month) => ({ key: `${month}-${yearShort}`, label: `${month}-${yearShort}` }));
+      // Monthly (default) - keys already match: "janv-25"
+      return monthNames.map((month) => ({ 
+        key: `${month}-${yearShort}`, 
+        label: `${month}-${yearShort}` 
+      }));
     }
   };
 
@@ -416,29 +488,12 @@ export default function ContributionsPage() {
                       )}
                     </td>
                     {columnHeaders.map((col) => {
-                      let status: string | null = null;
-                      
-                      if (activePlan?.period_type === 'quarterly') {
-                        // For quarterly, check if any month in the quarter has a contribution
-                        const quarterIndex = quarterNames.indexOf(col.label);
-                        const quarterMonths = [
-                          `${monthNames[quarterIndex * 3]}-${yearShort}`,
-                          `${monthNames[quarterIndex * 3 + 1]}-${yearShort}`,
-                          `${monthNames[quarterIndex * 3 + 2]}-${yearShort}`
-                        ];
-                        // Get status from first month of quarter (or aggregate)
-                        status = row.months[quarterMonths[0]] || null;
-                      } else if (activePlan?.period_type === 'semi_annual') {
-                        // For semi-annual, check first month of half-year
-                        const halfIndex = col.key === 'H1' ? 0 : 6;
-                        status = row.months[`${monthNames[halfIndex]}-${yearShort}`] || null;
-                      } else if (activePlan?.period_type === 'annual') {
-                        // For annual, check first month
-                        status = row.months[`${monthNames[0]}-${yearShort}`] || null;
-                      } else {
-                        // Monthly (default)
-                        status = row.months[col.key] || null;
-                      }
+                      // The status API returns period keys that match the column keys
+                      // For quarterly: "Q1-25", "Q2-25", etc.
+                      // For semi-annual: "H1-25", "H2-25"
+                      // For annual: "2025"
+                      // For monthly: "janv-25", "févr-25", etc.
+                      const status = row.months[col.key] || null;
 
                       return (
                         <td
