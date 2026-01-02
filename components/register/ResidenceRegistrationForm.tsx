@@ -38,10 +38,21 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    validateCode();
+    if (code) {
+      validateCode();
+    } else {
+      setError('Invalid registration code');
+      setLoading(false);
+    }
   }, [code]);
 
   const validateCode = async () => {
+    if (!code) {
+      setError('Invalid registration code');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`/api/register/validate/${code}`);

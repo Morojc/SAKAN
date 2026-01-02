@@ -1,6 +1,7 @@
 import ResidenceRegistrationForm from '@/components/register/ResidenceRegistrationForm';
 
-export default function RegisterPage({ params }: { params: { code: string } }) {
-  return <ResidenceRegistrationForm code={params.code} />;
+export default async function RegisterPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
+  return <ResidenceRegistrationForm code={code} />;
 }
 
