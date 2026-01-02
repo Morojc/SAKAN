@@ -36,20 +36,26 @@ export default function AddFeeDialog({
 
   // Fetch residents when dialog opens
   useEffect(() => {
-    if (open) {
+    if (open && residenceId) {
       fetchResidents();
     }
-  }, [open]);
+  }, [open, residenceId]);
 
   const fetchResidents = async () => {
+    if (!residenceId) {
+      console.error('[AddFeeDialog] No residenceId provided');
+      toast.error('Residence ID is missing');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
-      if (response.ok) {
-        const result = await response.json();
-        
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
         // Handle standardized API response format { success: true, data: [...] }
-        const apartmentsData = result.success ? result.data : (result.apartments || []);
+        const apartmentsData = result.data || [];
 
         if (apartmentsData && apartmentsData.length > 0) {
           const mappedResidents = apartmentsData.map((apt: any) => ({
@@ -60,14 +66,17 @@ export default function AddFeeDialog({
           setResidents(mappedResidents);
         } else {
           setResidents([]);
+          console.warn('[AddFeeDialog] No apartments found for residence:', residenceId);
         }
       } else {
-        toast.error('Failed to load residents');
+        const errorMsg = result.error || 'Failed to load residents';
+        console.error('[AddFeeDialog] API error:', errorMsg);
+        toast.error(errorMsg);
         setResidents([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AddFeeDialog] Error fetching residents:', error);
-      toast.error('Failed to load residents');
+      toast.error(error?.message || 'Failed to load residents');
       setResidents([]);
     } finally {
       setLoading(false);
@@ -76,6 +85,10 @@ export default function AddFeeDialog({
 
   const handleSubmit = async () => {
     // Validation
+    if (!residenceId) {
+      toast.error('Residence ID is missing. Please refresh the page.');
+      return;
+    }
     if (!selectedResident) {
       toast.error('Please select a resident');
       return;
@@ -109,6 +122,11 @@ export default function AddFeeDialog({
         }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -125,12 +143,17 @@ export default function AddFeeDialog({
         toast.error(result.error || 'Failed to create fee');
       }
     } catch (error: any) {
-      console.error('Error creating fee:', error);
-      toast.error('Failed to create fee');
+      console.error('[AddFeeDialog] Error creating fee:', error);
+      toast.error(error?.message || 'Failed to create fee. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Don't render if residenceId is missing
+  if (!residenceId) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
