@@ -169,21 +169,21 @@ export default function AddFeeDialog({
           {/* Resident Selection */}
           <div>
             <Label htmlFor="resident">{t('contributions.resident')} *</Label>
-            <Select value={selectedResident} onValueChange={setSelectedResident} disabled={loading}>
+            <Select value={selectedResident} onValueChange={setSelectedResident} disabled={loading || residents.length === 0}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder={loading ? 'Loading residents...' : 'Select a resident'} />
+                <SelectValue placeholder={loading ? 'Loading residents...' : residents.length === 0 ? 'No residents available' : 'Select a resident'} />
               </SelectTrigger>
               <SelectContent>
-                {residents.length === 0 ? (
-                  <SelectItem value="" disabled>
-                    {loading ? 'Loading residents...' : 'No residents available'}
-                  </SelectItem>
-                ) : (
+                {residents.length > 0 ? (
                   residents.map((resident) => (
                     <SelectItem key={resident.id} value={resident.id}>
                       Apt {resident.apartment} - {resident.name}
                     </SelectItem>
                   ))
+                ) : (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    {loading ? 'Loading residents...' : 'No residents available'}
+                  </div>
                 )}
               </SelectContent>
             </Select>
