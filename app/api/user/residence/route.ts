@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     // No residence link found (this is expected if user isn't linked yet)
+    // Return 200 with success: false instead of 404 to avoid browser error display
     if (!profileResidence) {
       console.warn('[GET /api/user/residence] No residence link found for user:', session.user.id);
       return NextResponse.json(
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
             suggestion: 'Run the SQL script in supabase/helpers/link_user_to_residence.sql'
           }
         },
-        { status: 404 }
+        { status: 200 } // Return 200 instead of 404 to avoid browser error
       );
     }
 
