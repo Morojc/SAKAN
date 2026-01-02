@@ -25,6 +25,7 @@ export default function ContributionsPage() {
   const router = useRouter();
   const [dataStatus, setDataStatus] = useState<any>(null);
   const [contributionData, setContributionData] = useState<ContributionStatusRow[]>([]);
+  const [allApartments, setAllApartments] = useState<Array<{ number: string; residentName: string; residentId: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,6 +63,17 @@ export default function ContributionsPage() {
         setContributionData(contributionResult.data || []);
       }
 
+      // Fetch ALL apartments for the residence (not just those with contributions)
+      try {
+        const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
+        if (response.ok) {
+          const apartmentsData = await response.json();
+          setAllApartments(apartmentsData.apartments || []);
+        }
+      } catch (error) {
+        console.error('Error fetching apartments:', error);
+      }
+
       setLoading(false);
     }
 
@@ -74,13 +86,6 @@ export default function ContributionsPage() {
       row.apartmentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       row.residentName.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // Prepare apartment list for add dialog
-  const apartments = contributionData.map((row) => ({
-    number: row.apartmentNumber,
-    residentName: row.residentName,
-    residentId: row.residentId,
-  }));
 
   const handleContributionAdded = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -112,8 +117,8 @@ export default function ContributionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setShowAddDialog(true)}>
-            <PlusCircle className="w-4 h-4 mr-2 text-white bg-blue-600" />
+          <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <PlusCircle className="w-4 h-4 mr-2" />
             Add Manually
           </Button>
           <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
@@ -300,7 +305,7 @@ export default function ContributionsPage() {
         onOpenChange={setShowAddDialog}
         onSuccess={handleContributionAdded}
         residenceId={1} // TODO: Get from session
-        apartments={apartments}
+        apartments={allApartments}
       />
     </div>
   );
