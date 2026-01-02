@@ -117,9 +117,20 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 			const result = await response.json();
 
 			if (result.success && result.data) {
+				console.log('[AddPaymentDialog] Outstanding items fetched:', {
+					fees_count: result.data.fees?.length || 0,
+					contributions_count: result.data.contributions?.length || 0,
+					fees: result.data.fees,
+					contributions: result.data.contributions,
+				});
+
 				// Combine fees and contributions into a single list
 				const allOutstanding = [
-					...result.data.fees.map((f: any) => ({ ...f, type: 'fee' })),
+					...result.data.fees.map((f: any) => ({ 
+						...f, 
+						type: 'fee',
+						title: f.title || 'Fee',
+					})),
 					...result.data.contributions.map((c: any) => ({ 
 						...c, 
 						type: 'contribution',
@@ -127,7 +138,10 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 						amount: c.outstanding,
 					})),
 				];
+				
+				console.log('[AddPaymentDialog] Combined outstanding items:', allOutstanding);
 				setUnpaidFees(allOutstanding);
+				
 				// Auto-switch to fees mode if outstanding items exist
 				if (allOutstanding.length > 0) {
 					setPaymentMode('fees');
@@ -354,7 +368,7 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 								
 								<div className="space-y-3">
 									<div className="flex justify-between items-center">
-										<Label>Unpaid Fees for this Resident</Label>
+										<Label>Outstanding Items (Fees & Contributions)</Label>
 										<div className="flex gap-2">
 											<Button
 												type="button"
@@ -405,7 +419,19 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 															htmlFor={`fee-${fee.id}`}
 															className="block cursor-pointer"
 														>
-															<div className="font-medium text-sm">{fee.title}</div>
+															<div className="flex items-center gap-2">
+																<div className="font-medium text-sm">{fee.title}</div>
+																{fee.type === 'fee' && (
+																	<Badge variant="outline" className="text-[10px] px-1 py-0">
+																		Fee
+																	</Badge>
+																)}
+																{fee.type === 'contribution' && (
+																	<Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50">
+																		Contribution
+																	</Badge>
+																)}
+															</div>
 															<div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
 																<Calendar className="h-3 w-3" />
 																Due: {new Date(fee.due_date).toLocaleDateString()}
@@ -418,7 +444,7 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 														</label>
 													</div>
 													<div className="text-right">
-														<div className="font-semibold text-sm">{fee.amount} MAD</div>
+														<div className="font-semibold text-sm">{fee.amount || fee.outstanding} MAD</div>
 													</div>
 												</div>
 											))}
@@ -428,7 +454,7 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 									{/* Total Amount for selected fees */}
 									{paymentMode === 'fees' && selectedFeeIds.length > 0 && (
 										<div className="flex justify-between items-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
-											<span className="font-medium">Total Amount ({selectedFeeIds.length} fees)</span>
+											<span className="font-medium">Total Amount ({selectedFeeIds.length} item{selectedFeeIds.length > 1 ? 's' : ''})</span>
 											<span className="text-xl font-bold text-blue-600">
 												{getTotalAmount()} MAD
 											</span>
