@@ -33,6 +33,7 @@ import {
 import { getAllFees } from '@/app/app/residents/fee-actions';
 import AddFeeDialog from '@/components/app/fees/AddFeeDialog';
 import ViewFeeDialog from '@/components/app/fees/ViewFeeDialog';
+import BulkFeeDialog from '@/components/app/fees/BulkFeeDialog';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useI18n } from '@/lib/i18n/client';
@@ -60,6 +61,7 @@ export default function FeesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
   const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
@@ -145,6 +147,14 @@ export default function FeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            onClick={() => setShowBulkDialog(true)} 
+            variant="outline"
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Bulk Fee (Exceptional)
+          </Button>
           <Button 
             onClick={() => setShowAddDialog(true)} 
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -331,6 +341,14 @@ export default function FeesPage() {
         open={showViewDialog}
         onOpenChange={setShowViewDialog}
         fee={selectedFee}
+      />
+
+      {/* Bulk Fee Dialog */}
+      <BulkFeeDialog
+        open={showBulkDialog}
+        onOpenChange={setShowBulkDialog}
+        onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+        residenceId={residenceId}
       />
     </div>
   );

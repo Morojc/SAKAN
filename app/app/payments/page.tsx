@@ -21,11 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Search, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { Loader2, Search, CheckCircle, XCircle, Eye, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { Payment } from '@/types/financial.types';
 import { format } from 'date-fns';
+import AllocatePaymentDialog from '@/components/app/payments/AllocatePaymentDialog';
 
 export default function PaymentsPage() {
   const { t } = useI18n();
@@ -34,6 +35,8 @@ export default function PaymentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
+  const [showAllocateDialog, setShowAllocateDialog] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   useEffect(() => {
     loadPayments();
@@ -355,6 +358,20 @@ export default function PaymentsPage() {
                             </Button>
                           </div>
                         )}
+                        {payment.status === 'verified' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedPayment(payment);
+                              setShowAllocateDialog(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Link2 className="w-4 h-4 mr-1" />
+                            Allocate
+                          </Button>
+                        )}
                         {payment.status === 'rejected' && payment.rejection_reason && (
                           <span className="text-xs text-red-600">
                             {payment.rejection_reason}
@@ -369,6 +386,17 @@ export default function PaymentsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Allocate Payment Dialog */}
+      <AllocatePaymentDialog
+        open={showAllocateDialog}
+        onOpenChange={setShowAllocateDialog}
+        payment={selectedPayment}
+        onSuccess={() => {
+          loadPayments();
+          setShowAllocateDialog(false);
+        }}
+      />
     </div>
   );
 }
