@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       .from('fees')
       .select(`
         *,
-        profiles:user_id(full_name)
+        profiles!fees_user_id_fkey(full_name)
       `)
       .eq('residence_id', residenceId)
       .order('due_date', { ascending: false });

@@ -29,9 +29,12 @@ import {
   Loader2,
   Calendar,
   DollarSign,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { getAllFees } from '@/app/app/residents/fee-actions';
 import AddFeeDialog from '@/components/app/fees/AddFeeDialog';
+import EditFeeDialog from '@/components/app/fees/EditFeeDialog';
 import ViewFeeDialog from '@/components/app/fees/ViewFeeDialog';
 import BulkFeeDialog from '@/components/app/fees/BulkFeeDialog';
 import toast from 'react-hot-toast';
@@ -61,6 +64,7 @@ export default function FeesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
@@ -162,6 +166,30 @@ export default function FeesPage() {
         return <Badge className="bg-red-100 text-red-800">{t('fees.overdue')}</Badge>;
       default:
         return <Badge>{status}</Badge>;
+    }
+  };
+
+  const handleDeleteFee = async (feeId: number) => {
+    if (!confirm('Are you sure you want to delete this fee? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/fees/${feeId}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Fee deleted successfully!');
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        toast.error(result.error || 'Failed to delete fee');
+      }
+    } catch (error: any) {
+      console.error('Error deleting fee:', error);
+      toast.error('Failed to delete fee');
     }
   };
 
@@ -349,16 +377,37 @@ export default function FeesPage() {
                         {format(new Date(fee.created_at), 'MMM d, yyyy')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => {
-                            setSelectedFee(fee);
-                            setShowViewDialog(true);
-                          }}
-                        >
-                          {t('fees.view')}
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedFee(fee);
+                              setShowViewDialog(true);
+                            }}
+                          >
+                            {t('fees.view')}
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedFee(fee);
+                              setShowEditDialog(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteFee(fee.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -387,6 +436,17 @@ export default function FeesPage() {
           />
         </>
       )}
+
+      {/* Edit Fee Dialog */}
+      <EditFeeDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onSuccess={() => {
+          setRefreshTrigger((prev) => prev + 1);
+          setShowEditDialog(false);
+        }}
+        fee={selectedFee}
+      />
 
       {/* View Fee Dialog */}
       <ViewFeeDialog
