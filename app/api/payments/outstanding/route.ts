@@ -65,24 +65,52 @@ export async function GET(request: NextRequest) {
       .in('status', ['pending', 'partial', 'overdue']);
 
     // Get outstanding fees
-    const { data: fees, error: feesError } = await supabase
+    // Fees can be linked by user_id, profile_residence_id, or apartment_number
+    // We need to check all possible matching criteria
+    let feesQuery = supabase
       .from('fees')
       .select(`
         *,
         profiles(full_name)
       `)
       .eq('residence_id', residenceId)
-      .eq('user_id', userId)
       .eq('status', 'unpaid');
 
-    if (apartmentNumber) {
-      // Filter fees by apartment if provided
-      // Note: fees might not have apartment_number, so we filter in memory
+    // Build OR condition: match by user_id OR profile_residence_id OR apartment_number
+    const orConditions: string[] = [`user_id.eq.${userId}`];
+    
+    if (profileResidenceId) {
+      orConditions.push(`profile_residence_id.eq.${profileResidenceId}`);
     }
+    
+    if (apartmentNumber) {
+      orConditions.push(`apartment_number.eq.${apartmentNumber}`);
+    }
+
+    // Apply OR filter
+    feesQuery = feesQuery.or(orConditions.join(','));
+
+    const { data: fees, error: feesError } = await feesQuery;
+
+    if (feesError) {
+      console.error('[GET /api/payments/outstanding] Error fetching fees:', feesError);
+      // Don't fail the entire request if fees query fails, just log it
+    }
+
+    // Filter fees in memory to ensure they match the user/residence
+    // This is a safety check in case the OR query doesn't work as expected
+    let filteredFees = (fees || []).filter((f: any) => {
+      // Must match user_id OR profile_residence_id OR apartment_number
+      const matchesUserId = f.user_id === userId;
+      const matchesProfileResidence = f.profile_residence_id === profileResidenceId;
+      const matchesApartment = apartmentNumber && f.apartment_number === apartmentNumber;
+      
+      return matchesUserId || matchesProfileResidence || matchesApartment;
+    });
 
     // Calculate totals
     const totalContributionsDue = contributions?.reduce((sum, c) => sum + (c.amount_due - (c.amount_paid || 0)), 0) || 0;
-    const totalFeesDue = fees?.reduce((sum, f) => sum + f.amount, 0) || 0;
+    const totalFeesDue = filteredFees?.reduce((sum, f) => sum + f.amount, 0) || 0;
     const totalDue = totalContributionsDue + totalFeesDue;
 
     return NextResponse.json({
@@ -99,7 +127,7 @@ export async function GET(request: NextRequest) {
           status: c.status,
           apartment_number: c.profile_residences?.apartment_number,
         })) || [],
-        fees: fees?.map((f: any) => ({
+        fees: filteredFees?.map((f: any) => ({
           id: f.id,
           type: 'fee',
           title: f.title,
