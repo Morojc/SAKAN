@@ -27,6 +27,7 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
   const [residence, setResidence] = useState<any>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Form state
   const [fullName, setFullName] = useState('');
@@ -162,10 +163,27 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error || 'Failed to submit registration');
+        // Handle multiple errors
+        if (data.errors && Array.isArray(data.errors)) {
+          setValidationErrors(data.errors);
+          data.errors.forEach((err: string) => {
+            toast.error(err, { duration: 5000 });
+          });
+        } else {
+          setValidationErrors([data.error || 'Failed to submit registration']);
+          toast.error(data.error || 'Failed to submit registration', { duration: 5000 });
+        }
       } else {
+        setValidationErrors([]);
         setSuccess(true);
         toast.success('Registration submitted successfully!');
+        // Clear form fields
+        setFullName('');
+        setEmail('');
+        setPhoneNumber('');
+        setApartmentNumber('');
+        setIdNumber('');
+        setIdDocument(null);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit registration');
@@ -254,10 +272,19 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setValidationErrors([]);
+                  }}
                   required
                   placeholder="john@example.com"
+                  className={validationErrors.some(e => e.toLowerCase().includes('email')) ? 'border-red-500' : ''}
                 />
+                {validationErrors.some(e => e.toLowerCase().includes('email')) && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {validationErrors.find(e => e.toLowerCase().includes('email'))}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -266,10 +293,19 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
                   id="phoneNumber"
                   type="tel"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setValidationErrors([]);
+                  }}
                   required
                   placeholder="+212 6 12 34 56 78"
+                  className={validationErrors.some(e => e.toLowerCase().includes('phone')) ? 'border-red-500' : ''}
                 />
+                {validationErrors.some(e => e.toLowerCase().includes('phone')) && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {validationErrors.find(e => e.toLowerCase().includes('phone'))}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -277,10 +313,19 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
                 <Input
                   id="apartmentNumber"
                   value={apartmentNumber}
-                  onChange={(e) => setApartmentNumber(e.target.value)}
+                  onChange={(e) => {
+                    setApartmentNumber(e.target.value);
+                    setValidationErrors([]);
+                  }}
                   required
                   placeholder="A101"
+                  className={validationErrors.some(e => e.toLowerCase().includes('apartment')) ? 'border-red-500' : ''}
                 />
+                {validationErrors.some(e => e.toLowerCase().includes('apartment')) && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {validationErrors.find(e => e.toLowerCase().includes('apartment'))}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -315,6 +360,20 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
                   Maximum file size: 5MB
                 </p>
               </div>
+
+              {/* Validation Errors Summary */}
+              {validationErrors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-red-800 mb-2">
+                    Please fix the following issues:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                    {validationErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">

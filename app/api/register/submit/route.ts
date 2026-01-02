@@ -25,18 +25,36 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createSupabaseAdminClient();
 
-    // Check for duplicate email in same residence (only verified residents)
+    // Collect all validation errors
+    const errors: string[] = [];
+
+    // Check for duplicate email in same residence (verified residents)
     const { data: existingEmail } = await supabase
       .from('profile_residences')
       .select('profile_id, profiles:profile_id(email)')
       .eq('residence_id', residenceId)
+      .eq('verified', true)
+      .or('verified.eq.false');
+
+    if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email?.toLowerCase() === email.toLowerCase())) {
+      errors.push('This email address is already registered as a verified resident in this residence');
+    }
+
+    // Check for duplicate phone number in same residence (verified residents)
+    const { data: existingPhone } = await supabase
+      .from('profile_residences')
+      .select('profile_id, profiles:profile_id(phone_number)')
+      .eq('residence_id', residenceId)
       .eq('verified', true);
 
-    if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email === email)) {
-      return NextResponse.json(
-        { error: 'This email is already registered as a resident in this residence' },
-        { status: 400 }
-      );
+    if (existingPhone && existingPhone.some((pr: any) => {
+      const profilePhone = pr.profiles?.phone_number;
+      if (!profilePhone || !phoneNumber) return false;
+      // Normalize phone numbers for comparison (remove spaces, dashes, etc.)
+      const normalize = (p: string) => p.replace(/[\s\-\(\)]/g, '');
+      return normalize(profilePhone) === normalize(phoneNumber);
+    })) {
+      errors.push('This phone number is already registered as a verified resident in this residence');
     }
 
     // Check for duplicate apartment number (verified residents)
@@ -49,36 +67,47 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingApt) {
-      return NextResponse.json(
-        { error: 'This apartment is already occupied' },
-        { status: 400 }
-      );
+      errors.push(`Apartment number ${apartmentNumber} is already occupied by a verified resident in this residence`);
     }
 
-    // Check for pending requests with same email or apartment
+    // Check for pending requests with same email, phone, or apartment
     const { data: pendingRequests } = await supabase
       .from('resident_registration_requests')
-      .select('id, email, apartment_number')
+      .select('id, email, phone_number, apartment_number')
       .eq('residence_id', residenceId)
       .eq('status', 'pending');
 
     if (pendingRequests) {
-      const emailExists = pendingRequests.some((req: any) => req.email === email);
+      const emailExists = pendingRequests.some((req: any) => req.email?.toLowerCase() === email.toLowerCase());
+      const phoneExists = pendingRequests.some((req: any) => {
+        if (!req.phone_number || !phoneNumber) return false;
+        const normalize = (p: string) => p.replace(/[\s\-\(\)]/g, '');
+        return normalize(req.phone_number) === normalize(phoneNumber);
+      });
       const aptExists = pendingRequests.some((req: any) => req.apartment_number === apartmentNumber);
 
       if (emailExists) {
-        return NextResponse.json(
-          { error: 'You already have a pending registration request' },
-          { status: 400 }
-        );
+        errors.push('A registration request with this email address is already pending for this residence');
+      }
+
+      if (phoneExists) {
+        errors.push('A registration request with this phone number is already pending for this residence');
       }
 
       if (aptExists) {
-        return NextResponse.json(
-          { error: 'A registration request is pending for this apartment' },
-          { status: 400 }
-        );
+        errors.push(`A registration request for apartment ${apartmentNumber} is already pending for this residence`);
       }
+    }
+
+    // Return all errors at once
+    if (errors.length > 0) {
+      return NextResponse.json(
+        { 
+          error: errors.length === 1 ? errors[0] : 'Multiple issues found with your registration:',
+          errors: errors.length > 1 ? errors : undefined
+        },
+        { status: 400 }
+      );
     }
 
     // Get client IP and user agent
