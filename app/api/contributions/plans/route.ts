@@ -76,6 +76,33 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
+    // First, verify that the residence exists
+    const { data: residence, error: residenceError } = await supabase
+      .from('residences')
+      .select('id')
+      .eq('id', body.residence_id)
+      .single();
+
+    if (residenceError || !residence) {
+      // Try to get user's residence_id from their profile
+      const { data: userResidence } = await supabase
+        .from('profile_residences')
+        .select('residence_id')
+        .eq('profile_id', session.user.id)
+        .eq('role', 'syndic')
+        .limit(1)
+        .single();
+
+      const errorMessage = userResidence
+        ? `Residence with ID ${body.residence_id} does not exist. Your residence ID is ${userResidence.residence_id}. Please use the correct residence ID.`
+        : `Residence with ID ${body.residence_id} does not exist. Please check the residence ID or contact support.`;
+
+      return NextResponse.json(
+        { success: false, error: errorMessage },
+        { status: 400 }
+      );
+    }
+
     // Check if user is syndic of this residence
     const { data: profile } = await supabase
       .from('profiles')

@@ -27,13 +27,37 @@ export default function ContributionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
-  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
+  const [residenceId, setResidenceId] = useState<number | null>(null);
 
   useEffect(() => {
-    loadContributionStatus();
-  }, [selectedYear]);
+    loadUserResidence();
+  }, []);
+
+  useEffect(() => {
+    if (residenceId) {
+      loadContributionStatus();
+    }
+  }, [selectedYear, residenceId]);
+
+  const loadUserResidence = async () => {
+    try {
+      const response = await fetch('/api/user/residence');
+      const result = await response.json();
+
+      if (result.success && result.data?.residence_id) {
+        setResidenceId(result.data.residence_id);
+      } else {
+        toast.error('Could not load your residence. Please contact support.');
+      }
+    } catch (error: any) {
+      console.error('Error loading residence:', error);
+      toast.error('Failed to load residence information');
+    }
+  };
 
   const loadContributionStatus = async () => {
+    if (!residenceId) return;
+    
     setLoading(true);
     try {
       const response = await fetch(`/api/contributions/status?residenceId=${residenceId}&year=${selectedYear}`);
@@ -65,6 +89,11 @@ export default function ContributionsPage() {
   );
 
   const handleGenerateContributions = async () => {
+    if (!residenceId) {
+      toast.error('Residence ID not loaded. Please refresh the page.');
+      return;
+    }
+
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
     const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;

@@ -23,13 +23,37 @@ export default function ContributionPlansPage() {
   const [plans, setPlans] = useState<ContributionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
+  const [residenceId, setResidenceId] = useState<number | null>(null);
 
   useEffect(() => {
-    loadPlans();
+    loadUserResidence();
   }, []);
 
+  useEffect(() => {
+    if (residenceId) {
+      loadPlans();
+    }
+  }, [residenceId]);
+
+  const loadUserResidence = async () => {
+    try {
+      const response = await fetch('/api/user/residence');
+      const result = await response.json();
+
+      if (result.success && result.data?.residence_id) {
+        setResidenceId(result.data.residence_id);
+      } else {
+        toast.error('Could not load your residence. Please contact support.');
+      }
+    } catch (error: any) {
+      console.error('Error loading residence:', error);
+      toast.error('Failed to load residence information');
+    }
+  };
+
   const loadPlans = async () => {
+    if (!residenceId) return;
+    
     setLoading(true);
     try {
       const response = await fetch(`/api/contributions/plans?residenceId=${residenceId}`);
@@ -265,15 +289,17 @@ export default function ContributionPlansPage() {
       </Card>
 
       {/* Create Plan Dialog */}
-      <CreatePlanDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        onSuccess={() => {
-          loadPlans();
-          setShowCreateDialog(false);
-        }}
-        residenceId={residenceId}
-      />
+      {residenceId && (
+        <CreatePlanDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          onSuccess={() => {
+            loadPlans();
+            setShowCreateDialog(false);
+          }}
+          residenceId={residenceId}
+        />
+      )}
     </div>
   );
 }
