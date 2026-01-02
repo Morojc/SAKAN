@@ -63,6 +63,10 @@ export default function PaymentsPage() {
         if (process.env.NODE_ENV === 'development') {
           console.log('[Payments] User role:', profileResult.data.role);
         }
+      } else {
+        // Set a default or handle missing role - don't block the page
+        console.warn('[Payments] Could not load user role, defaulting to resident');
+        setUserRole('resident'); // Default fallback to prevent infinite loading
       }
 
       const response = await fetch('/api/user/residence');
@@ -76,17 +80,22 @@ export default function PaymentsPage() {
       } else {
         console.error('[Payments] No residence found:', result);
         // Fallback: Try to get residence from residences table
-        const fallbackResponse = await fetch('/api/residences');
-        const fallbackResult = await fallbackResponse.json();
-        
-        if (fallbackResult.success && fallbackResult.data?.length > 0) {
-          const firstResidence = fallbackResult.data[0];
-          setResidenceId(firstResidence.id);
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('[Payments] Using fallback residence:', firstResidence);
+        try {
+          const fallbackResponse = await fetch('/api/residences');
+          const fallbackResult = await fallbackResponse.json();
+          
+          if (fallbackResult.success && fallbackResult.data?.length > 0) {
+            const firstResidence = fallbackResult.data[0];
+            setResidenceId(firstResidence.id);
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('[Payments] Using fallback residence:', firstResidence);
+            }
+          } else {
+            console.warn('[Payments] No fallback residence found');
+            // Don't show error toast here, just log it
           }
-        } else {
-          toast.error('Could not load your residence. Please contact support.');
+        } catch (fallbackError) {
+          console.error('[Payments] Fallback residence fetch failed:', fallbackError);
         }
       }
     } catch (error: any) {
@@ -246,10 +255,19 @@ export default function PaymentsPage() {
     );
   };
 
-  if (loading || !residenceId || !userRole) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!residenceId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <p className="text-lg text-muted-foreground">No residence found</p>
+        <p className="text-sm text-muted-foreground">Please contact support to link your account to a residence.</p>
       </div>
     );
   }
@@ -471,7 +489,7 @@ export default function PaymentsPage() {
                             </span>
                           )}
                           {/* Delete button - only for syndics */}
-                          {userRole === 'syndic' && (
+                          {userRole && userRole === 'syndic' && (
                             <Button
                               size="sm"
                               variant="ghost"

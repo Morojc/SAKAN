@@ -21,7 +21,7 @@ export async function GET() {
     // Fetch profile
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('full_name, phone_number')
+      .select('id, full_name, phone_number, role')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -42,9 +42,11 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      profile: {
+      data: {
+        id: profile.id,
         full_name: profile.full_name || '',
         phone_number: profile.phone_number || null,
+        role: profile.role || 'resident',
       }
     });
 
