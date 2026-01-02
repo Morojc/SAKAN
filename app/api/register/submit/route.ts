@@ -30,8 +30,7 @@ export async function POST(request: NextRequest) {
     const { data: existingEmail } = await supabase
       .from('profile_residences')
       .select('profile_id, profiles:profile_id(email)')
-      .eq('residence_id', residenceId)
-      .or('verified.eq.true,verified.eq.false');
+      .eq('residence_id', residenceId);
 
     if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email?.toLowerCase() === email.toLowerCase())) {
       errors.push('This email address is already registered as a verified resident in this residence');
