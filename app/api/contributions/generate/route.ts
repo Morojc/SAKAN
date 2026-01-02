@@ -26,11 +26,26 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseAdminClient();
 
     // Check if user is syndic of this residence
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
-      .single();
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('[POST /api/contributions/generate] Profile error:', profileError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch user profile' },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, error: 'User profile not found' },
+        { status: 404 }
+      );
+    }
 
     if (profile?.role !== 'syndic') {
       return NextResponse.json(
@@ -40,6 +55,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Call the database function to generate contributions
+    console.log('[POST /api/contributions/generate] Calling RPC with:', {
+      p_residence_id: residence_id,
+      p_period_start: period_start,
+      p_period_end: period_end,
+    });
+
     const { data, error } = await supabase.rpc('generate_contributions_for_period', {
       p_residence_id: residence_id,
       p_period_start: period_start,
@@ -47,9 +68,22 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error('[POST /api/contributions/generate] Error:', error);
+      console.error('[POST /api/contributions/generate] RPC Error:', error);
+      console.error('[POST /api/contributions/generate] Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       return NextResponse.json(
-        { success: false, error: error.message },
+        { 
+          success: false, 
+          error: error.message || 'Failed to generate contributions',
+          details: {
+            code: error.code,
+            hint: error.hint,
+          }
+        },
         { status: 500 }
       );
     }
