@@ -10,9 +10,11 @@ import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, CheckCircle2, Loader2, Calendar } from 'lucide-react';
 import { createRecurringFee } from '@/app/actions/recurring-fees';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function FreshStartSetupPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [amount, setAmount] = useState('');
   const [startMonth, setStartMonth] = useState(new Date().getMonth() + 1);
   const [startYear, setStartYear] = useState(new Date().getFullYear());
@@ -57,8 +59,10 @@ export default function FreshStartSetupPage() {
   };
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    t('contributions.january'), t('contributions.february'), t('contributions.march'),
+    t('contributions.april'), t('contributions.may'), t('contributions.june'),
+    t('contributions.july'), t('contributions.august'), t('contributions.september'),
+    t('contributions.october'), t('contributions.november'), t('contributions.december')
   ];
 
   return (
@@ -69,9 +73,9 @@ export default function FreshStartSetupPage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Configure Monthly Contributions</h1>
+          <h1 className="text-3xl font-bold">{t('contributions.configureMonthlyContributions')}</h1>
           <p className="text-muted-foreground mt-1">
-            Set up automatic monthly fee generation for your residence
+            {t('contributions.configureDescription')}
           </p>
         </div>
       </div>
@@ -80,16 +84,16 @@ export default function FreshStartSetupPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Monthly Contribution Settings
+            {t('contributions.monthlyContributionSettings')}
           </CardTitle>
           <CardDescription>
-            These settings will apply to all residents in your residence
+            {t('contributions.settingsApplyAll')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Monthly Amount */}
           <div>
-            <Label htmlFor="amount">Monthly Contribution Amount (MAD) *</Label>
+            <Label htmlFor="amount">{t('contributions.monthlyContributionAmount')}</Label>
             <Input
               id="amount"
               type="number"
@@ -97,7 +101,7 @@ export default function FreshStartSetupPage() {
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g., 150"
+              placeholder={t('contributions.amountPlaceholder')}
               className="mt-2"
             />
             <p className="text-xs text-muted-foreground mt-1">
@@ -140,9 +144,9 @@ export default function FreshStartSetupPage() {
           <div className="space-y-4 border-t pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label>Email Reminders</Label>
+                <Label>{t('contributions.emailReminders')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Send automatic payment reminders to residents
+                  {t('contributions.emailRemindersDesc')}
                 </p>
               </div>
               <Switch
@@ -153,7 +157,7 @@ export default function FreshStartSetupPage() {
 
             {reminderEnabled && (
               <div>
-                <Label htmlFor="reminderDays">Send reminder (days before due date)</Label>
+                <Label htmlFor="reminderDays">{t('contributions.reminderDay')}</Label>
                 <Input
                   id="reminderDays"
                   type="number"
@@ -164,7 +168,7 @@ export default function FreshStartSetupPage() {
                   className="mt-2"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Residents will receive an email {reminderDays} day(s) before the payment is due
+                  {t('contributions.reminderDayDesc')}
                 </p>
               </div>
             )}
@@ -172,30 +176,30 @@ export default function FreshStartSetupPage() {
 
           {/* Summary */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="font-medium text-blue-900 mb-2">Summary:</p>
+            <p className="font-medium text-blue-900 mb-2">{t('contributions.summary')}</p>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Monthly amount: {amount ? `${amount} MAD` : 'Not set'}</li>
-              <li>• Start date: {monthNames[startMonth - 1]} {startYear}</li>
-              <li>• Reminders: {reminderEnabled ? `${reminderDays} days before due date` : 'Disabled'}</li>
-              <li>• Fees will be automatically generated each month</li>
+              <li>• {t('contributions.amount')}: {amount ? `${amount} MAD` : 'Not set'}</li>
+              <li>• {monthNames[startMonth - 1]} {startYear}</li>
+              <li>• {reminderEnabled ? `${reminderDays} {t('contributions.email Reminders')}` : t('contributions.emailRemindersDesc')}</li>
+              <li>• {t('contributions.afterSetup1')}</li>
             </ul>
           </div>
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => router.back()}>
-              Cancel
+              {t('contributions.cancel')}
             </Button>
             <Button onClick={handleSetup} disabled={creating || !amount} className="bg-green-600 hover:bg-green-700 text-white">
               {creating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Setting up...
+                  {t('contributions.settingUp')}
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Complete Setup
+                  {t('contributions.completeSetup')}
                 </>
               )}
             </Button>

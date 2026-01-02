@@ -25,9 +25,11 @@ import {
 } from '@/app/actions/contributions';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function HistoricalImportPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -211,14 +213,12 @@ export default function HistoricalImportPage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Import Historical Contributions</h1>
+          <h1 className="text-3xl font-bold">{t('contributions.importHistoricalTitle')}</h1>
           <p className="text-muted-foreground mt-1">
-            Step {step} of 4: {
-              step === 1 ? 'Upload File' :
-              step === 2 ? 'Configure Parameters' :
-              step === 3 ? 'Preview Data' :
-              'Import Complete'
-            }
+            {step === 1 ? t('contributions.uploadFile') :
+              step === 2 ? t('contributions.configureParameters') :
+              step === 3 ? t('contributions.previewData') :
+              t('contributions.importComplete')} ({step} / 4)
           </p>
         </div>
       </div>
@@ -232,10 +232,10 @@ export default function HistoricalImportPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5" />
-              Upload Contribution Data
+              {t('contributions.uploadContributionData')}
             </CardTitle>
             <CardDescription>
-              Upload an Excel or CSV file with your contribution records
+              {t('contributions.uploadDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -244,9 +244,9 @@ export default function HistoricalImportPage() {
               <div className="flex items-start gap-3">
                 <Download className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-medium text-blue-900">Need a template?</p>
+                  <p className="font-medium text-blue-900">{t('contributions.downloadTemplate')}</p>
                   <p className="text-sm text-blue-700 mt-1">
-                    Download our Excel template to see the expected format
+                    {t('contributions.templateDescription')}
                   </p>
                   <Button
                     variant="outline"
@@ -263,7 +263,7 @@ export default function HistoricalImportPage() {
 
             {/* File Upload */}
             <div>
-              <Label htmlFor="file-upload">Select File</Label>
+              <Label htmlFor="file-upload">{t('contributions.chooseFile')}</Label>
               <Input
                 id="file-upload"
                 type="file"
@@ -274,25 +274,20 @@ export default function HistoricalImportPage() {
               {file && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
                   <CheckCircle2 className="w-4 h-4" />
-                  {file.name}
+                  {t('contributions.fileSelected')} {file.name}
                 </div>
               )}
             </div>
 
             {/* File Format Instructions */}
             <div className="border rounded-lg p-4">
-              <p className="font-medium mb-2">Expected File Format:</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Column "APPT": Apartment numbers (e.g., 1, 2, 3...)</li>
-                <li>• Column "Report": Outstanding months (optional)</li>
-                <li>• Month columns: janv-25, févr-25, mars-25, etc.</li>
-                <li>• Mark paid months with "X", leave unpaid empty</li>
-              </ul>
+              <p className="font-medium mb-2">{t('contributions.supportedFormats')}</p>
+              <p className="text-sm text-muted-foreground">{t('contributions.maxFileSize')}</p>
             </div>
 
             <div className="flex justify-end">
               <Button onClick={parseFile} disabled={!file} className="bg-blue-600 hover:bg-blue-700 text-white">
-                Continue
+                {t('contributions.continue')}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -304,15 +299,15 @@ export default function HistoricalImportPage() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Configure Import Parameters</CardTitle>
+            <CardTitle>{t('contributions.configureImportParams')}</CardTitle>
             <CardDescription>
-              Set the year and contribution amount for this import
+              {t('contributions.configureParamsDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="year">Year</Label>
+                <Label htmlFor="year">{t('contributions.contributionYear')}</Label>
                 <Input
                   id="year"
                   type="number"
@@ -324,7 +319,7 @@ export default function HistoricalImportPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="amount">Monthly Contribution Amount (MAD)</Label>
+                <Label htmlFor="amount">{t('contributions.monthlyAmount')}</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -332,36 +327,36 @@ export default function HistoricalImportPage() {
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g., 150"
+                  placeholder="150"
                   className="mt-2"
                 />
               </div>
             </div>
 
             <div className="bg-gray-50 border rounded-lg p-4">
-              <p className="font-medium mb-2">Import Summary:</p>
+              <p className="font-medium mb-2">{t('contributions.importSummary')}</p>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• File: {file?.name}</li>
-                <li>• Apartments found: {parsedData.length}</li>
-                <li>• Year: {year}</li>
-                <li>• Amount per month: {amount ? `${amount} MAD` : 'Not set'}</li>
+                <li>• {file?.name}</li>
+                <li>• {parsedData.length} {t('contributions.totalApartments')}</li>
+                <li>• {t('contributions.year')}: {year}</li>
+                <li>• {amount ? `${amount} MAD` : 'Not set'}</li>
               </ul>
             </div>
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                {t('contributions.back')}
               </Button>
               <Button onClick={handleValidate} disabled={importing} className="bg-blue-600 hover:bg-blue-700 text-white">
                 {importing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Validating...
+                    {t('contributions.validating')}
                   </>
                 ) : (
                   <>
-                    Preview Data
+                    {t('contributions.previewData')}
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </>
                 )}
@@ -375,26 +370,26 @@ export default function HistoricalImportPage() {
       {step === 3 && (
         <Card>
           <CardHeader>
-            <CardTitle>Preview Import Data</CardTitle>
+            <CardTitle>{t('contributions.previewDataTitle')}</CardTitle>
             <CardDescription>
-              Review the data before importing. Unmatched apartments will be skipped.
+              {t('contributions.previewDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Summary Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-700">Total Apartments</p>
+                <p className="text-sm text-blue-700">{t('contributions.totalRows')}</p>
                 <p className="text-2xl font-bold text-blue-900">{preview.length}</p>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm text-green-700">Matched</p>
+                <p className="text-sm text-green-700">{t('contributions.matchedRows')}</p>
                 <p className="text-2xl font-bold text-green-900">
                   {preview.filter((p) => p.matched).length}
                 </p>
               </div>
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-red-700">Unmatched</p>
+                <p className="text-sm text-red-700">{t('contributions.unmatchedRows')}</p>
                 <p className="text-2xl font-bold text-red-900">
                   {preview.filter((p) => !p.matched).length}
                 </p>
@@ -406,11 +401,11 @@ export default function HistoricalImportPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="px-4 py-3 text-left">Appt</th>
-                    <th className="px-4 py-3 text-left">Resident</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Paid</th>
-                    <th className="px-4 py-3 text-right">Unpaid</th>
+                    <th className="px-4 py-3 text-left">{t('contributions.aptNumber')}</th>
+                    <th className="px-4 py-3 text-left">{t('contributions.resident')}</th>
+                    <th className="px-4 py-3 text-center">{t('contributions.status')}</th>
+                    <th className="px-4 py-3 text-right">{t('contributions.paid')}</th>
+                    <th className="px-4 py-3 text-right">{t('contributions.unpaid')}</th>
                     <th className="px-4 py-3 text-right">Total</th>
                   </tr>
                 </thead>
@@ -455,17 +450,17 @@ export default function HistoricalImportPage() {
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
+                {t('contributions.back')}
               </Button>
               <Button onClick={handleImport} disabled={importing || preview.filter((p) => p.matched).length === 0} className="bg-green-600 hover:bg-green-700 text-white">
                 {importing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Importing...
+                    {t('contributions.importing')}
                   </>
                 ) : (
                   <>
-                    Confirm Import
+                    {t('contributions.confirmImport')}
                     <CheckCircle2 className="w-4 h-4 ml-2" />
                   </>
                 )}
@@ -481,21 +476,21 @@ export default function HistoricalImportPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="w-6 h-6" />
-              Import Complete!
+              {t('contributions.importSuccess')}
             </CardTitle>
             <CardDescription>
-              Your historical contribution data has been successfully imported
+              {t('contributions.importSuccessDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-green-700">Fees Imported</p>
+                  <p className="text-sm text-green-700">{t('contributions.feesCreated')}</p>
                   <p className="text-3xl font-bold text-green-900">{importResult.feesImported}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-green-700">Payments Imported</p>
+                  <p className="text-sm text-green-700">{t('contributions.recordsImported')}</p>
                   <p className="text-3xl font-bold text-green-900">{importResult.paymentsImported}</p>
                 </div>
               </div>
@@ -503,7 +498,7 @@ export default function HistoricalImportPage() {
 
             <div className="flex justify-center">
               <Button size="lg" onClick={() => router.push('/app/contributions')} className="bg-blue-600 hover:bg-blue-700 text-white">
-                View Contribution Status
+                {t('contributions.viewContributionStatus')}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>

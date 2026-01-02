@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Upload, Calendar, FileSpreadsheet, TrendingUp, Loader2 } from 'lucide-react';
 import { checkContributionDataStatus } from '@/app/actions/contributions';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function ContributionsSetupPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [dataStatus, setDataStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMode, setSelectedMode] = useState<'historical' | 'fresh' | null>(null);
@@ -51,9 +53,9 @@ export default function ContributionsSetupPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-6">
       <div>
-        <h1 className="text-3xl font-bold">Setup Contribution Management</h1>
+        <h1 className="text-3xl font-bold">{t('contributions.setupTitle')}</h1>
         <p className="text-muted-foreground mt-2">
-          Choose how you want to manage monthly contributions for your residence
+          {t('contributions.setupDescription')}
         </p>
       </div>
 
@@ -69,28 +71,27 @@ export default function ContributionsSetupPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-                Import Historical Data
+                {t('contributions.historicalImport')}
               </CardTitle>
               {selectedMode === 'historical' && (
                 <div className="w-4 h-4 bg-blue-600 rounded-full" />
               )}
             </div>
-            <CardDescription>Perfect if you have existing records</CardDescription>
+            <CardDescription>{t('contributions.historicalImportDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                If you have existing contribution records from Excel, PDF, or manual records,
-                import them to get started quickly with full historical data.
+                {t('contributions.historicalImportInfo')}
               </p>
               
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm font-medium text-blue-900 mb-2">What you can import:</p>
+                <p className="text-sm font-medium text-blue-900 mb-2">{t('contributions.historicalImportFeatures')}</p>
                 <ul className="text-xs text-blue-800 space-y-1">
-                  <li>✓ Multiple years of contribution data</li>
-                  <li>✓ Payment status for each apartment-month</li>
-                  <li>✓ Outstanding balances automatically calculated</li>
-                  <li>✓ Excel or CSV file formats supported</li>
+                  <li>✓ {t('contributions.historicalFeature1')}</li>
+                  <li>✓ {t('contributions.historicalFeature2')}</li>
+                  <li>✓ {t('contributions.historicalFeature3')}</li>
+                  <li>✓ {t('contributions.historicalFeature4')}</li>
                 </ul>
               </div>
             </div>
@@ -108,28 +109,27 @@ export default function ContributionsSetupPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-green-600" />
-                Start Fresh
+                {t('contributions.startFresh')}
               </CardTitle>
               {selectedMode === 'fresh' && (
                 <div className="w-4 h-4 bg-green-600 rounded-full" />
               )}
             </div>
-            <CardDescription>Begin tracking from this month</CardDescription>
+            <CardDescription>{t('contributions.startFreshDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Set up monthly contributions from scratch using our automated system.
-                Perfect for new residences or fresh starts.
+                {t('contributions.startFreshInfo')}
               </p>
               
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm font-medium text-green-900 mb-2">Features included:</p>
+                <p className="text-sm font-medium text-green-900 mb-2">{t('contributions.startFreshFeatures')}</p>
                 <ul className="text-xs text-green-800 space-y-1">
-                  <li>✓ Automatic monthly fee generation</li>
-                  <li>✓ Payment reminders via email</li>
-                  <li>✓ Real-time payment tracking</li>
-                  <li>✓ Detailed contribution reports</li>
+                  <li>✓ {t('contributions.freshFeature1')}</li>
+                  <li>✓ {t('contributions.freshFeature2')}</li>
+                  <li>✓ {t('contributions.freshFeature3')}</li>
+                  <li>✓ {t('contributions.freshFeature4')}</li>
                 </ul>
               </div>
             </div>
@@ -154,12 +154,12 @@ export default function ContributionsSetupPage() {
             {selectedMode === 'historical' ? (
               <>
                 <Upload className="w-4 h-4" />
-                Start Import Process
+                {t('contributions.startImportProcess')}
               </>
             ) : (
               <>
                 <TrendingUp className="w-4 h-4" />
-                Configure Monthly Fees
+                {t('contributions.configureMonthlyFees')}
               </>
             )}
           </Button>

@@ -20,9 +20,11 @@ import { checkContributionDataStatus } from '@/app/actions/contributions';
 import { getContributionStatus, type ContributionStatusRow } from '@/app/actions/contribution-status';
 import AddContributionDialog from '@/components/app/contributions/AddContributionDialog';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function ContributionsPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [dataStatus, setDataStatus] = useState<any>(null);
   const [contributionData, setContributionData] = useState<ContributionStatusRow[]>([]);
   const [allApartments, setAllApartments] = useState<Array<{ number: string; residentName: string; residentId: string }>>([]);
@@ -107,31 +109,31 @@ export default function ContributionsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Contribution Status</h1>
+          <h1 className="text-3xl font-bold">{t('contributions.contributionStatus')}</h1>
           <p className="text-muted-foreground mt-1">
             {dataStatus?.setupMode === 'historical'
-              ? 'Historical data imported'
+              ? t('contributions.historicalDataImported')
               : dataStatus?.setupMode === 'mixed'
-              ? 'Historical + Fresh start'
-              : 'Fresh start mode'}
+              ? t('contributions.mixedMode')
+              : t('contributions.freshStartMode')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
             <PlusCircle className="w-4 h-4 mr-2" />
-            Add Manually
+            {t('contributions.addManually')}
           </Button>
           <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
             <Upload className="w-4 h-4 mr-2" />
-            {dataStatus?.setupMode === 'historical' ? 'Import More' : 'Import Data'}
+            {dataStatus?.setupMode === 'historical' ? t('contributions.importMore') : t('contributions.importData')}
           </Button>
           <Button variant="outline">
             <FileDown className="w-4 h-4 mr-2" />
-            Export
+            {t('contributions.export')}
           </Button>
           <Button variant="outline" onClick={() => router.push('/app/recurring-rules')}>
             <Settings className="w-4 h-4 mr-2" />
-            Settings
+            {t('contributions.settings')}
           </Button>
         </div>
       </div>
@@ -141,13 +143,13 @@ export default function ContributionsPage() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t('contributions.search')}</Label>
               <div className="relative mt-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="search"
                   type="text"
-                  placeholder="Search by apartment or resident name..."
+                  placeholder={t('contributions.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -155,7 +157,7 @@ export default function ContributionsPage() {
               </div>
             </div>
             <div className="w-40">
-              <Label htmlFor="year">Year</Label>
+              <Label htmlFor="year">{t('contributions.year')}</Label>
               <select
                 id="year"
                 value={selectedYear}
@@ -177,7 +179,7 @@ export default function ContributionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Apartments</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.totalApartments')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{filteredData.length}</div>
@@ -185,7 +187,7 @@ export default function ContributionsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Fully Paid</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.fullyPaid')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
@@ -195,7 +197,7 @@ export default function ContributionsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">With Outstanding</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.withOutstanding')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
@@ -205,11 +207,11 @@ export default function ContributionsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Outstanding</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.totalOutstanding')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {filteredData.reduce((sum, row) => sum + row.outstandingMonths, 0)} months
+              {filteredData.reduce((sum, row) => sum + row.outstandingMonths, 0)} {t('contributions.months')}
             </div>
           </CardContent>
         </Card>
@@ -226,10 +228,10 @@ export default function ContributionsPage() {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="border px-4 py-3 text-left font-semibold sticky left-0 bg-gray-50 z-10">
-                    APPT
+                    {t('contributions.apartment')}
                   </th>
-                  <th className="border px-4 py-3 text-left font-semibold">Resident</th>
-                  <th className="border px-4 py-3 text-center font-semibold">Report</th>
+                  <th className="border px-4 py-3 text-left font-semibold">{t('contributions.resident')}</th>
+                  <th className="border px-4 py-3 text-center font-semibold">{t('contributions.report')}</th>
                   {monthNames.map((month) => (
                     <th key={month} className="border px-2 py-3 text-center font-semibold">
                       {month}-{yearShort}

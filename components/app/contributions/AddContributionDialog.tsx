@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
 
 interface AddContributionDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ export default function AddContributionDialog({
   residenceId,
   apartments,
 }: AddContributionDialogProps) {
+  const { t } = useI18n();
   const [selectedApartment, setSelectedApartment] = useState('');
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -34,8 +36,10 @@ export default function AddContributionDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    t('contributions.january'), t('contributions.february'), t('contributions.march'),
+    t('contributions.april'), t('contributions.may'), t('contributions.june'),
+    t('contributions.july'), t('contributions.august'), t('contributions.september'),
+    t('contributions.october'), t('contributions.november'), t('contributions.december')
   ];
 
   const handleSubmit = async () => {
@@ -108,19 +112,19 @@ export default function AddContributionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Contribution Manually</DialogTitle>
+          <DialogTitle>{t('contributions.addContributionTitle')}</DialogTitle>
           <DialogDescription>
-            Add a single contribution record for an apartment and month
+            {t('contributions.addContributionDesc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Apartment Selection */}
           <div>
-            <Label htmlFor="apartment">Apartment *</Label>
+            <Label htmlFor="apartment">{t('contributions.apartment')} *</Label>
             <Select value={selectedApartment} onValueChange={setSelectedApartment}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Select apartment" />
+                <SelectValue placeholder={t('contributions.selectApartment')} />
               </SelectTrigger>
               <SelectContent>
                 {apartments.map((apt) => (
@@ -135,7 +139,7 @@ export default function AddContributionDialog({
           {/* Month & Year */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="month">Month *</Label>
+              <Label htmlFor="month">{t('contributions.month')} *</Label>
               <Select value={month.toString()} onValueChange={(val) => setMonth(parseInt(val))}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
@@ -150,7 +154,7 @@ export default function AddContributionDialog({
               </Select>
             </div>
             <div>
-              <Label htmlFor="year">Year *</Label>
+              <Label htmlFor="year">{t('contributions.year')} *</Label>
               <Input
                 id="year"
                 type="number"
@@ -165,7 +169,7 @@ export default function AddContributionDialog({
 
           {/* Amount */}
           <div>
-            <Label htmlFor="amount">Amount (MAD) *</Label>
+            <Label htmlFor="amount">{t('contributions.amount')} *</Label>
             <Input
               id="amount"
               type="number"
@@ -180,14 +184,14 @@ export default function AddContributionDialog({
 
           {/* Payment Status */}
           <div>
-            <Label htmlFor="status">Payment Status *</Label>
+            <Label htmlFor="status">{t('contributions.status')} *</Label>
             <Select value={status} onValueChange={(val: 'paid' | 'unpaid') => setStatus(val)}>
               <SelectTrigger className="mt-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="unpaid">{t('contributions.unpaid')}</SelectItem>
+                <SelectItem value="paid">{t('contributions.paid')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -196,22 +200,22 @@ export default function AddContributionDialog({
           {status === 'paid' && (
             <>
               <div>
-                <Label htmlFor="paymentMethod">Payment Method</Label>
+                <Label htmlFor="paymentMethod">{t('contributions.paymentMethod')}</Label>
                 <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue />
+                    <SelectValue placeholder={t('contributions.selectMethod')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="check">Check</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="cash">{t('contributions.cash')}</SelectItem>
+                    <SelectItem value="transfer">{t('contributions.bankTransfer')}</SelectItem>
+                    <SelectItem value="check">{t('contributions.check')}</SelectItem>
+                    <SelectItem value="card">{t('contributions.card')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="paymentDate">Payment Date</Label>
+                <Label htmlFor="paymentDate">{t('contributions.paymentDate')}</Label>
                 <Input
                   id="paymentDate"
                   type="date"
@@ -225,16 +229,16 @@ export default function AddContributionDialog({
 
           {/* Summary */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="font-medium text-blue-900 mb-2">Summary:</p>
+            <p className="font-medium text-blue-900 mb-2">{t('contributions.summary')}</p>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Apartment: {selectedApartment || 'Not selected'}</li>
-              <li>• Period: {monthNames[month - 1]} {year}</li>
-              <li>• Amount: {amount ? `${amount} MAD` : 'Not set'}</li>
-              <li>• Status: {status === 'paid' ? '✅ Paid' : '⏳ Unpaid'}</li>
+              <li>• {t('contributions.summaryApartment')} {selectedApartment || 'Not selected'}</li>
+              <li>• {t('contributions.summaryMonth')} {monthNames[month - 1]} {year}</li>
+              <li>• {t('contributions.summaryAmount')} {amount ? `${amount} MAD` : 'Not set'}</li>
+              <li>• {t('contributions.summaryStatus')} {status === 'paid' ? '✅ ' + t('contributions.paid') : '⏳ ' + t('contributions.unpaid')}</li>
               {status === 'paid' && (
                 <>
-                  <li>• Payment method: {paymentMethod}</li>
-                  <li>• Payment date: {paymentDate}</li>
+                  <li>• {t('contributions.summaryMethod')} {paymentMethod}</li>
+                  <li>• {t('contributions.summaryDate')} {paymentDate}</li>
                 </>
               )}
             </ul>
@@ -244,18 +248,18 @@ export default function AddContributionDialog({
         {/* Actions */}
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
+            {t('contributions.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Adding...
+                {t('contributions.adding')}
               </>
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                Add Contribution
+                {t('contributions.addContribution')}
               </>
             )}
           </Button>

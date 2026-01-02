@@ -33,6 +33,7 @@ import {
 import { getAllFees } from '@/app/app/residents/fee-actions';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { useI18n } from '@/lib/i18n/client';
 
 interface Fee {
   id: number;
@@ -52,6 +53,7 @@ interface Fee {
 }
 
 export default function FeesPage() {
+  const { t } = useI18n();
   const [fees, setFees] = useState<Fee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,11 +112,11 @@ export default function FeesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
-        return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
+        return <Badge className="bg-green-100 text-green-800">{t('fees.paid')}</Badge>;
       case 'unpaid':
-        return <Badge className="bg-yellow-100 text-yellow-800">Unpaid</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800">{t('fees.unpaid')}</Badge>;
       case 'overdue':
-        return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
+        return <Badge className="bg-red-100 text-red-800">{t('fees.overdue')}</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -133,15 +135,15 @@ export default function FeesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Fees Management</h1>
+          <h1 className="text-3xl font-bold">{t('fees.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage all fees for your residence
+            {t('fees.manageDescription')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Plus className="w-4 h-4 mr-2" />
-            Add Fee
+            {t('fees.addNewFee')}
           </Button>
         </div>
       </div>
@@ -151,13 +153,13 @@ export default function FeesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Fees
+              {t('fees.totalFees')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(stats.totalAmount)} total
+              {formatCurrency(stats.totalAmount)} {t('fees.totalFeesDesc')}
             </p>
           </CardContent>
         </Card>
@@ -165,13 +167,13 @@ export default function FeesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Paid
+              {t('fees.paid')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{stats.paid}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(stats.paidAmount)} collected
+              {formatCurrency(stats.paidAmount)} {t('fees.paidDesc')}
             </p>
           </CardContent>
         </Card>
@@ -179,13 +181,13 @@ export default function FeesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Unpaid
+              {t('fees.unpaid')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">{stats.unpaid}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(stats.unpaidAmount)} pending
+              {formatCurrency(stats.unpaidAmount)} {t('fees.unpaidDesc')}
             </p>
           </CardContent>
         </Card>
@@ -193,13 +195,13 @@ export default function FeesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Overdue
+              {t('fees.overdue')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Requires attention
+              {t('fees.overdueDesc')}
             </p>
           </CardContent>
         </Card>
@@ -210,13 +212,13 @@ export default function FeesPage() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t('contributions.search')}</Label>
               <div className="relative mt-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="search"
                   type="text"
-                  placeholder="Search by title, resident, or apartment..."
+                  placeholder={t('fees.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -224,16 +226,16 @@ export default function FeesPage() {
               </div>
             </div>
             <div className="w-48">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t('contributions.status')}</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="unpaid">Unpaid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="all">{t('fees.allStatuses')}</SelectItem>
+                  <SelectItem value="paid">{t('fees.paid')}</SelectItem>
+                  <SelectItem value="unpaid">{t('fees.unpaid')}</SelectItem>
+                  <SelectItem value="overdue">{t('fees.overdue')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

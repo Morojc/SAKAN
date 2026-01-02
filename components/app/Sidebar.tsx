@@ -50,16 +50,16 @@ export function Sidebar() {
       items: [
         { href: "/app", label: t('sidebar.overview'), icon: LayoutDashboard },
         { href: "/app/residents", label: t('sidebar.residents'), icon: Users },
-        { href: "/app/registration-requests", label: "Registration Requests", icon: UserPlus },
+        { href: "/app/registration-requests", label: t('sidebar.registrationRequests'), icon: UserPlus },
       ]
     },
     {
       category: t('sidebar.management'),
       items: [
-        { href: "/app/contributions", label: "Contributions", icon: TrendingUp },
-        { href: "/app/fees", label: "Fees", icon: FileText },
+        { href: "/app/contributions", label: t('sidebar.contributions'), icon: TrendingUp },
+        { href: "/app/fees", label: t('sidebar.fees'), icon: FileText },
         { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
-        { href: "/app/recurring-rules", label: "Recurring Rules", icon: RefreshCw },
+        { href: "/app/recurring-rules", label: t('sidebar.recurringRules'), icon: RefreshCw },
         { href: "/app/expenses", label: t('sidebar.expenses'), icon: Receipt },
         { href: "/app/incidents", label: t('sidebar.incidents'), icon: AlertCircle },
         { href: "/app/complaints", label: t('sidebar.complaints'), icon: MessageSquare },
@@ -72,7 +72,7 @@ export function Sidebar() {
     {
       category: t('sidebar.system'),
       items: [
-        { href: "/app/qr-code", label: "QR Code Registration", icon: QrCode },
+        { href: "/app/qr-code", label: t('sidebar.qrCode'), icon: QrCode },
         // TODO: Analytics page - not yet implemented
         // { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
         // Settings redirects to profile for now
