@@ -291,7 +291,7 @@ export default function HistoricalImportPage() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={parseFile} disabled={!file}>
+              <Button onClick={parseFile} disabled={!file} className="bg-blue-600 hover:bg-blue-700 text-white">
                 Continue
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
@@ -353,7 +353,7 @@ export default function HistoricalImportPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={handleValidate} disabled={importing}>
+              <Button onClick={handleValidate} disabled={importing} className="bg-blue-600 hover:bg-blue-700 text-white">
                 {importing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -457,7 +457,7 @@ export default function HistoricalImportPage() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={handleImport} disabled={importing || preview.filter((p) => p.matched).length === 0}>
+              <Button onClick={handleImport} disabled={importing || preview.filter((p) => p.matched).length === 0} className="bg-green-600 hover:bg-green-700 text-white">
                 {importing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -502,7 +502,7 @@ export default function HistoricalImportPage() {
             </div>
 
             <div className="flex justify-center">
-              <Button size="lg" onClick={() => router.push('/app/contributions')}>
+              <Button size="lg" onClick={() => router.push('/app/contributions')} className="bg-blue-600 hover:bg-blue-700 text-white">
                 View Contribution Status
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>

@@ -186,7 +186,7 @@ export default function FreshStartSetupPage() {
             <Button variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
-            <Button onClick={handleSetup} disabled={creating || !amount}>
+            <Button onClick={handleSetup} disabled={creating || !amount} className="bg-green-600 hover:bg-green-700 text-white">
               {creating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -324,3 +324,62 @@ export async function deleteFee(feeId: number) {
     };
   }
 }
+
+/**
+ * Get all fees for the user's residence
+ */
+export async function getAllFees() {
+  console.log('[Fee Actions] Getting all fees');
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    const supabase = await getSupabaseClient();
+
+    // Get user's residence ID
+    const residenceId = await getUserResidenceId(supabase, userId);
+
+    if (!residenceId) {
+      return {
+        success: false,
+        error: 'User is not assigned to a residence',
+      };
+    }
+
+    // Fetch all fees for the residence with resident details
+    const { data, error } = await supabase
+      .from('fees')
+      .select(`
+        *,
+        profiles:user_id(full_name),
+        profile_residences!inner(apartment_number)
+      `)
+      .eq('residence_id', residenceId)
+      .order('due_date', { ascending: false });
+
+    if (error) {
+      console.error('[Fee Actions] Error fetching fees:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch fees: ' + error.message,
+      };
+    }
+
+    console.log('[Fee Actions] Fees fetched successfully:', data?.length);
+    return {
+      success: true,
+      data: data || [],
+    };
+  } catch (error: any) {
+    console.error('[Fee Actions] Unexpected error:', error);
+    return {
+      success: false,
+      error: error.message || 'An unexpected error occurred',
+    };
+  }
+}

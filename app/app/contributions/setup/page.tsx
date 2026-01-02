@@ -149,7 +149,7 @@ export default function ContributionsSetupPage() {
                 router.push('/app/contributions/setup-fresh');
               }
             }}
-            className="gap-2"
+            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
           >
             {selectedMode === 'historical' ? (
               <>
