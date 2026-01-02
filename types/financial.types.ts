@@ -242,9 +242,12 @@ export interface SubmitPaymentDTO {
   fee_id?: number;
   amount: number;
   method: PaymentMethod;
+  status?: PaymentStatus;
   proof_url?: string;
   reference_number?: string;
   bank_reference?: string;
+  verified_by?: string;
+  paid_at?: string;
   notes?: string;
 }
 
