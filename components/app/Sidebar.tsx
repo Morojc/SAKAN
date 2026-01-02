@@ -11,7 +11,9 @@ import {
   MessageSquare,
   ChevronRight,
   Receipt,
-  RefreshCw
+  RefreshCw,
+  UserPlus,
+  QrCode
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -46,6 +48,7 @@ export function Sidebar() {
       items: [
         { href: "/app", label: t('sidebar.overview'), icon: LayoutDashboard },
         { href: "/app/residents", label: t('sidebar.residents'), icon: Users },
+        { href: "/app/registration-requests", label: "Registration Requests", icon: UserPlus },
       ]
     },
     {
@@ -65,6 +68,7 @@ export function Sidebar() {
     {
       category: t('sidebar.system'),
       items: [
+        { href: "/app/qr-code", label: "QR Code Registration", icon: QrCode },
         // TODO: Analytics page - not yet implemented
         // { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
         // Settings redirects to profile for now

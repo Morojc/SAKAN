@@ -147,6 +147,35 @@ export async function createResident(data: CreateResidentData) {
     const enteredEmail = data.email.trim().toLowerCase();
     const isSyndicAddingSelf = (existingUser?.id === userId) || (currentUserEmail === enteredEmail);
 
+    // Check for duplicate email in same residence (only verified residents)
+    // This prevents adding a new resident with an email that's already used by a verified resident
+    const { data: existingResidentWithEmail } = await adminSupabase
+      .from('profile_residences')
+      .select('profile_id, profiles:profile_id(id, email)')
+      .eq('residence_id', data.residence_id)
+      .eq('verified', true);
+
+    if (existingResidentWithEmail) {
+      const emailExists = existingResidentWithEmail.some(
+        (pr: any) => pr.profiles?.email?.toLowerCase() === enteredEmail
+      );
+      
+      // Only block if it's a different user (not the same user being added to a different apartment)
+      if (emailExists) {
+        const existingResident = existingResidentWithEmail.find(
+          (pr: any) => pr.profiles?.email?.toLowerCase() === enteredEmail
+        );
+        
+        // Allow if it's the same user (existing user being added to another apartment)
+        if (!existingUser || existingResident?.profile_id !== existingUser.id) {
+          return {
+            success: false,
+            error: 'This email is already registered as a verified resident in this residence. Each email can only be used by one verified resident per residence.',
+          };
+        }
+      }
+    }
+
     // If email exists, check the user's role and residence assignments
     if (existingUser) {
       // Check if the existing user is a syndic
@@ -156,17 +185,18 @@ export async function createResident(data: CreateResidentData) {
         .eq('id', existingUser.id)
         .maybeSingle();
 
-      // Check if apartment number is already reserved by another user in this residence
-      // Each apartment can only be assigned to one user per residence
+      // Check if apartment number is already reserved by another verified user in this residence
+      // Each apartment can only be assigned to one verified resident per residence
       const apartmentNumber = data.apartment_number?.trim() || null;
       
       if (apartmentNumber) {
-        // Check if this apartment is already taken by another user
+        // Check if this apartment is already taken by another verified user
         const { data: existingApartmentReservation } = await adminSupabase
           .from('profile_residences')
           .select('id, profile_id, apartment_number')
           .eq('residence_id', data.residence_id)
           .eq('apartment_number', apartmentNumber)
+          .eq('verified', true)
           .maybeSingle();
 
         if (existingApartmentReservation && existingApartmentReservation.profile_id !== existingUser.id) {
@@ -180,7 +210,7 @@ export async function createResident(data: CreateResidentData) {
           const residentName = existingResidentProfile?.full_name || 'another resident';
           return {
             success: false,
-            error: `Apartment ${apartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+            error: `Apartment ${apartmentNumber} is already occupied by ${residentName} (verified resident) in this residence. Each apartment can only be assigned to one verified resident.`,
           };
         }
       }
@@ -228,7 +258,7 @@ export async function createResident(data: CreateResidentData) {
       // A resident can be added by different syndics in different residences
       // The only restrictions that apply:
       // 1. Cannot add the same user to the same apartment in the same residence (checked above)
-      // 2. Apartment number cannot be already taken by another user in the same residence (checked above)
+      // 2. Apartment number cannot be already taken by another verified resident in the same residence (checked above)
       // 3. Syndics can be added as residents while preserving their syndic role
       // 4. If user already exists and is verified, no OTP email will be sent (handled later)
     }
@@ -412,14 +442,15 @@ export async function createResident(data: CreateResidentData) {
       // Residents are assigned via profile_residences (M:N relationship)
       const apartmentNumber = data.apartment_number?.trim() || null;
       
-      // Check if apartment number is already reserved by another user in this residence
-      // Each apartment can only be assigned to one user per residence
+      // Check if apartment number is already reserved by another verified user in this residence
+      // Each apartment can only be assigned to one verified resident per residence
       if (apartmentNumber) {
         const { data: existingApartmentReservation } = await adminSupabase
           .from('profile_residences')
           .select('id, profile_id, apartment_number')
           .eq('residence_id', data.residence_id)
           .eq('apartment_number', apartmentNumber)
+          .eq('verified', true)
           .maybeSingle();
 
         if (existingApartmentReservation && existingApartmentReservation.profile_id !== finalUserId) {
@@ -433,7 +464,7 @@ export async function createResident(data: CreateResidentData) {
           const residentName = existingResidentProfile?.full_name || 'another resident';
           return {
             success: false,
-            error: `Apartment ${apartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+            error: `Apartment ${apartmentNumber} is already occupied by ${residentName} (verified resident) in this residence. Each apartment can only be assigned to one verified resident.`,
           };
         }
       }
@@ -661,12 +692,13 @@ export async function updateResident(data: UpdateResidentData) {
     if (data.apartment_number) {
         const newApartmentNumber = data.apartment_number.trim();
         
-        // Check if the new apartment number is already reserved by another user
+        // Check if the new apartment number is already reserved by another verified user
         const { data: existingApartmentReservation } = await adminSupabase
             .from('profile_residences')
             .select('id, profile_id, apartment_number')
             .eq('residence_id', managedResidenceId)
             .eq('apartment_number', newApartmentNumber)
+            .eq('verified', true)
             .maybeSingle();
 
         if (existingApartmentReservation && existingApartmentReservation.profile_id !== data.id) {
@@ -680,7 +712,7 @@ export async function updateResident(data: UpdateResidentData) {
             const residentName = existingResidentProfile?.full_name || 'another resident';
             return {
                 success: false,
-                error: `Apartment ${newApartmentNumber} is already reserved by ${residentName} in this residence. Each apartment can only be assigned to one user.`,
+                error: `Apartment ${newApartmentNumber} is already occupied by ${residentName} (verified resident) in this residence. Each apartment can only be assigned to one verified resident.`,
             };
         }
 
