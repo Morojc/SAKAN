@@ -28,6 +28,7 @@ export default function ContributionsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
   const [residenceId, setResidenceId] = useState<number | null>(null);
+  const [activePlan, setActivePlan] = useState<{ period_type: string; plan_name: string } | null>(null);
 
   useEffect(() => {
     loadUserResidence();
@@ -35,6 +36,7 @@ export default function ContributionsPage() {
 
   useEffect(() => {
     if (residenceId) {
+      loadActivePlan();
       loadContributionStatus();
     }
   }, [selectedYear, residenceId]);
@@ -56,6 +58,26 @@ export default function ContributionsPage() {
     } catch (error: any) {
       console.error('[Contributions] Exception loading residence:', error);
       toast.error('Failed to load residence information');
+    }
+  };
+
+  const loadActivePlan = async () => {
+    if (!residenceId) return;
+    
+    try {
+      const response = await fetch(`/api/contributions/plans?residenceId=${residenceId}`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const active = result.data.find((p: any) => p.is_active);
+        if (active) {
+          setActivePlan({ period_type: active.period_type, plan_name: active.plan_name });
+        } else {
+          setActivePlan(null);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading active plan:', error);
     }
   };
 
@@ -98,11 +120,44 @@ export default function ContributionsPage() {
       return;
     }
 
-    const month = new Date().getMonth() + 1;
-    const year = new Date().getFullYear();
-    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+    if (!activePlan) {
+      toast.error('No active contribution plan found. Please create and activate a plan first.');
+      return;
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    let periodStart: string;
+    let periodEnd: string;
+    let buttonLabel = 'Generate This Period';
+
+    if (activePlan.period_type === 'monthly') {
+      const month = now.getMonth() + 1;
+      periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+      buttonLabel = 'Generate This Month';
+    } else if (activePlan.period_type === 'quarterly') {
+      const quarter = Math.floor(now.getMonth() / 3);
+      periodStart = new Date(year, quarter * 3, 1).toISOString().split('T')[0];
+      periodEnd = new Date(year, (quarter + 1) * 3, 0).toISOString().split('T')[0];
+      buttonLabel = 'Generate This Quarter';
+    } else if (activePlan.period_type === 'semi_annual') {
+      const halfYear = Math.floor(now.getMonth() / 6);
+      periodStart = new Date(year, halfYear * 6, 1).toISOString().split('T')[0];
+      periodEnd = new Date(year, (halfYear + 1) * 6, 0).toISOString().split('T')[0];
+      buttonLabel = 'Generate This Half-Year';
+    } else if (activePlan.period_type === 'annual') {
+      periodStart = `${year}-01-01`;
+      periodEnd = `${year}-12-31`;
+      buttonLabel = 'Generate This Year';
+    } else {
+      // Default to monthly
+      const month = now.getMonth() + 1;
+      periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+    }
 
     try {
       const response = await fetch('/api/contributions/generate', {
@@ -153,7 +208,27 @@ export default function ContributionsPage() {
   }
 
   const monthNames = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+  const quarterNames = ['Q1 (Jan-Mar)', 'Q2 (Avr-Juin)', 'Q3 (Juil-Sept)', 'Q4 (Oct-Déc)'];
   const yearShort = selectedYear.toString().slice(-2);
+
+  // Get column headers based on period type
+  const getColumnHeaders = () => {
+    if (activePlan?.period_type === 'quarterly') {
+      return quarterNames.map((q, idx) => ({ key: `Q${idx + 1}`, label: q }));
+    } else if (activePlan?.period_type === 'semi_annual') {
+      return [
+        { key: 'H1', label: 'H1 (Jan-Juin)' },
+        { key: 'H2', label: 'H2 (Juil-Déc)' }
+      ];
+    } else if (activePlan?.period_type === 'annual') {
+      return [{ key: 'YEAR', label: selectedYear.toString() }];
+    } else {
+      // Monthly (default)
+      return monthNames.map((month) => ({ key: `${month}-${yearShort}`, label: `${month}-${yearShort}` }));
+    }
+  };
+
+  const columnHeaders = getColumnHeaders();
 
   return (
     <div className="space-y-6 p-6">
@@ -169,9 +244,13 @@ export default function ContributionsPage() {
           <Button 
             onClick={handleGenerateContributions}
             className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={!activePlan}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            Generate This Month
+            {activePlan?.period_type === 'quarterly' ? 'Generate This Quarter' :
+             activePlan?.period_type === 'semi_annual' ? 'Generate This Half-Year' :
+             activePlan?.period_type === 'annual' ? 'Generate This Year' :
+             'Generate This Month'}
           </Button>
           <Button 
             variant="outline" 
@@ -289,9 +368,9 @@ export default function ContributionsPage() {
                   </th>
                   <th className="border px-4 py-3 text-left font-semibold">{t('contributions.resident')}</th>
                   <th className="border px-4 py-3 text-center font-semibold">{t('contributions.report')}</th>
-                  {monthNames.map((month) => (
-                    <th key={month} className="border px-2 py-3 text-center font-semibold">
-                      {month}-{yearShort}
+                  {columnHeaders.map((col) => (
+                    <th key={col.key} className="border px-2 py-3 text-center font-semibold">
+                      {col.label}
                     </th>
                   ))}
                 </tr>
@@ -310,12 +389,34 @@ export default function ContributionsPage() {
                         </span>
                       )}
                     </td>
-                    {monthNames.map((month) => {
-                      const monthKey = `${month}-${yearShort}`;
-                      const status = row.months[monthKey];
+                    {columnHeaders.map((col) => {
+                      let status: string | null = null;
+                      
+                      if (activePlan?.period_type === 'quarterly') {
+                        // For quarterly, check if any month in the quarter has a contribution
+                        const quarterIndex = quarterNames.indexOf(col.label);
+                        const quarterMonths = [
+                          `${monthNames[quarterIndex * 3]}-${yearShort}`,
+                          `${monthNames[quarterIndex * 3 + 1]}-${yearShort}`,
+                          `${monthNames[quarterIndex * 3 + 2]}-${yearShort}`
+                        ];
+                        // Get status from first month of quarter (or aggregate)
+                        status = row.months[quarterMonths[0]] || null;
+                      } else if (activePlan?.period_type === 'semi_annual') {
+                        // For semi-annual, check first month of half-year
+                        const halfIndex = col.key === 'H1' ? 0 : 6;
+                        status = row.months[`${monthNames[halfIndex]}-${yearShort}`] || null;
+                      } else if (activePlan?.period_type === 'annual') {
+                        // For annual, check first month
+                        status = row.months[`${monthNames[0]}-${yearShort}`] || null;
+                      } else {
+                        // Monthly (default)
+                        status = row.months[col.key] || null;
+                      }
+
                       return (
                         <td
-                          key={monthKey}
+                          key={col.key}
                           className={`border px-2 py-3 text-center cursor-pointer hover:bg-gray-100 ${
                             status === 'pending' || status === 'overdue' 
                               ? 'bg-red-100' 
@@ -334,7 +435,7 @@ export default function ContributionsPage() {
                               ? 'Partially paid'
                               : status === 'overdue'
                               ? 'Overdue'
-                              : 'No contribution for this month'
+                              : `No contribution for this ${activePlan?.period_type === 'quarterly' ? 'quarter' : activePlan?.period_type === 'semi_annual' ? 'half-year' : activePlan?.period_type === 'annual' ? 'year' : 'month'}`
                           }
                           onClick={() => {
                             if (status === 'pending' || status === 'partial' || status === 'overdue') {

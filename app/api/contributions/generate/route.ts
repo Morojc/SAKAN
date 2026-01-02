@@ -46,11 +46,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get all active plans and find one that overlaps with the period
+    const { data: allActivePlans, error: planError } = await supabase
+      .from('contribution_plans')
+      .select('period_type, start_date, end_date')
+      .eq('residence_id', residence_id)
+      .eq('is_active', true);
+
+    if (planError) {
+      console.error('[POST /api/contributions/generate] Error fetching plan:', planError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch contribution plan' },
+        { status: 500 }
+      );
+    }
+
+    if (!allActivePlans || allActivePlans.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No active contribution plan found for this period' },
+        { status: 400 }
+      );
+    }
+
+    // Find plan that overlaps with the period
+    const periodStartDate = new Date(period_start);
+    const periodEndDate = new Date(period_end);
+    
+    const activePlan = allActivePlans.find((p: any) => {
+      const planStart = new Date(p.start_date);
+      const planEnd = p.end_date ? new Date(p.end_date) : null;
+      
+      return planStart <= periodEndDate && (!planEnd || planEnd >= periodStartDate);
+    });
+
+    if (!activePlan) {
+      return NextResponse.json(
+        { success: false, error: 'No active contribution plan found that covers this period' },
+        { status: 400 }
+      );
+    }
+
+    // Calculate period dates based on period_type
+    let calculatedPeriodStart = period_start;
+    let calculatedPeriodEnd = period_end;
+
+    if (activePlan.period_type === 'quarterly') {
+      // For quarterly, align to quarter boundaries
+      const startDate = new Date(period_start);
+      const quarter = Math.floor(startDate.getMonth() / 3);
+      calculatedPeriodStart = new Date(startDate.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
+      calculatedPeriodEnd = new Date(startDate.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
+    } else if (activePlan.period_type === 'semi_annual') {
+      // For semi-annual, align to half-year boundaries
+      const startDate = new Date(period_start);
+      const halfYear = Math.floor(startDate.getMonth() / 6);
+      calculatedPeriodStart = new Date(startDate.getFullYear(), halfYear * 6, 1).toISOString().split('T')[0];
+      calculatedPeriodEnd = new Date(startDate.getFullYear(), (halfYear + 1) * 6, 0).toISOString().split('T')[0];
+    } else if (activePlan.period_type === 'annual') {
+      // For annual, align to year boundaries
+      const startDate = new Date(period_start);
+      calculatedPeriodStart = new Date(startDate.getFullYear(), 0, 1).toISOString().split('T')[0];
+      calculatedPeriodEnd = new Date(startDate.getFullYear(), 11, 31).toISOString().split('T')[0];
+    }
+    // For monthly, use the provided dates as-is
+
     // Call the database function to generate contributions
     const { data, error } = await supabase.rpc('generate_contributions_for_period', {
       p_residence_id: residence_id,
-      p_period_start: period_start,
-      p_period_end: period_end,
+      p_period_start: calculatedPeriodStart,
+      p_period_end: calculatedPeriodEnd,
     });
 
     if (error) {
