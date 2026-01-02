@@ -47,7 +47,18 @@ export default function ContributionsPage() {
       if (result.success && result.data?.residence_id) {
         setResidenceId(result.data.residence_id);
       } else {
-        toast.error('Could not load your residence. Please contact support.');
+        console.error('No residence found:', result.error);
+        // Fallback: Try to get residence from residences table
+        const fallbackResponse = await fetch('/api/residences');
+        const fallbackResult = await fallbackResponse.json();
+        
+        if (fallbackResult.success && fallbackResult.data?.length > 0) {
+          const firstResidence = fallbackResult.data[0];
+          setResidenceId(firstResidence.id);
+          toast.error(`Using residence: ${firstResidence.name}. Please link your profile to a residence.`);
+        } else {
+          toast.error('Could not load your residence. Please contact support.');
+        }
       }
     } catch (error: any) {
       console.error('Error loading residence:', error);
