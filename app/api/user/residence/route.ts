@@ -15,13 +15,14 @@ export async function GET(request: NextRequest) {
 
     const supabase = createSupabaseAdminClient();
 
-    // Get user's residence from profile_residences
+    // Get user's residence from profile_residences and role from profiles
     const { data: profileResidence, error } = await supabase
       .from('profile_residences')
       .select(`
         residence_id,
-        role,
-        residence:residences(id, name)
+        apartment_number,
+        verified,
+        residence:residences(id, name, address, city)
       `)
       .eq('profile_id', session.user.id)
       .order('created_at', { ascending: false })
@@ -35,11 +36,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get user's role from profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
     return NextResponse.json({
       success: true,
       data: {
         residence_id: profileResidence.residence_id,
-        role: profileResidence.role,
+        apartment_number: profileResidence.apartment_number,
+        verified: profileResidence.verified,
+        role: profile?.role || 'resident',
         residence: profileResidence.residence,
       },
     });
