@@ -14,9 +14,11 @@ import {
   FileDown,
   Settings,
   Plus,
+  PlusCircle,
 } from 'lucide-react';
 import { checkContributionDataStatus } from '@/app/actions/contributions';
 import { getContributionStatus, type ContributionStatusRow } from '@/app/actions/contribution-status';
+import AddContributionDialog from '@/components/app/contributions/AddContributionDialog';
 import toast from 'react-hot-toast';
 
 export default function ContributionsPage() {
@@ -26,6 +28,8 @@ export default function ContributionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -62,7 +66,7 @@ export default function ContributionsPage() {
     }
 
     loadData();
-  }, [selectedYear, router]);
+  }, [selectedYear, router, refreshTrigger]);
 
   // Filter data by search term
   const filteredData = contributionData.filter(
@@ -70,6 +74,17 @@ export default function ContributionsPage() {
       row.apartmentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       row.residentName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Prepare apartment list for add dialog
+  const apartments = contributionData.map((row) => ({
+    number: row.apartmentNumber,
+    residentName: row.residentName,
+    residentId: row.residentId,
+  }));
+
+  const handleContributionAdded = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   if (loading) {
     return (
@@ -97,6 +112,10 @@ export default function ContributionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={() => setShowAddDialog(true)}>
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Add Manually
+          </Button>
           <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
             <Upload className="w-4 h-4 mr-2" />
             {dataStatus?.setupMode === 'historical' ? 'Import More' : 'Import Data'}
@@ -274,6 +293,15 @@ export default function ContributionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Contribution Dialog */}
+      <AddContributionDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onSuccess={handleContributionAdded}
+        residenceId={1} // TODO: Get from session
+        apartments={apartments}
+      />
     </div>
   );
 }
