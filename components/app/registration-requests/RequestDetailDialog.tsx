@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -128,25 +128,6 @@ export default function RequestDetailDialog({
                   {request.apartment_number}
                 </Badge>
               </div>
-              <div>
-                <Label className="text-gray-500">ID Number</Label>
-                <p className="font-medium">{request.id_number}</p>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Document */}
-            <div>
-              <Label className="text-gray-500">ID Document</Label>
-              <Button
-                variant="outline"
-                className="mt-2 gap-2"
-                onClick={() => window.open(request.id_document_url, '_blank')}
-              >
-                <ExternalLink className="w-4 h-4" />
-                View Document
-              </Button>
             </div>
 
             <Separator />

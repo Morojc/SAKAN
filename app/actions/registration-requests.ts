@@ -89,29 +89,8 @@ export async function approveRegistrationRequest(requestId: number) {
     return { error: 'Request has already been reviewed' };
   }
 
-  // Check for duplicate email in same residence (only verified residents)
-  const { data: existingResident } = await supabase
-    .from('profile_residences')
-    .select('profile_id, profiles:profile_id(id, email)')
-    .eq('residence_id', request.residence_id)
-    .eq('verified', true);
-
-  if (existingResident && existingResident.some((pr: any) => pr.profiles?.email === request.email)) {
-    return { error: 'This email is already registered as a verified resident in this residence' };
-  }
-
-  // Check for duplicate apartment
-  const { data: existingApartment } = await supabase
-    .from('profile_residences')
-    .select('id')
-    .eq('residence_id', request.residence_id)
-    .eq('apartment_number', request.apartment_number)
-    .eq('verified', true)
-    .single();
-
-  if (existingApartment) {
-    return { error: 'This apartment is already occupied' };
-  }
+  // Note: Email, phone, and apartment validation is already done during form submission
+  // No need to re-validate here - proceed directly to approval
 
   // Generate onboarding code
   const onboardingCode = generateSixDigitCode();
