@@ -89,15 +89,15 @@ export async function approveRegistrationRequest(requestId: number) {
     return { error: 'Request has already been reviewed' };
   }
 
-  // Check for duplicate email
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', request.email)
-    .single();
+  // Check for duplicate email in same residence (only verified residents)
+  const { data: existingResident } = await supabase
+    .from('profile_residences')
+    .select('profile_id, profiles:profile_id(id, email)')
+    .eq('residence_id', request.residence_id)
+    .eq('verified', true);
 
-  if (existingProfile) {
-    return { error: 'A user with this email already exists in the system' };
+  if (existingResident && existingResident.some((pr: any) => pr.profiles?.email === request.email)) {
+    return { error: 'This email is already registered as a verified resident in this residence' };
   }
 
   // Check for duplicate apartment
@@ -117,57 +117,123 @@ export async function approveRegistrationRequest(requestId: number) {
   const onboardingCode = generateSixDigitCode();
   const expiresAt = addDays(new Date(), 7);
 
-  // Create user in auth.users (via Supabase Admin API)
-  const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-    email: request.email,
-    email_confirm: false,
-    user_metadata: {
-      full_name: request.full_name,
-    },
-  });
+  // Check if user already exists in auth.users
+  let authUserId: string;
+  const { data: existingUsers } = await supabase.auth.admin.listUsers();
+  const existingUser = existingUsers?.users.find((u) => u.email === request.email);
 
-  if (authError || !authUser.user) {
-    console.error('Error creating auth user:', authError);
-    return { error: 'Failed to create user account' };
-  }
+  if (existingUser) {
+    // User exists in auth, use their ID
+    authUserId = existingUser.id;
+    
+    // Check if profile exists, create if it doesn't
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', authUserId)
+      .single();
 
-  // Create profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert({
-      id: authUser.user.id,
-      full_name: request.full_name,
-      phone_number: request.phone_number,
-      role: 'resident',
-      resident_onboarding_code: onboardingCode,
-      resident_onboarding_code_expires_at: expiresAt.toISOString(),
-      email_verified: false,
-      verified: false,
+    if (!existingProfile) {
+      // Profile doesn't exist, create it
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authUserId,
+          full_name: request.full_name,
+          phone_number: request.phone_number,
+          role: 'resident',
+          resident_onboarding_code: onboardingCode,
+          resident_onboarding_code_expires_at: expiresAt.toISOString(),
+          email_verified: false,
+          verified: false,
+        });
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+        return { error: 'Failed to create user profile' };
+      }
+    }
+  } else {
+    // User doesn't exist, create new user in auth.users
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: request.email,
+      email_confirm: false,
+      user_metadata: {
+        full_name: request.full_name,
+      },
     });
 
-  if (profileError) {
-    console.error('Error creating profile:', profileError);
-    // Clean up auth user
-    await supabase.auth.admin.deleteUser(authUser.user.id);
-    return { error: 'Failed to create user profile' };
+    if (authError || !authUser.user) {
+      console.error('Error creating auth user:', authError);
+      return { error: 'Failed to create user account' };
+    }
+
+    authUserId = authUser.user.id;
+
+    // Create profile for new user
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: authUserId,
+        full_name: request.full_name,
+        phone_number: request.phone_number,
+        role: 'resident',
+        resident_onboarding_code: onboardingCode,
+        resident_onboarding_code_expires_at: expiresAt.toISOString(),
+        email_verified: false,
+        verified: false,
+      });
+
+    if (profileError) {
+      console.error('Error creating profile:', profileError);
+      // Clean up auth user
+      await supabase.auth.admin.deleteUser(authUserId);
+      return { error: 'Failed to create user profile' };
+    }
   }
 
-  // Create profile_residence entry
-  const { error: prError } = await supabase
+  // Check if profile_residence entry already exists
+  const { data: existingProfileResidence } = await supabase
     .from('profile_residences')
-    .insert({
-      profile_id: authUser.user.id,
-      residence_id: request.residence_id,
-      apartment_number: request.apartment_number,
-      verified: false,
-    });
+    .select('id')
+    .eq('profile_id', authUserId)
+    .eq('residence_id', request.residence_id)
+    .single();
 
-  if (prError) {
-    console.error('Error creating profile_residence:', prError);
-    // Clean up
-    await supabase.from('profiles').delete().eq('id', authUser.user.id);
-    await supabase.auth.admin.deleteUser(authUser.user.id);
-    return { error: 'Failed to assign residence' };
+  if (existingProfileResidence) {
+    // Entry exists, update it with new apartment number if needed
+    const { error: prError } = await supabase
+      .from('profile_residences')
+      .update({
+        apartment_number: request.apartment_number,
+        verified: false,
+      })
+      .eq('id', existingProfileResidence.id);
+
+    if (prError) {
+      console.error('Error updating profile_residence:', prError);
+      return { error: 'Failed to assign residence' };
+    }
+  } else {
+    // Create new profile_residence entry
+    const { error: prError } = await supabase
+      .from('profile_residences')
+      .insert({
+        profile_id: authUserId,
+        residence_id: request.residence_id,
+        apartment_number: request.apartment_number,
+        verified: false,
+      });
+
+    if (prError) {
+      console.error('Error creating profile_residence:', prError);
+      // Only clean up if this was a newly created user
+      if (!existingUser) {
+        await supabase.from('profiles').delete().eq('id', authUserId);
+        await supabase.auth.admin.deleteUser(authUserId);
+      }
+      return { error: 'Failed to assign residence' };
+    }
   }
 
   // Update request status
