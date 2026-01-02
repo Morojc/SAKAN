@@ -26,14 +26,26 @@ export async function POST(request: NextRequest) {
     // Collect all validation errors
     const errors: string[] = [];
 
-    // Check for duplicate email in same residence (verified residents)
-    const { data: existingEmail } = await supabase
+    // Check for duplicate email in same residence (all residents)
+    // Get all profile_ids in this residence
+    const { data: profileResidences } = await supabase
       .from('profile_residences')
-      .select('profile_id, profiles:profile_id(email)')
+      .select('profile_id')
       .eq('residence_id', residenceId);
 
-    if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email?.toLowerCase() === email.toLowerCase())) {
-      errors.push('This email address is already registered as a verified resident in this residence');
+    if (profileResidences && profileResidences.length > 0) {
+      const profileIds = profileResidences.map((pr: any) => pr.profile_id);
+      
+      // Email is stored in users table, check there
+      const { data: usersWithEmail } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', profileIds)
+        .ilike('email', email);
+
+      if (usersWithEmail && usersWithEmail.length > 0) {
+        errors.push('This email address is already registered in this residence');
+      }
     }
 
     // Check for duplicate phone number in same residence (verified and unverified residents)

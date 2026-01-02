@@ -24,32 +24,52 @@ export async function POST(request: NextRequest) {
     // Collect all validation errors
     const errors: string[] = [];
 
-    // Check for duplicate email in same residence (verified and unverified residents)
-    const { data: existingEmail } = await supabase
+    // Get all profile_ids in this residence (verified and unverified)
+    const { data: profileResidences } = await supabase
       .from('profile_residences')
-      .select('profile_id, profiles:profile_id(email)')
-      .eq('residence_id', residenceId)
-      .or('verified.eq.true,verified.eq.false');
+      .select('profile_id')
+      .eq('residence_id', residenceId);
 
-    if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email?.toLowerCase() === email.toLowerCase())) {
-      errors.push('This email address is already registered in this residence');
+    let profileIds: string[] = [];
+    if (profileResidences && profileResidences.length > 0) {
+      profileIds = profileResidences.map((pr: any) => pr.profile_id);
     }
 
-    // Check for duplicate phone number in same residence (verified and unverified residents)
-    const { data: existingPhone } = await supabase
-      .from('profile_residences')
-      .select('profile_id, profiles:profile_id(phone_number)')
-      .eq('residence_id', residenceId)
-      .or('verified.eq.true,verified.eq.false');
+    // Check for duplicate email in same residence
+    // Email is stored in users table, not profiles table
+    if (profileIds.length > 0) {
+      const { data: usersWithEmail } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', profileIds)
+        .ilike('email', email);
 
-    if (existingPhone && existingPhone.some((pr: any) => {
-      const profilePhone = pr.profiles?.phone_number;
-      if (!profilePhone || !phoneNumber) return false;
-      // Normalize phone numbers for comparison (remove spaces, dashes, etc.)
-      const normalize = (p: string) => p.replace(/[\s\-\(\)]/g, '');
-      return normalize(profilePhone) === normalize(phoneNumber);
-    })) {
-      errors.push('This phone number is already registered in this residence');
+      if (usersWithEmail && usersWithEmail.length > 0) {
+        errors.push('This email address is already registered in this residence');
+      }
+    }
+
+    // Check for duplicate phone number in same residence
+    if (profileIds.length > 0) {
+      const { data: profilesWithPhone } = await supabase
+        .from('profiles')
+        .select('id, phone_number')
+        .in('id', profileIds)
+        .not('phone_number', 'is', null);
+
+      if (profilesWithPhone && profilesWithPhone.length > 0) {
+        const normalize = (p: string) => p.replace(/[\s\-\(\)]/g, '');
+        const normalizedInputPhone = normalize(phoneNumber);
+        
+        const phoneExists = profilesWithPhone.some((profile: any) => {
+          if (!profile.phone_number) return false;
+          return normalize(profile.phone_number) === normalizedInputPhone;
+        });
+
+        if (phoneExists) {
+          errors.push('This phone number is already registered in this residence');
+        }
+      }
     }
 
     // Check for duplicate apartment number (verified and unverified residents)
