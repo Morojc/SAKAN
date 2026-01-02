@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Plus } from 'lucide-react';
-import { createFee } from '@/app/app/residents/fee-actions';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 
@@ -48,7 +47,6 @@ export default function AddFeeDialog({
       const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
       if (response.ok) {
         const result = await response.json();
-        console.log('[AddFeeDialog] Fetched apartments data:', result);
         
         // Handle standardized API response format { success: true, data: [...] }
         const apartmentsData = result.success ? result.data : (result.apartments || []);
@@ -60,14 +58,10 @@ export default function AddFeeDialog({
             apartment: apt.apartment_number || apt.number || 'N/A',
           }));
           setResidents(mappedResidents);
-          console.log('[AddFeeDialog] Mapped residents:', mappedResidents);
         } else {
-          console.warn('[AddFeeDialog] No apartments returned from API');
           setResidents([]);
         }
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[AddFeeDialog] Failed to fetch residents:', response.status, errorData);
         toast.error('Failed to load residents');
         setResidents([]);
       }
@@ -101,29 +95,40 @@ export default function AddFeeDialog({
 
     setSubmitting(true);
 
-    const result = await createFee({
-      user_id: selectedResident,
-      residence_id: residenceId,
-      title: title.trim(),
-      amount: parseFloat(amount),
-      due_date: dueDate,
-      status,
-    });
+    try {
+      const response = await fetch('/api/fees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: selectedResident,
+          residence_id: residenceId,
+          title: title.trim(),
+          amount: parseFloat(amount),
+          due_date: dueDate,
+          status,
+        }),
+      });
 
-    setSubmitting(false);
+      const result = await response.json();
 
-    if (result.success) {
-      toast.success('Fee created successfully!');
-      // Reset form
-      setSelectedResident('');
-      setTitle('');
-      setAmount('');
-      setDueDate('');
-      setStatus('unpaid');
-      onSuccess();
-      onOpenChange(false);
-    } else {
-      toast.error(result.error || 'Failed to create fee');
+      if (result.success) {
+        toast.success('Fee created successfully!');
+        // Reset form
+        setSelectedResident('');
+        setTitle('');
+        setAmount('');
+        setDueDate('');
+        setStatus('unpaid');
+        onSuccess();
+        onOpenChange(false);
+      } else {
+        toast.error(result.error || 'Failed to create fee');
+      }
+    } catch (error: any) {
+      console.error('Error creating fee:', error);
+      toast.error('Failed to create fee');
+    } finally {
+      setSubmitting(false);
     }
   };
 
