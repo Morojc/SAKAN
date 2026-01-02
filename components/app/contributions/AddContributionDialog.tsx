@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,57 @@ export default function AddContributionDialog({
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [totalApartments, setTotalApartments] = useState<number | null>(null);
+  const [loadingTotal, setLoadingTotal] = useState(false);
+
+  // Fetch total_apartments when dialog opens
+  useEffect(() => {
+    if (open && residenceId) {
+      fetchTotalApartments();
+    }
+  }, [open, residenceId]);
+
+  const fetchTotalApartments = async () => {
+    setLoadingTotal(true);
+    try {
+      const response = await fetch(`/api/residences/${residenceId}/total-apartments`);
+      if (response.ok) {
+        const data = await response.json();
+        setTotalApartments(data.total_apartments);
+      } else {
+        console.error('Failed to fetch total apartments');
+      }
+    } catch (error) {
+      console.error('Error fetching total apartments:', error);
+    } finally {
+      setLoadingTotal(false);
+    }
+  };
+
+  // Generate all apartment numbers from 1 to total_apartments
+  const getAllApartmentNumbers = (): Array<{ number: string; residentName: string; residentId: string | null }> => {
+    if (!totalApartments || totalApartments <= 0) {
+      // Fallback to occupied apartments if total_apartments is not set
+      return apartments;
+    }
+
+    const allApartments: Array<{ number: string; residentName: string; residentId: string | null }> = [];
+    
+    for (let i = 1; i <= totalApartments; i++) {
+      const aptNumber = i.toString();
+      const occupiedApartment = apartments.find(apt => apt.number === aptNumber);
+      
+      allApartments.push({
+        number: aptNumber,
+        residentName: occupiedApartment?.residentName || 'Vacant',
+        residentId: occupiedApartment?.residentId || null,
+      });
+    }
+    
+    return allApartments;
+  };
+
+  const allApartmentOptions = getAllApartmentNumbers();
 
   const monthNames = [
     t('contributions.january'), t('contributions.february'), t('contributions.march'),
@@ -56,19 +107,21 @@ export default function AddContributionDialog({
     setSubmitting(true);
 
     try {
-      const selectedApt = apartments.find(apt => apt.number === selectedApartment);
+      const selectedApt = allApartmentOptions.find(apt => apt.number === selectedApartment);
       if (!selectedApt) {
         toast.error('Apartment not found');
         setSubmitting(false);
         return;
       }
 
+      // If apartment is vacant (no residentId), we still allow adding contribution
+      // The API will handle creating the fee record
       const response = await fetch('/api/contributions/add-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           residenceId,
-          userId: selectedApt.residentId,
+          userId: selectedApt.residentId || null, // Can be null for vacant apartments
           apartmentNumber: selectedApartment,
           month,
           year,
@@ -122,18 +175,23 @@ export default function AddContributionDialog({
           {/* Apartment Selection */}
           <div>
             <Label htmlFor="apartment">{t('contributions.apartment')} *</Label>
-            <Select value={selectedApartment} onValueChange={setSelectedApartment}>
+            <Select value={selectedApartment} onValueChange={setSelectedApartment} disabled={loadingTotal}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder={t('contributions.selectApartment')} />
+                <SelectValue placeholder={loadingTotal ? 'Loading...' : t('contributions.selectApartment')} />
               </SelectTrigger>
               <SelectContent>
-                {apartments.map((apt) => (
+                {allApartmentOptions.map((apt) => (
                   <SelectItem key={apt.number} value={apt.number}>
-                    Apt {apt.number} - {apt.residentName}
+                    Apt {apt.number} {apt.residentId ? `- ${apt.residentName}` : `(${apt.residentName})`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {totalApartments && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Total apartments: {totalApartments}
+              </p>
+            )}
           </div>
 
           {/* Month & Year */}
@@ -231,7 +289,12 @@ export default function AddContributionDialog({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="font-medium text-blue-900 mb-2">{t('contributions.summary')}</p>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• {t('contributions.summaryApartment')} {selectedApartment || 'Not selected'}</li>
+              <li>• {t('contributions.summaryApartment')} {selectedApartment || 'Not selected'} {
+                selectedApartment && (() => {
+                  const selectedApt = allApartmentOptions.find(apt => apt.number === selectedApartment);
+                  return selectedApt?.residentId ? `(${selectedApt.residentName})` : '(Vacant)';
+                })()
+              }</li>
               <li>• {t('contributions.summaryMonth')} {monthNames[month - 1]} {year}</li>
               <li>• {t('contributions.summaryAmount')} {amount ? `${amount} MAD` : 'Not set'}</li>
               <li>• {t('contributions.summaryStatus')} {status === 'paid' ? '✅ ' + t('contributions.paid') : '⏳ ' + t('contributions.unpaid')}</li>
@@ -250,7 +313,7 @@ export default function AddContributionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             {t('contributions.cancel')}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button onClick={handleSubmit} disabled={submitting} className="bg-blue-600 hover:bg-blue-700 text-white">
             {submitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

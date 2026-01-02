@@ -31,6 +31,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { getAllFees } from '@/app/app/residents/fee-actions';
+import AddFeeDialog from '@/components/app/fees/AddFeeDialog';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useI18n } from '@/lib/i18n/client';
@@ -44,12 +45,10 @@ interface Fee {
   due_date: string;
   status: 'unpaid' | 'paid' | 'overdue';
   created_at: string;
+  apartment_number?: string;
   profiles?: {
     full_name: string;
   };
-  profile_residences?: {
-    apartment_number: string;
-  }[];
 }
 
 export default function FeesPage() {
@@ -59,6 +58,8 @@ export default function FeesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
 
   useEffect(() => {
     async function loadFees() {
@@ -82,7 +83,7 @@ export default function FeesPage() {
     const matchesSearch =
       fee.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fee.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fee.profile_residences?.[0]?.apartment_number?.includes(searchTerm);
+      fee.apartment_number?.includes(searchTerm);
 
     const matchesStatus = statusFilter === 'all' || fee.status === statusFilter;
 
@@ -141,7 +142,10 @@ export default function FeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button 
+            onClick={() => setShowAddDialog(true)} 
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             <Plus className="w-4 h-4 mr-2" />
             {t('fees.addNewFee')}
           </Button>
@@ -268,7 +272,7 @@ export default function FeesPage() {
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                       {searchTerm || statusFilter !== 'all'
-                        ? 'No fees found matching your filters'
+                        ? t('fees.noFeesFound')
                         : 'No fees yet. Click "Add Fee" to create one.'}
                     </TableCell>
                   </TableRow>
@@ -278,7 +282,7 @@ export default function FeesPage() {
                       <TableCell className="font-medium">{fee.title}</TableCell>
                       <TableCell>{fee.profiles?.full_name || '-'}</TableCell>
                       <TableCell>
-                        {fee.profile_residences?.[0]?.apartment_number || '-'}
+                        {fee.apartment_number || 'N/A'}
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatCurrency(fee.amount)}
@@ -292,7 +296,7 @@ export default function FeesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm">
-                          View
+                          {t('fees.view')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -303,6 +307,14 @@ export default function FeesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Fee Dialog */}
+      <AddFeeDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+        residenceId={residenceId}
+      />
     </div>
   );
 }

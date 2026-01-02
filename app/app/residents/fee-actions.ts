@@ -352,12 +352,12 @@ export async function getAllFees() {
     }
 
     // Fetch all fees for the residence with resident details
+    // Join through user_id to get apartment number from profile_residences
     const { data, error } = await supabase
       .from('fees')
       .select(`
         *,
-        profiles:user_id(full_name),
-        profile_residences!inner(apartment_number)
+        profiles:user_id(full_name)
       `)
       .eq('residence_id', residenceId)
       .order('due_date', { ascending: false });
@@ -370,10 +370,27 @@ export async function getAllFees() {
       };
     }
 
-    console.log('[Fee Actions] Fees fetched successfully:', data?.length);
+    // Manually fetch apartment numbers for each fee
+    const feesWithApartments = await Promise.all(
+      (data || []).map(async (fee) => {
+        const { data: profileResidence } = await supabase
+          .from('profile_residences')
+          .select('apartment_number')
+          .eq('profile_id', fee.user_id)
+          .eq('residence_id', residenceId)
+          .single();
+
+        return {
+          ...fee,
+          apartment_number: profileResidence?.apartment_number || 'N/A',
+        };
+      })
+    );
+
+    console.log('[Fee Actions] Fees fetched successfully:', feesWithApartments?.length);
     return {
       success: true,
-      data: data || [],
+      data: feesWithApartments || [],
     };
   } catch (error: any) {
     console.error('[Fee Actions] Unexpected error:', error);

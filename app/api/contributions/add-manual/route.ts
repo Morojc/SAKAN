@@ -23,9 +23,35 @@ export async function POST(request: Request) {
     } = body;
 
     // Validation
-    if (!residenceId || !userId || !apartmentNumber || !month || !year || !amount) {
+    if (!residenceId || !apartmentNumber || !month || !year || !amount) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await createSupabaseAdminClient();
+
+    // If userId is not provided, try to find resident by apartment number
+    let finalUserId = userId;
+    if (!finalUserId && apartmentNumber) {
+      const { data: profileResidence } = await supabase
+        .from('profile_residences')
+        .select('profile_id')
+        .eq('residence_id', residenceId)
+        .eq('apartment_number', apartmentNumber)
+        .eq('verified', true)
+        .single();
+
+      if (profileResidence) {
+        finalUserId = profileResidence.profile_id;
+      }
+    }
+
+    // If still no userId, we cannot create a fee (fees table requires user_id)
+    if (!finalUserId) {
+      return NextResponse.json(
+        { error: 'Apartment is vacant. Please assign a resident first or select an occupied apartment.' },
         { status: 400 }
       );
     }
@@ -51,14 +77,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createSupabaseAdminClient();
-
     // Check if contribution already exists for this apartment-month-year
     const { data: existingFee } = await supabase
       .from('fees')
       .select('id')
       .eq('residence_id', residenceId)
-      .eq('user_id', userId)
+      .eq('user_id', finalUserId)
       .eq('contribution_month', month)
       .eq('contribution_year', year)
       .single();
@@ -80,7 +104,7 @@ export async function POST(request: Request) {
       .from('fees')
       .insert({
         residence_id: residenceId,
-        user_id: userId,
+        user_id: finalUserId,
         title: `Contribution ${monthName}-${yearShort}`,
         amount,
         due_date: dueDate.toISOString().split('T')[0],
@@ -106,7 +130,7 @@ export async function POST(request: Request) {
         .from('payments')
         .insert({
           residence_id: residenceId,
-          user_id: userId,
+          user_id: finalUserId,
           apartment_number: apartmentNumber,
           fee_id: fee.id,
           amount,
