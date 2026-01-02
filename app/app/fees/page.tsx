@@ -170,7 +170,7 @@ export default function FeesPage() {
   };
 
   const handleDeleteFee = async (feeId: number) => {
-    if (!confirm('Are you sure you want to delete this fee? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this fee? This action cannot be undone.\n\nNote: Fees with related payments cannot be deleted.')) {
       return;
     }
 

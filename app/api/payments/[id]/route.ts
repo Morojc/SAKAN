@@ -55,6 +55,18 @@ export async function DELETE(
       );
     }
 
+    // Prevent deletion if payment is linked to a fee or contribution
+    if (payment.fee_id || payment.contribution_id) {
+      const linkedType = payment.fee_id ? 'fee' : 'contribution';
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Cannot delete payment: This payment is linked to a ${linkedType}. Payments linked to fees or contributions cannot be deleted to maintain financial integrity.` 
+        },
+        { status: 400 }
+      );
+    }
+
     // Delete the payment
     // Note: Database triggers should handle cascading updates to contributions/fees
     const { error: deleteError } = await supabase

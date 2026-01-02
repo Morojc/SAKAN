@@ -159,15 +159,19 @@ export async function PUT(
       );
     }
 
-    // 4. Build update object (only include provided fields)
+    // 4. Build update object (only allow title and reason to be updated)
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
-    if (amount !== undefined) updateData.amount = amount;
-    if (due_date !== undefined) updateData.due_date = due_date;
-    if (status !== undefined) updateData.status = status;
-    if (description !== undefined) updateData.description = description;
-    if (fee_type !== undefined) updateData.fee_type = fee_type;
     if (reason !== undefined) updateData.reason = reason;
+    
+    // Reject attempts to update other fields
+    if (amount !== undefined || due_date !== undefined || status !== undefined || 
+        description !== undefined || fee_type !== undefined) {
+      return NextResponse.json(
+        { success: false, error: 'Only title and reason can be updated. Other fields are locked to maintain financial integrity.' },
+        { status: 400 }
+      );
+    }
 
     // 5. Update the fee
     const { data: updatedFee, error: updateError } = await supabase
@@ -267,11 +271,29 @@ export async function DELETE(
       );
     }
 
-    // 4. Check if fee is paid - warn but allow deletion
-    if (existingFee.status === 'paid') {
-      // You might want to prevent deletion of paid fees, or just warn
-      // For now, we'll allow it but log it
-      console.warn('[DELETE /api/fees/[id]] Deleting a paid fee:', id);
+    // 4. Check if fee has related payments - prevent deletion if payments exist
+    const { data: relatedPayments, error: paymentsError } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('fee_id', id)
+      .limit(1);
+
+    if (paymentsError) {
+      console.error('[DELETE /api/fees/[id]] Error checking payments:', paymentsError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to check for related payments' },
+        { status: 500 }
+      );
+    }
+
+    if (relatedPayments && relatedPayments.length > 0) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Cannot delete fee: This fee has related payments. Please remove the payments first or contact support.' 
+        },
+        { status: 400 }
+      );
     }
 
     // 5. Delete the fee
