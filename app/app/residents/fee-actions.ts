@@ -38,7 +38,7 @@ export async function createFee(data: CreateFeeData) {
     const userId = session?.user?.id;
 
     if (!userId) {
-      throw new Error('User not authenticated');
+      return { success: false, error: 'User not authenticated' };
     }
 
     // Validation
@@ -74,12 +74,14 @@ export async function createFee(data: CreateFeeData) {
     if (!residenceId) {
       return {
         success: false,
-        error: 'User has no residence assigned',
+        error: 'User has no residence assigned. Please contact support.',
       };
     }
 
     // Verify the residence_id matches user's residence
-    if (data.residence_id !== residenceId) {
+    // Using loose comparison or conversion to ensure types match (string vs number)
+    if (Number(data.residence_id) !== Number(residenceId)) {
+      console.error(`[Fee Actions] Residence mismatch: data=${data.residence_id}, user=${residenceId}`);
       return {
         success: false,
         error: 'You can only create fees for your own residence',
@@ -96,6 +98,8 @@ export async function createFee(data: CreateFeeData) {
         amount: Number(data.amount),
         due_date: data.due_date,
         status: data.status || 'unpaid',
+        created_by: userId,
+        fee_type: 'one_time'
       })
       .select()
       .single();
@@ -110,15 +114,16 @@ export async function createFee(data: CreateFeeData) {
 
     console.log('[Fee Actions] Fee created successfully:', fee.id);
 
-    // Revalidate residents page
+    // Revalidate relevant pages
     revalidatePath('/app/residents');
+    revalidatePath('/app/fees');
 
     return {
       success: true,
       fee,
     };
   } catch (error: any) {
-    console.error('[Fee Actions] Error creating fee:', error);
+    console.error('[Fee Actions] Exception creating fee:', error);
     return {
       success: false,
       error: error.message || 'Failed to create fee',
@@ -137,7 +142,7 @@ export async function updateFee(data: UpdateFeeData) {
     const userId = session?.user?.id;
 
     if (!userId) {
-      throw new Error('User not authenticated');
+      return { success: false, error: 'User not authenticated' };
     }
 
     if (!data.id) {
@@ -173,7 +178,7 @@ export async function updateFee(data: UpdateFeeData) {
       };
     }
 
-    if (existingFee.residence_id !== residenceId) {
+    if (Number(existingFee.residence_id) !== Number(residenceId)) {
       return {
         success: false,
         error: 'You can only update fees from your own residence',
@@ -181,7 +186,9 @@ export async function updateFee(data: UpdateFeeData) {
     }
 
     // Build update object
-    const updateData: any = {};
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    };
     if (data.title) updateData.title = data.title.trim();
     if (data.amount !== undefined) {
       if (Number(data.amount) <= 0) {
@@ -223,15 +230,16 @@ export async function updateFee(data: UpdateFeeData) {
 
     console.log('[Fee Actions] Fee updated successfully:', fee.id);
 
-    // Revalidate residents page
+    // Revalidate pages
     revalidatePath('/app/residents');
+    revalidatePath('/app/fees');
 
     return {
       success: true,
       fee,
     };
   } catch (error: any) {
-    console.error('[Fee Actions] Error updating fee:', error);
+    console.error('[Fee Actions] Exception updating fee:', error);
     return {
       success: false,
       error: error.message || 'Failed to update fee',
@@ -250,7 +258,7 @@ export async function deleteFee(feeId: number) {
     const userId = session?.user?.id;
 
     if (!userId) {
-      throw new Error('User not authenticated');
+      return { success: false, error: 'User not authenticated' };
     }
 
     if (!feeId) {
@@ -286,7 +294,7 @@ export async function deleteFee(feeId: number) {
       };
     }
 
-    if (existingFee.residence_id !== residenceId) {
+    if (Number(existingFee.residence_id) !== Number(residenceId)) {
       return {
         success: false,
         error: 'You can only delete fees from your own residence',
@@ -298,7 +306,7 @@ export async function deleteFee(feeId: number) {
       .from('fees')
       .delete()
       .eq('id', feeId)
-      .eq('residence_id', residenceId); // Additional security: ensure we only delete fees from user's residence
+      .eq('residence_id', residenceId); // Additional security
 
     if (deleteError) {
       console.error('[Fee Actions] Error deleting fee:', deleteError);
@@ -310,14 +318,15 @@ export async function deleteFee(feeId: number) {
 
     console.log('[Fee Actions] Fee deleted successfully:', feeId);
 
-    // Revalidate residents page
+    // Revalidate pages
     revalidatePath('/app/residents');
+    revalidatePath('/app/fees');
 
     return {
       success: true,
     };
   } catch (error: any) {
-    console.error('[Fee Actions] Error deleting fee:', error);
+    console.error('[Fee Actions] Exception deleting fee:', error);
     return {
       success: false,
       error: error.message || 'Failed to delete fee',
@@ -336,7 +345,7 @@ export async function getAllFees() {
     const userId = session?.user?.id;
 
     if (!userId) {
-      throw new Error('User not authenticated');
+      return { success: false, error: 'User not authenticated' };
     }
 
     const supabase = await getSupabaseClient();
@@ -371,6 +380,7 @@ export async function getAllFees() {
     }
 
     // Manually fetch apartment numbers for each fee
+    // Using maybeSingle() to avoid errors if profile_residences link is missing
     const feesWithApartments = await Promise.all(
       (data || []).map(async (fee) => {
         const { data: profileResidence } = await supabase
@@ -378,7 +388,7 @@ export async function getAllFees() {
           .select('apartment_number')
           .eq('profile_id', fee.user_id)
           .eq('residence_id', residenceId)
-          .single();
+          .maybeSingle();
 
         return {
           ...fee,
