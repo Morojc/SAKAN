@@ -1,166 +1,431 @@
-import { Suspense } from 'react';
-import { createSupabaseAdminClient } from '@/lib/supabase/server';
-import ExpensesContent from '@/components/app/expenses/ExpensesContent';
-import { Receipt } from 'lucide-react';
-import { auth } from '@/lib/auth';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Loader2, Search, CheckCircle, XCircle, Eye, Settings } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useI18n } from '@/lib/i18n/client';
+import { useRouter } from 'next/navigation';
+import type { Expense, ExpenseCategory } from '@/types/financial.types';
+import { format } from 'date-fns';
+import CreateExpenseDialog from '@/components/app/expenses/CreateExpenseDialog';
 
-/**
- * Server component to fetch expenses data
- * Joins expenses with profiles and residences
- * Uses admin client to bypass RLS policy issues
- */
-async function ExpensesData() {
-  console.log('[ExpensesPage] Starting data fetch...');
-  
-  try {
-    const session = await auth();
-    const userId = session?.user?.id;
+export default function ExpensesPage() {
+  const { t } = useI18n();
+  const router = useRouter();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
 
-    if (!userId) {
-      throw new Error('User not authenticated');
+  useEffect(() => {
+    loadData();
+  }, [statusFilter, categoryFilter]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Load expenses
+      let expensesUrl = `/api/expenses?residenceId=${residenceId}`;
+      if (statusFilter !== 'all') {
+        expensesUrl += `&status=${statusFilter}`;
+      }
+      if (categoryFilter !== 'all') {
+        expensesUrl += `&categoryId=${categoryFilter}`;
+      }
+
+      const [expensesRes, categoriesRes] = await Promise.all([
+        fetch(expensesUrl),
+        fetch(`/api/expenses/categories?residenceId=${residenceId}`),
+      ]);
+
+      const expensesResult = await expensesRes.json();
+      const categoriesResult = await categoriesRes.json();
+
+      if (expensesResult.success) {
+        setExpenses(expensesResult.data || []);
+      }
+      if (categoriesResult.success) {
+        setCategories(categoriesResult.data || []);
+      }
+    } catch (error: any) {
+      console.error('Error loading data:', error);
+      toast.error('Failed to load expenses');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Use admin client to bypass RLS policy recursion issues
-    const supabase = createSupabaseAdminClient();
-    
-    // Get user's profile
-    const { data: userProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, id')
-      .eq('id', userId)
-      .maybeSingle();
+  const handleApprove = async (id: number) => {
+    try {
+      const response = await fetch(`/api/expenses/${id}/approve`, {
+        method: 'PUT',
+      });
 
-    if (profileError) {
-      console.error('[ExpensesPage] Error fetching user profile:', profileError);
-      throw new Error(`Failed to fetch user profile: ${profileError.message}`);
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Expense approved successfully!');
+        loadData();
+      } else {
+        toast.error(result.error || 'Failed to approve expense');
+      }
+    } catch (error: any) {
+      console.error('Error approving expense:', error);
+      toast.error('Failed to approve expense');
     }
+  };
 
-    if (!userProfile) {
-      throw new Error('User profile not found');
+  const handleMarkAsPaid = async (id: number) => {
+    const paymentMethod = prompt('Payment method (cash/bank_transfer/check):');
+    if (!paymentMethod) return;
+
+    try {
+      const response = await fetch(`/api/expenses/${id}/pay`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_method: paymentMethod }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Expense marked as paid!');
+        loadData();
+      } else {
+        toast.error(result.error || 'Failed to mark as paid');
+      }
+    } catch (error: any) {
+      console.error('Error marking as paid:', error);
+      toast.error('Failed to mark as paid');
     }
+  };
 
-    const userRole = userProfile.role;
-    let residenceId = null;
+  const filteredExpenses = expenses.filter((expense) => {
+    const matchesSearch =
+      expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      expense.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // Resolve Residence ID based on role
-    if (userRole === 'syndic') {
-        const { data: res } = await supabase.from('residences').select('id').eq('syndic_user_id', userId).maybeSingle();
-        residenceId = res?.id;
-    } else if (userRole === 'guard') {
-        const { data: res } = await supabase.from('residences').select('id').eq('guard_user_id', userId).maybeSingle();
-        residenceId = res?.id;
-    } else {
-        // Resident - fetch from profile_residences
-        const { data: pr } = await supabase.from('profile_residences').select('residence_id').eq('profile_id', userId).limit(1).maybeSingle();
-        residenceId = pr?.residence_id;
+    return matchesSearch;
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-MA', {
+      style: 'currency',
+      currency: 'MAD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return (
+          <Badge className="bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Paid
+          </Badge>
+        );
+      case 'approved':
+        return <Badge className="bg-blue-100 text-blue-800">Approved</Badge>;
+      case 'draft':
+        return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
+      case 'cancelled':
+        return (
+          <Badge className="bg-red-100 text-red-800">
+            <XCircle className="w-3 h-3 mr-1" />
+            Cancelled
+          </Badge>
+        );
+      default:
+        return <Badge>{status}</Badge>;
     }
+  };
 
-    // All users must have a residence_id to view expenses
-    if (!residenceId) {
-      return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-6 rounded-lg">
-            <h2 className="font-semibold mb-2">Residence Assignment Required</h2>
-            <p className="mb-4">
-              You need to be assigned to a residence before you can view expenses.
-              Please contact your administrator.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    console.log('[ExpensesPage] Fetching expenses for residence_id:', residenceId);
-
-    // Fetch expenses with joins
-    const { data: expenses, error: expensesError } = await supabase
-      .from('expenses')
-      .select(`
-        *,
-        profiles:created_by (
-          id,
-          full_name
-        ),
-        residences:residence_id (
-          id,
-          name,
-          address
-        )
-      `)
-      .eq('residence_id', residenceId)
-      .order('expense_date', { ascending: false });
-
-    if (expensesError) {
-      console.error('[ExpensesPage] Error fetching expenses:', expensesError);
-      throw new Error('Failed to fetch expenses');
-    }
-
-    // Fetch residence details for UI context
-    const { data: residence } = await supabase
-      .from('residences')
-      .select('id, name, address')
-      .eq('id', residenceId)
-      .single();
-
-    // Transform expenses to include creator name
-    const expensesWithCreator = (expenses || []).map((expense: any) => ({
-      ...expense,
-      creator_name: expense.profiles?.full_name || 'Unknown',
-      residence_name: expense.residences?.name || residence?.name || 'Unknown',
-    }));
-
+  if (loading) {
     return (
-      <ExpensesContent 
-        initialExpenses={expensesWithCreator} 
-        currentUserId={userId}
-        currentUserRole={userProfile?.role}
-        currentUserResidenceId={residenceId}
-        residenceName={residence?.name || 'Unknown'}
-      />
-    );
-
-  } catch (error: any) {
-    console.error('[ExpensesPage] Fatal error:', error);
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-destructive/10 text-destructive p-4 rounded-lg">
-          <h2 className="font-semibold mb-2">Error Loading Expenses</h2>
-          <p className="mb-2">{error.message || 'Failed to load expenses data'}</p>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
-}
 
-/**
- * Main Expenses Page
- * Displays expenses management interface with table, summary cards, and CRUD operations
- */
-export default function ExpensesPage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Receipt className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Expenses</h1>
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Expenses</h1>
+          <p className="text-muted-foreground mt-1">
+            Manage residence expenses and track spending
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/app/expenses/categories')}
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Categories
+          </Button>
+          <Button
+            onClick={() => setShowCreateDialog(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Expense
+          </Button>
+        </div>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-[var(--background)] rounded-lg p-4 shadow animate-pulse">
-                <div className="h-6 bg-muted rounded w-1/4 mb-2"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Expenses
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{expenses.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pending Approval
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">
+              {expenses.filter((e) => e.status === 'draft').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Paid This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {
+                expenses.filter(
+                  (e) =>
+                    e.status === 'paid' &&
+                    new Date(e.expense_date).getMonth() === new Date().getMonth()
+                ).length
+              }
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Amount
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="search">Search</Label>
+              <div className="relative mt-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="search"
+                  type="text"
+                  placeholder="Search by title, description, or vendor..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            ))}
+            </div>
+            <div className="w-48">
+              <Label htmlFor="category">Category</Label>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Label htmlFor="status">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        }
-      >
-        <ExpensesData />
-      </Suspense>
+        </CardContent>
+      </Card>
+
+      {/* Expenses Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Expenses ({filteredExpenses.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Attachment</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredExpenses.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="text-center py-12 text-muted-foreground"
+                    >
+                      No expenses found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredExpenses.map((expense) => (
+                    <TableRow key={expense.id}>
+                      <TableCell>
+                        {format(new Date(expense.expense_date), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div>
+                          {expense.title}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {expense.description.substring(0, 50)}...
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {expense.category_name && (
+                          <Badge
+                            style={{
+                              backgroundColor: expense.category_color + '20',
+                              color: expense.category_color,
+                            }}
+                          >
+                            {expense.category_name}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{expense.vendor_name || '-'}</TableCell>
+                      <TableCell className="font-semibold">
+                        {formatCurrency(expense.amount)}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(expense.status)}</TableCell>
+                      <TableCell>
+                        {expense.attachment_url ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(expense.attachment_url, '_blank')}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {expense.status === 'draft' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(expense.id)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            Approve
+                          </Button>
+                        )}
+                        {expense.status === 'approved' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleMarkAsPaid(expense.id)}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Mark as Paid
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create Expense Dialog */}
+      <CreateExpenseDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        onSuccess={() => {
+          loadData();
+          setShowCreateDialog(false);
+        }}
+        residenceId={residenceId}
+        categories={categories}
+      />
     </div>
   );
 }
-

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
-import type { SubmitPaymentDTO, Payment } from '@/types/financial.types';
+import type { CreateContributionDTO, Contribution } from '@/types/financial.types';
 
-// GET /api/payments?residenceId=1&status=pending&paymentType=contribution
+// GET /api/contributions?residenceId=1&year=2025&status=pending
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const residenceId = searchParams.get('residenceId');
+    const year = searchParams.get('year');
+    const month = searchParams.get('month');
     const status = searchParams.get('status');
-    const paymentType = searchParams.get('paymentType');
-    const userId = searchParams.get('userId');
     const apartmentNumber = searchParams.get('apartmentNumber');
 
     if (!residenceId) {
@@ -31,55 +31,63 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdminClient();
 
     let query = supabase
-      .from('payments')
+      .from('contributions')
       .select(`
         *,
-        profiles!payments_user_id_fkey(full_name),
-        verifier:profiles!payments_verified_by_fkey(full_name)
+        profile_residences!inner(
+          profile_id,
+          apartment_number,
+          profiles(full_name)
+        )
       `)
       .eq('residence_id', residenceId);
 
+    if (year) {
+      const yearNum = parseInt(year);
+      query = query.gte('period_start', `${yearNum}-01-01`)
+                   .lte('period_start', `${yearNum}-12-31`);
+    }
+
+    if (month) {
+      const monthNum = parseInt(month);
+      const yearNum = year ? parseInt(year) : new Date().getFullYear();
+      query = query.gte('period_start', `${yearNum}-${monthNum.toString().padStart(2, '0')}-01`)
+                   .lt('period_start', `${yearNum}-${(monthNum + 1).toString().padStart(2, '0')}-01`);
+    }
+
     if (status) {
       query = query.eq('status', status);
-    }
-
-    if (paymentType) {
-      query = query.eq('payment_type', paymentType);
-    }
-
-    if (userId) {
-      query = query.eq('user_id', userId);
     }
 
     if (apartmentNumber) {
       query = query.eq('apartment_number', apartmentNumber);
     }
 
-    query = query.order('paid_at', { ascending: false });
+    query = query.order('period_start', { ascending: false });
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('[GET /api/payments] Error:', error);
+      console.error('[GET /api/contributions] Error:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
       );
     }
 
-    // Transform data
-    const payments = data.map((item: any) => ({
+    // Transform data to include resident name
+    const contributions = data.map((item: any) => ({
       ...item,
-      resident_name: item.profiles?.full_name || 'Unknown',
-      verifier_name: item.verifier?.full_name,
+      resident_name: item.profile_residences?.profiles?.full_name || 'Unknown',
+      resident_id: item.profile_residences?.profile_id,
     }));
 
     return NextResponse.json({
       success: true,
-      data: payments as Payment[],
+      data: contributions as Contribution[],
     });
   } catch (error: any) {
-    console.error('[GET /api/payments] Exception:', error);
+    console.error('[GET /api/contributions] Exception:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
@@ -87,7 +95,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/payments (Submit payment)
+// POST /api/contributions (Manual entry)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -98,48 +106,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SubmitPaymentDTO = await request.json();
+    const body: CreateContributionDTO = await request.json();
 
     // Validate required fields
-    if (!body.residence_id || !body.payment_type || !body.amount || !body.method) {
+    if (!body.residence_id || !body.profile_residence_id || !body.apartment_number || 
+        !body.period_start || !body.period_end || !body.amount_due || !body.due_date) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Validate payment links
-    if (body.payment_type === 'contribution' && !body.contribution_id) {
-      return NextResponse.json(
-        { success: false, error: 'contribution_id is required for contribution payments' },
-        { status: 400 }
-      );
-    }
-
-    if ((body.payment_type === 'fee' || body.payment_type === 'fine') && !body.fee_id) {
-      return NextResponse.json(
-        { success: false, error: 'fee_id is required for fee/fine payments' },
-        { status: 400 }
-      );
-    }
-
     const supabase = createSupabaseAdminClient();
 
-    // Use provided user_id or session user id
-    const userId = body.user_id || session.user.id;
+    // Check if user is syndic
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profile?.role !== 'syndic') {
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can create contributions manually' },
+        { status: 403 }
+      );
+    }
 
     const { data, error } = await supabase
-      .from('payments')
+      .from('contributions')
       .insert({
         ...body,
-        user_id: userId,
-        status: 'pending', // All payments start as pending
+        status: 'pending',
       })
       .select()
       .single();
 
     if (error) {
-      console.error('[POST /api/payments] Error:', error);
+      console.error('[POST /api/contributions] Error:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -148,14 +152,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: data as Payment,
-      message: 'Payment submitted successfully',
+      data: data as Contribution,
+      message: 'Contribution created successfully',
     });
   } catch (error: any) {
-    console.error('[POST /api/payments] Exception:', error);
+    console.error('[POST /api/contributions] Exception:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
 }
+

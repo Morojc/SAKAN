@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
 import { auth } from '@/lib/auth';
-import type { SubmitPaymentDTO, Payment } from '@/types/financial.types';
+import type { CreateExpenseDTO, Expense } from '@/types/financial.types';
 
-// GET /api/payments?residenceId=1&status=pending&paymentType=contribution
+// GET /api/expenses?residenceId=1&status=approved&categoryId=2
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -17,9 +17,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const residenceId = searchParams.get('residenceId');
     const status = searchParams.get('status');
-    const paymentType = searchParams.get('paymentType');
-    const userId = searchParams.get('userId');
-    const apartmentNumber = searchParams.get('apartmentNumber');
+    const categoryId = searchParams.get('categoryId');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     if (!residenceId) {
       return NextResponse.json(
@@ -31,11 +31,12 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdminClient();
 
     let query = supabase
-      .from('payments')
+      .from('expenses')
       .select(`
         *,
-        profiles!payments_user_id_fkey(full_name),
-        verifier:profiles!payments_verified_by_fkey(full_name)
+        expense_categories(name, color),
+        approver:profiles!expenses_approved_by_fkey(full_name),
+        creator:profiles!expenses_created_by_fkey(full_name)
       `)
       .eq('residence_id', residenceId);
 
@@ -43,24 +44,24 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status);
     }
 
-    if (paymentType) {
-      query = query.eq('payment_type', paymentType);
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
     }
 
-    if (userId) {
-      query = query.eq('user_id', userId);
+    if (startDate) {
+      query = query.gte('expense_date', startDate);
     }
 
-    if (apartmentNumber) {
-      query = query.eq('apartment_number', apartmentNumber);
+    if (endDate) {
+      query = query.lte('expense_date', endDate);
     }
 
-    query = query.order('paid_at', { ascending: false });
+    query = query.order('expense_date', { ascending: false });
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('[GET /api/payments] Error:', error);
+      console.error('[GET /api/expenses] Error:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -68,18 +69,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform data
-    const payments = data.map((item: any) => ({
+    const expenses = data.map((item: any) => ({
       ...item,
-      resident_name: item.profiles?.full_name || 'Unknown',
-      verifier_name: item.verifier?.full_name,
+      category_name: item.expense_categories?.name,
+      category_color: item.expense_categories?.color,
+      approver_name: item.approver?.full_name,
+      creator_name: item.creator?.full_name,
     }));
 
     return NextResponse.json({
       success: true,
-      data: payments as Payment[],
+      data: expenses as Expense[],
     });
   } catch (error: any) {
-    console.error('[GET /api/payments] Exception:', error);
+    console.error('[GET /api/expenses] Exception:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/payments (Submit payment)
+// POST /api/expenses
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -98,48 +101,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SubmitPaymentDTO = await request.json();
+    const body: CreateExpenseDTO = await request.json();
 
     // Validate required fields
-    if (!body.residence_id || !body.payment_type || !body.amount || !body.method) {
+    if (!body.residence_id || !body.title || !body.description || !body.amount || !body.expense_date) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Validate payment links
-    if (body.payment_type === 'contribution' && !body.contribution_id) {
-      return NextResponse.json(
-        { success: false, error: 'contribution_id is required for contribution payments' },
-        { status: 400 }
-      );
-    }
-
-    if ((body.payment_type === 'fee' || body.payment_type === 'fine') && !body.fee_id) {
-      return NextResponse.json(
-        { success: false, error: 'fee_id is required for fee/fine payments' },
-        { status: 400 }
-      );
-    }
-
     const supabase = createSupabaseAdminClient();
 
-    // Use provided user_id or session user id
-    const userId = body.user_id || session.user.id;
+    // Check if user is syndic
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profile?.role !== 'syndic') {
+      return NextResponse.json(
+        { success: false, error: 'Only syndics can create expenses' },
+        { status: 403 }
+      );
+    }
 
     const { data, error } = await supabase
-      .from('payments')
+      .from('expenses')
       .insert({
         ...body,
-        user_id: userId,
-        status: 'pending', // All payments start as pending
+        created_by: session.user.id,
+        status: 'draft',
       })
       .select()
       .single();
 
     if (error) {
-      console.error('[POST /api/payments] Error:', error);
+      console.error('[POST /api/expenses] Error:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -148,14 +147,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: data as Payment,
-      message: 'Payment submitted successfully',
+      data: data as Expense,
+      message: 'Expense created successfully',
     });
   } catch (error: any) {
-    console.error('[POST /api/payments] Exception:', error);
+    console.error('[POST /api/expenses] Exception:', error);
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
 }
+
