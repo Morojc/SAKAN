@@ -97,12 +97,10 @@ export default function ContributionsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {dataStatus?.setupMode === 'historical' && (
-            <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
-              <Upload className="w-4 h-4 mr-2" />
-              Import More
-            </Button>
-          )}
+          <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
+            <Upload className="w-4 h-4 mr-2" />
+            {dataStatus?.setupMode === 'historical' ? 'Import More' : 'Import Data'}
+          </Button>
           <Button variant="outline">
             <FileDown className="w-4 h-4 mr-2" />
             Export
