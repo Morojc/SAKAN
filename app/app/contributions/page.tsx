@@ -19,6 +19,14 @@ import {
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { ContributionStatusMatrix } from '@/types/financial.types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function ContributionsPage() {
   const router = useRouter();
@@ -29,17 +37,9 @@ export default function ContributionsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [residenceId, setResidenceId] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<{ period_type: string; plan_name: string } | null>(null);
-
-  useEffect(() => {
-    loadUserResidence();
-  }, []);
-
-  useEffect(() => {
-    if (residenceId) {
-      loadActivePlan();
-      loadContributionStatus();
-    }
-  }, [selectedYear, residenceId]);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [pendingPeriod, setPendingPeriod] = useState<{ start: string; end: string } | null>(null);
 
   const loadUserResidence = async () => {
     try {
@@ -107,6 +107,17 @@ export default function ContributionsPage() {
     }
   };
 
+  useEffect(() => {
+    loadUserResidence();
+  }, []);
+
+  useEffect(() => {
+    if (residenceId) {
+      loadActivePlan();
+      loadContributionStatus();
+    }
+  }, [selectedYear, residenceId]);
+
   // Filter data by search term
   const filteredData = statusMatrix.filter(
     (row) =>
@@ -114,14 +125,9 @@ export default function ContributionsPage() {
       row.resident_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleGenerateContributions = async () => {
+  const handleGenerateContributions = async (selectedPlanId?: number) => {
     if (!residenceId) {
       toast.error('Residence ID not loaded. Please refresh the page.');
-      return;
-    }
-
-    if (!activePlan) {
-      toast.error('No active contribution plan found. Please create and activate a plan first.');
       return;
     }
 
@@ -129,28 +135,26 @@ export default function ContributionsPage() {
     const year = now.getFullYear();
     let periodStart: string;
     let periodEnd: string;
-    let buttonLabel = 'Generate This Period';
 
-    if (activePlan.period_type === 'monthly') {
+    // Use active plan's period type if no plan selected
+    const planToUse = activePlan;
+    
+    if (planToUse?.period_type === 'monthly') {
       const month = now.getMonth() + 1;
       periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
-      buttonLabel = 'Generate This Month';
-    } else if (activePlan.period_type === 'quarterly') {
+    } else if (planToUse?.period_type === 'quarterly') {
       const quarter = Math.floor(now.getMonth() / 3);
       periodStart = new Date(year, quarter * 3, 1).toISOString().split('T')[0];
       periodEnd = new Date(year, (quarter + 1) * 3, 0).toISOString().split('T')[0];
-      buttonLabel = 'Generate This Quarter';
-    } else if (activePlan.period_type === 'semi_annual') {
+    } else if (planToUse?.period_type === 'semi_annual') {
       const halfYear = Math.floor(now.getMonth() / 6);
       periodStart = new Date(year, halfYear * 6, 1).toISOString().split('T')[0];
       periodEnd = new Date(year, (halfYear + 1) * 6, 0).toISOString().split('T')[0];
-      buttonLabel = 'Generate This Half-Year';
-    } else if (activePlan.period_type === 'annual') {
+    } else if (planToUse?.period_type === 'annual') {
       periodStart = `${year}-01-01`;
       periodEnd = `${year}-12-31`;
-      buttonLabel = 'Generate This Year';
     } else {
       // Default to monthly
       const month = now.getMonth() + 1;
@@ -167,6 +171,7 @@ export default function ContributionsPage() {
           residence_id: residenceId,
           period_start: periodStart,
           period_end: periodEnd,
+          plan_id: selectedPlanId,
         }),
       });
 
@@ -175,8 +180,25 @@ export default function ContributionsPage() {
       if (result.success) {
         toast.success(result.message || 'Contributions generated successfully');
         loadContributionStatus();
+        setShowPlanDialog(false);
+        setAvailablePlans([]);
       } else {
-        if (result.error && result.error.includes('No active contribution plan')) {
+        // Check if contributions already exist - show available plans
+        if (result.already_applied || (result.error && result.error.includes('already exist'))) {
+          // Fetch available plans
+          const plansResponse = await fetch(
+            `/api/contributions/available-plans?residenceId=${residenceId}&periodStart=${periodStart}&periodEnd=${periodEnd}`
+          );
+          const plansResult = await plansResponse.json();
+          
+          if (plansResult.success && plansResult.data && plansResult.data.length > 0) {
+            setAvailablePlans(plansResult.data);
+            setPendingPeriod({ start: periodStart, end: periodEnd });
+            setShowPlanDialog(true);
+          } else {
+            toast.error('Contributions already exist for this period and no other plans are available.');
+          }
+        } else if (result.error && result.error.includes('No active contribution plan')) {
           toast.error(
             <div>
               No active contribution plan found. 
@@ -197,6 +219,10 @@ export default function ContributionsPage() {
       console.error('Error generating contributions:', error);
       toast.error('Failed to generate contributions');
     }
+  };
+
+  const handleSelectPlan = (planId: number) => {
+    handleGenerateContributions(planId);
   };
 
   if (loading && !statusMatrix.length) {
@@ -242,7 +268,7 @@ export default function ContributionsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button 
-            onClick={handleGenerateContributions}
+            onClick={() => handleGenerateContributions()}
             className="bg-green-600 hover:bg-green-700 text-white"
             disabled={!activePlan}
           >
@@ -470,6 +496,53 @@ export default function ContributionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Available Plans Dialog */}
+      <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Plan to Apply</DialogTitle>
+            <DialogDescription>
+              Contributions already exist for the active plan. Select another plan to apply for this period.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {availablePlans.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No available plans found for this period.
+              </p>
+            ) : (
+              availablePlans.map((plan) => (
+                <Card key={plan.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleSelectPlan(plan.id)}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold">{plan.plan_name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {plan.period_type.charAt(0).toUpperCase() + plan.period_type.slice(1)} • {plan.amount_per_period} MAD
+                        </p>
+                        {plan.is_active && (
+                          <span className="text-xs text-green-600 font-medium">Active</span>
+                        )}
+                      </div>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSelectPlan(plan.id); }}>
+                        Apply
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPlanDialog(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

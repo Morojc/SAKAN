@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { residence_id, period_start, period_end } = body;
+    const { residence_id, period_start, period_end, plan_id } = body;
 
     if (!residence_id || !period_start || !period_end) {
       return NextResponse.json(
@@ -46,44 +46,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all active plans and find one that overlaps with the period
-    const { data: allActivePlans, error: planError } = await supabase
-      .from('contribution_plans')
-      .select('period_type, start_date, end_date')
-      .eq('residence_id', residence_id)
-      .eq('is_active', true);
-
-    if (planError) {
-      console.error('[POST /api/contributions/generate] Error fetching plan:', planError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch contribution plan' },
-        { status: 500 }
-      );
-    }
-
-    if (!allActivePlans || allActivePlans.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'No active contribution plan found for this period' },
-        { status: 400 }
-      );
-    }
-
-    // Find plan that overlaps with the period
-    const periodStartDate = new Date(period_start);
-    const periodEndDate = new Date(period_end);
+    // If plan_id is provided, use that specific plan; otherwise find active plan
+    let activePlan: any = null;
     
-    const activePlan = allActivePlans.find((p: any) => {
-      const planStart = new Date(p.start_date);
-      const planEnd = p.end_date ? new Date(p.end_date) : null;
+    if (plan_id) {
+      // Get the specific plan
+      const { data: plan, error: planError } = await supabase
+        .from('contribution_plans')
+        .select('id, period_type, start_date, end_date, is_active')
+        .eq('id', plan_id)
+        .eq('residence_id', residence_id)
+        .maybeSingle();
       
-      return planStart <= periodEndDate && (!planEnd || planEnd >= periodStartDate);
-    });
+      if (planError) {
+        console.error('[POST /api/contributions/generate] Error fetching plan:', planError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch contribution plan' },
+          { status: 500 }
+        );
+      }
+      
+      if (!plan) {
+        return NextResponse.json(
+          { success: false, error: 'Contribution plan not found' },
+          { status: 404 }
+        );
+      }
+      
+      activePlan = plan;
+    } else {
+      // Get all active plans and find one that overlaps with the period
+      const { data: allActivePlans, error: planError } = await supabase
+        .from('contribution_plans')
+        .select('id, period_type, start_date, end_date, is_active')
+        .eq('residence_id', residence_id)
+        .eq('is_active', true);
 
-    if (!activePlan) {
-      return NextResponse.json(
-        { success: false, error: 'No active contribution plan found that covers this period' },
-        { status: 400 }
-      );
+      if (planError) {
+        console.error('[POST /api/contributions/generate] Error fetching plan:', planError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch contribution plan' },
+          { status: 500 }
+        );
+      }
+
+      if (!allActivePlans || allActivePlans.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'No active contribution plan found for this period' },
+          { status: 400 }
+        );
+      }
+
+      // Find plan that overlaps with the period
+      const periodStartDate = new Date(period_start);
+      const periodEndDate = new Date(period_end);
+      
+      activePlan = allActivePlans.find((p: any) => {
+        const planStart = new Date(p.start_date);
+        const planEnd = p.end_date ? new Date(p.end_date) : null;
+        
+        return planStart <= periodEndDate && (!planEnd || planEnd >= periodStartDate);
+      });
+
+      if (!activePlan) {
+        return NextResponse.json(
+          { success: false, error: 'No active contribution plan found that covers this period' },
+          { status: 400 }
+        );
+      }
     }
 
     // Calculate period dates based on period_type
@@ -109,6 +139,32 @@ export async function POST(request: NextRequest) {
       calculatedPeriodEnd = new Date(startDate.getFullYear(), 11, 31).toISOString().split('T')[0];
     }
     // For monthly, use the provided dates as-is
+
+    // Check if contributions already exist for this plan and period (before calculating dates)
+    const { data: existingContributions, error: checkError } = await supabase
+      .from('contributions')
+      .select('id')
+      .eq('residence_id', residence_id)
+      .eq('contribution_plan_id', activePlan.id)
+      .eq('period_start', calculatedPeriodStart)
+      .eq('period_end', calculatedPeriodEnd)
+      .limit(1);
+    
+    if (checkError) {
+      console.error('[POST /api/contributions/generate] Error checking existing contributions:', checkError);
+    }
+    
+    if (existingContributions && existingContributions.length > 0) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Contributions already exist for this plan and period',
+          already_applied: true,
+          plan_id: activePlan.id,
+        },
+        { status: 400 }
+      );
+    }
 
     // Call the database function to generate contributions
     const { data, error } = await supabase.rpc('generate_contributions_for_period', {
