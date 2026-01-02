@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       .from('fees')
       .select(`
         *,
-        profiles(full_name)
+        profiles!fees_user_id_fkey(full_name)
       `)
       .eq('residence_id', residenceId)
       .eq('status', 'unpaid');
