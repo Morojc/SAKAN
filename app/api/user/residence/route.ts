@@ -29,9 +29,23 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .single();
 
+    // Log for debugging
+    console.log('[GET /api/user/residence] User ID:', session.user.id);
+    console.log('[GET /api/user/residence] Query error:', error);
+    console.log('[GET /api/user/residence] Profile residence data:', profileResidence);
+
     if (error || !profileResidence) {
+      console.error('[GET /api/user/residence] No residence found for user:', session.user.id);
       return NextResponse.json(
-        { success: false, error: 'No residence found for this user' },
+        { 
+          success: false, 
+          error: 'No residence found for this user',
+          details: {
+            user_id: session.user.id,
+            error_code: error?.code,
+            error_message: error?.message
+          }
+        },
         { status: 404 }
       );
     }

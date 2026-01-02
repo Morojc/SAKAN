@@ -44,24 +44,32 @@ export default function ContributionsPage() {
       const response = await fetch('/api/user/residence');
       const result = await response.json();
 
+      console.log('[Contributions] API Response:', result);
+
       if (result.success && result.data?.residence_id) {
+        console.log('[Contributions] ✓ Residence found:', result.data);
         setResidenceId(result.data.residence_id);
       } else {
-        console.error('No residence found:', result.error);
+        console.error('[Contributions] ✗ No residence found:', result);
+        console.error('[Contributions] Error details:', result.details);
+        
         // Fallback: Try to get residence from residences table
         const fallbackResponse = await fetch('/api/residences');
         const fallbackResult = await fallbackResponse.json();
         
+        console.log('[Contributions] Fallback response:', fallbackResult);
+        
         if (fallbackResult.success && fallbackResult.data?.length > 0) {
           const firstResidence = fallbackResult.data[0];
           setResidenceId(firstResidence.id);
+          console.warn('[Contributions] Using fallback residence:', firstResidence);
           toast.error(`Using residence: ${firstResidence.name}. Please link your profile to a residence.`);
         } else {
           toast.error('Could not load your residence. Please contact support.');
         }
       }
     } catch (error: any) {
-      console.error('Error loading residence:', error);
+      console.error('[Contributions] Exception loading residence:', error);
       toast.error('Failed to load residence information');
     }
   };
