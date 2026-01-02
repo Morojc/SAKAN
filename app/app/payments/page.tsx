@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Search, CheckCircle, XCircle, Eye, Link2, Plus } from 'lucide-react';
+import { Loader2, Search, CheckCircle, XCircle, Eye, Link2, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { Payment } from '@/types/financial.types';
@@ -52,6 +52,7 @@ export default function PaymentsPage() {
   }, [statusFilter, residenceId]);
 
   const loadUserResidence = async () => {
+    setLoading(true);
     try {
       // Load user profile to get role
       const profileResponse = await fetch('/api/current-user-profile');
@@ -59,7 +60,9 @@ export default function PaymentsPage() {
       
       if (profileResult.success && profileResult.data?.role) {
         setUserRole(profileResult.data.role);
-        console.log('[Payments] User role:', profileResult.data.role);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Payments] User role:', profileResult.data.role);
+        }
       }
 
       const response = await fetch('/api/user/residence');
@@ -67,7 +70,9 @@ export default function PaymentsPage() {
 
       if (result.success && result.data?.residence_id) {
         setResidenceId(result.data.residence_id);
-        console.log('[Payments] Residence ID loaded:', result.data.residence_id);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Payments] Residence ID loaded:', result.data.residence_id);
+        }
       } else {
         console.error('[Payments] No residence found:', result);
         // Fallback: Try to get residence from residences table
@@ -77,7 +82,9 @@ export default function PaymentsPage() {
         if (fallbackResult.success && fallbackResult.data?.length > 0) {
           const firstResidence = fallbackResult.data[0];
           setResidenceId(firstResidence.id);
-          console.warn('[Payments] Using fallback residence:', firstResidence);
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[Payments] Using fallback residence:', firstResidence);
+          }
         } else {
           toast.error('Could not load your residence. Please contact support.');
         }
@@ -85,6 +92,8 @@ export default function PaymentsPage() {
     } catch (error: any) {
       console.error('[Payments] Error loading residence:', error);
       toast.error('Failed to load residence information');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -156,6 +165,30 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/payments/${id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Payment deleted successfully');
+        loadPayments();
+      } else {
+        toast.error(result.error || 'Failed to delete payment');
+      }
+    } catch (error: any) {
+      console.error('Error deleting payment:', error);
+      toast.error('Failed to delete payment');
+    }
+  };
+
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
       payment.resident_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,7 +246,7 @@ export default function PaymentsPage() {
     );
   };
 
-  if (loading && !residenceId) {
+  if (loading || !residenceId || !userRole) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -230,18 +263,9 @@ export default function PaymentsPage() {
           <p className="text-muted-foreground mt-1">
             Review and verify resident payments
           </p>
-          {/* Debug info - remove in production */}
-          {process.env.NODE_ENV === 'development' && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Debug: ResidenceId={residenceId ? residenceId : 'null'}, Role={userRole || 'loading...'}
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-2">
-          {!residenceId && (
-            <span className="text-sm text-muted-foreground">Loading residence...</span>
-          )}
-          {residenceId && (
+          {residenceId && (userRole === 'syndic' || userRole === 'guard') && (
             <Button 
               onClick={() => setShowAddPaymentDialog(true)} 
               className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -405,46 +429,59 @@ export default function PaymentsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {payment.status === 'pending' && (
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleVerify(payment.id)}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Verify
-                            </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          {payment.status === 'pending' && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleVerify(payment.id)}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Verify
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReject(payment.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {payment.status === 'verified' && (
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleReject(payment.id)}
-                              className="text-red-600 hover:text-red-700"
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setShowAllocateDialog(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-700"
                             >
-                              <XCircle className="w-4 h-4 mr-1" />
-                              Reject
+                              <Link2 className="w-4 h-4 mr-1" />
+                              Allocate
                             </Button>
-                          </div>
-                        )}
-                        {payment.status === 'verified' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedPayment(payment);
-                              setShowAllocateDialog(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-700"
-                          >
-                            <Link2 className="w-4 h-4 mr-1" />
-                            Allocate
-                          </Button>
-                        )}
-                        {payment.status === 'rejected' && payment.rejection_reason && (
-                          <span className="text-xs text-red-600">
-                            {payment.rejection_reason}
-                          </span>
-                        )}
+                          )}
+                          {payment.status === 'rejected' && payment.rejection_reason && (
+                            <span className="text-xs text-red-600">
+                              {payment.rejection_reason}
+                            </span>
+                          )}
+                          {/* Delete button - only for syndics */}
+                          {userRole === 'syndic' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(payment.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
