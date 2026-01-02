@@ -140,13 +140,44 @@ export default function ContributionsPage() {
   // Helper function to calculate current period based on plan's start_date
   const calculatePeriodFromPlan = (plan: { start_date: string; period_type: string }, referenceDate: Date = new Date()) => {
     const planStartDate = new Date(plan.start_date);
+    planStartDate.setHours(0, 0, 0, 0); // Normalize to start of day
     const planYear = planStartDate.getFullYear();
     const planMonth = planStartDate.getMonth(); // 0-11
     const planDay = planStartDate.getDate();
     
-    const currentDate = referenceDate;
+    const currentDate = new Date(referenceDate);
+    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
+    
+    // If current date is before plan start, always use the first period
+    if (currentDate < planStartDate) {
+      if (plan.period_type === 'monthly') {
+        return {
+          start: new Date(planYear, planMonth, 1).toISOString().split('T')[0],
+          end: new Date(planYear, planMonth + 1, 0).toISOString().split('T')[0],
+        };
+      } else if (plan.period_type === 'quarterly') {
+        const planQuarter = Math.floor(planMonth / 3);
+        return {
+          start: new Date(planYear, planQuarter * 3, 1).toISOString().split('T')[0],
+          end: new Date(planYear, (planQuarter + 1) * 3, 0).toISOString().split('T')[0],
+        };
+      } else if (plan.period_type === 'semi_annual') {
+        const planHalfYear = Math.floor(planMonth / 6);
+        return {
+          start: new Date(planYear, planHalfYear * 6, 1).toISOString().split('T')[0],
+          end: new Date(planYear, (planHalfYear + 1) * 6, 0).toISOString().split('T')[0],
+        };
+      } else if (plan.period_type === 'annual') {
+        const periodEnd = new Date(planYear + 1, planMonth, planDay);
+        periodEnd.setDate(periodEnd.getDate() - 1);
+        return {
+          start: planStartDate.toISOString().split('T')[0],
+          end: periodEnd.toISOString().split('T')[0],
+        };
+      }
+    }
     
     let periodStart: Date;
     let periodEnd: Date;
@@ -166,7 +197,7 @@ export default function ContributionsPage() {
       // Period end: last day of the same month
       periodEnd = new Date(planYear, planMonth + periodIndex + 1, 0);
       
-      // Ensure period start is not before plan start date (use first period if before plan start)
+      // Double-check: ensure period start is not before plan start date
       if (periodStart < planStartDate) {
         periodStart = new Date(planYear, planMonth, 1); // First day of plan start month
         periodEnd = new Date(planYear, planMonth + 1, 0); // Last day of plan start month
@@ -187,7 +218,7 @@ export default function ContributionsPage() {
       // Period end: last day of the quarter
       periodEnd = new Date(planYear, (planQuarter + 1) * 3 + periodIndex * 3, 0);
       
-      // Ensure period start is not before plan start date (use first period if before plan start)
+      // Double-check: ensure period start is not before plan start date
       if (periodStart < planStartDate) {
         periodStart = new Date(planYear, planQuarter * 3, 1); // First day of plan start quarter
         periodEnd = new Date(planYear, (planQuarter + 1) * 3, 0); // Last day of plan start quarter
@@ -208,7 +239,7 @@ export default function ContributionsPage() {
       // Period end: last day of the half-year
       periodEnd = new Date(planYear, (planHalfYear + 1) * 6 + periodIndex * 6, 0);
       
-      // Ensure period start is not before plan start date (use first period if before plan start)
+      // Double-check: ensure period start is not before plan start date
       if (periodStart < planStartDate) {
         periodStart = new Date(planYear, planHalfYear * 6, 1); // First day of plan start half-year
         periodEnd = new Date(planYear, (planHalfYear + 1) * 6, 0); // Last day of plan start half-year
@@ -223,7 +254,7 @@ export default function ContributionsPage() {
       periodEnd = new Date(planYear + periodIndex + 1, planMonth, planDay);
       periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period starts
       
-      // Ensure period start is not before plan start date (use first period if before plan start)
+      // Double-check: ensure period start is not before plan start date
       if (periodStart < planStartDate) {
         periodStart = new Date(planStartDate); // Plan start date
         periodEnd = new Date(planYear + 1, planMonth, planDay);
@@ -258,11 +289,26 @@ export default function ContributionsPage() {
     const periodStart = period.start;
     const periodEnd = period.end;
 
+    // Validate that period start is not before plan start
+    const planStartDate = new Date(activePlan.start_date);
+    const periodStartDate = new Date(periodStart);
+    
+    if (periodStartDate < planStartDate) {
+      console.error('[Contributions] Period calculation error:', {
+        plan_start_date: activePlan.start_date,
+        calculated_period_start: periodStart,
+        current_date: new Date().toISOString().split('T')[0],
+      });
+      toast.error(`Period calculation error: Period start (${periodStart}) is before plan start (${activePlan.start_date}). Please contact support.`);
+      return;
+    }
+
     console.log('[Contributions] Generating period:', {
       plan_start_date: activePlan.start_date,
       plan_period_type: activePlan.period_type,
       calculated_period_start: periodStart,
       calculated_period_end: periodEnd,
+      current_date: new Date().toISOString().split('T')[0],
     });
 
     try {
