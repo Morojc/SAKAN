@@ -126,6 +126,29 @@ export async function approveRegistrationRequest(requestId: number) {
     // User exists in auth, use their ID
     authUserId = existingUser.id;
     
+    // Ensure user exists in users table (NextAuth table)
+    const { data: existingUserRecord } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', authUserId)
+      .single();
+
+    if (!existingUserRecord) {
+      // Create user record in users table
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authUserId,
+          email: request.email,
+          name: request.full_name,
+        });
+
+      if (userError) {
+        console.error('Error creating user record:', userError);
+        return { error: 'Failed to create user record' };
+      }
+    }
+    
     // Check if profile exists, create if it doesn't
     const { data: existingProfile } = await supabase
       .from('profiles')
@@ -170,6 +193,22 @@ export async function approveRegistrationRequest(requestId: number) {
 
     authUserId = authUser.user.id;
 
+    // Create user record in users table (NextAuth table)
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        id: authUserId,
+        email: request.email,
+        name: request.full_name,
+      });
+
+    if (userError) {
+      console.error('Error creating user record:', userError);
+      // Clean up auth user
+      await supabase.auth.admin.deleteUser(authUserId);
+      return { error: 'Failed to create user record' };
+    }
+
     // Create profile for new user
     const { error: profileError } = await supabase
       .from('profiles')
@@ -186,7 +225,8 @@ export async function approveRegistrationRequest(requestId: number) {
 
     if (profileError) {
       console.error('Error creating profile:', profileError);
-      // Clean up auth user
+      // Clean up
+      await supabase.from('users').delete().eq('id', authUserId);
       await supabase.auth.admin.deleteUser(authUserId);
       return { error: 'Failed to create user profile' };
     }
