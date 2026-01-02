@@ -189,6 +189,17 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 				return;
 			}
 
+			// Get residence ID (needed for both payment modes)
+			const resResponse = await fetch('/api/user/residence');
+			const resResult = await resResponse.json();
+			const residenceId = resResult.success ? resResult.data?.residence_id : null;
+
+			if (!residenceId) {
+				toast.error('Could not determine residence. Please try again.');
+				setSubmitting(false);
+				return;
+			}
+
 			// Check if we're paying fees or custom amount
 			if (paymentMode === 'fees' && selectedFeeIds.length > 0) {
 				// Create payments for selected fees/contributions
@@ -202,14 +213,17 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' },
 							body: JSON.stringify({
+								residence_id: residenceId,
 								user_id: userId,
 								apartment_number: apartmentNumber,
+								profile_residence_id: profileResidenceId ? Number(profileResidenceId) : null,
 								amount: item.amount || item.outstanding,
 								method: method,
 								payment_type: item.type === 'fee' ? 'fee' : 'contribution',
 								fee_id: item.type === 'fee' ? item.id : null,
 								contribution_id: item.type === 'contribution' ? item.id : null,
 								status: 'verified', // Syndic marking as paid is verified
+								paid_at: new Date().toISOString(),
 							}),
 						});
 

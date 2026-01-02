@@ -128,12 +128,24 @@ export async function POST(request: NextRequest) {
     // Use provided user_id or session user id
     const userId = body.user_id || session.user.id;
 
+    // If status is verified and verified_by is not provided, set it to current user
+    const verifiedBy = body.status === 'verified' && !body.verified_by 
+      ? session.user.id 
+      : body.verified_by;
+
+    // If status is verified and paid_at is not provided, set it to now
+    const paidAt = body.status === 'verified' && !body.paid_at
+      ? new Date().toISOString()
+      : body.paid_at;
+
     const { data, error } = await supabase
       .from('payments')
       .insert({
         ...body,
         user_id: userId,
-        status: 'pending', // All payments start as pending
+        verified_by: verifiedBy || null,
+        paid_at: paidAt || new Date().toISOString(), // Always set paid_at
+        status: body.status || 'pending', // Use provided status or default to pending
       })
       .select()
       .single();
