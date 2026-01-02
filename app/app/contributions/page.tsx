@@ -16,81 +16,84 @@ import {
   Plus,
   PlusCircle,
 } from 'lucide-react';
-import { checkContributionDataStatus } from '@/app/actions/contributions';
-import { getContributionStatus, type ContributionStatusRow } from '@/app/actions/contribution-status';
-import AddContributionDialog from '@/components/app/contributions/AddContributionDialog';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
+import type { ContributionStatusMatrix } from '@/types/financial.types';
 
 export default function ContributionsPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const [dataStatus, setDataStatus] = useState<any>(null);
-  const [contributionData, setContributionData] = useState<ContributionStatusRow[]>([]);
-  const [allApartments, setAllApartments] = useState<Array<{ number: string; residentName: string; residentId: string }>>([]);
+  const [statusMatrix, setStatusMatrix] = useState<ContributionStatusMatrix[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
 
   useEffect(() => {
-    async function loadData() {
-      // TODO: Get residence ID from session
-      const residenceId = 1;
+    loadContributionStatus();
+  }, [selectedYear]);
 
-      // Check data status
-      const statusResult = await checkContributionDataStatus(residenceId);
-
-      if (statusResult.error) {
-        toast.error(statusResult.error);
-        setLoading(false);
-        return;
+  const loadContributionStatus = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/contributions/status?residenceId=${residenceId}&year=${selectedYear}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load contribution status');
       }
 
-      setDataStatus(statusResult.data);
-
-      // If no data, redirect to setup
-      if (!statusResult.data?.hasData) {
-        router.push('/app/contributions/setup');
-        return;
-      }
-
-      // Load contribution status
-      const contributionResult = await getContributionStatus(residenceId, selectedYear);
-
-      if (contributionResult.error) {
-        toast.error(contributionResult.error);
+      const result = await response.json();
+      
+      if (result.success) {
+        setStatusMatrix(result.data || []);
       } else {
-        setContributionData(contributionResult.data || []);
+        toast.error(result.error || 'Failed to load contribution status');
       }
-
-      // Fetch ALL apartments for the residence (not just those with contributions)
-      try {
-        const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
-        if (response.ok) {
-          const apartmentsData = await response.json();
-          setAllApartments(apartmentsData.apartments || []);
-        }
-      } catch (error) {
-        console.error('Error fetching apartments:', error);
-      }
-
+    } catch (error: any) {
+      console.error('Error loading contribution status:', error);
+      toast.error(error.message || 'Failed to load contribution status');
+    } finally {
       setLoading(false);
     }
-
-    loadData();
-  }, [selectedYear, router, refreshTrigger]);
+  };
 
   // Filter data by search term
-  const filteredData = contributionData.filter(
+  const filteredData = statusMatrix.filter(
     (row) =>
-      row.apartmentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      row.residentName.toLowerCase().includes(searchTerm.toLowerCase())
+      row.apartment_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      row.resident_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleContributionAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
+  const handleGenerateContributions = async () => {
+    const month = new Date().getMonth() + 1;
+    const year = new Date().getFullYear();
+    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const periodEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+
+    try {
+      const response = await fetch('/api/contributions/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          residence_id: residenceId,
+          period_start: periodStart,
+          period_end: periodEnd,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(result.message || 'Contributions generated successfully');
+        loadContributionStatus();
+      } else {
+        toast.error(result.error || 'Failed to generate contributions');
+      }
+    } catch (error: any) {
+      console.error('Error generating contributions:', error);
+      toast.error('Failed to generate contributions');
+    }
   };
 
   if (loading) {
@@ -111,29 +114,27 @@ export default function ContributionsPage() {
         <div>
           <h1 className="text-3xl font-bold">{t('contributions.contributionStatus')}</h1>
           <p className="text-muted-foreground mt-1">
-            {dataStatus?.setupMode === 'historical'
-              ? t('contributions.historicalDataImported')
-              : dataStatus?.setupMode === 'mixed'
-              ? t('contributions.mixedMode')
-              : t('contributions.freshStartMode')}
+            {t('contributions.viewAndManageContributions')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button 
+            onClick={handleGenerateContributions}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
             <PlusCircle className="w-4 h-4 mr-2" />
-            {t('contributions.addManually')}
+            Generate This Month
           </Button>
-          <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
-            <Upload className="w-4 h-4 mr-2" />
-            {dataStatus?.setupMode === 'historical' ? t('contributions.importMore') : t('contributions.importData')}
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/app/contributions/plans')}
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            {t('contributions.settings')}
           </Button>
           <Button variant="outline">
             <FileDown className="w-4 h-4 mr-2" />
             {t('contributions.export')}
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/app/recurring-rules')}>
-            <Settings className="w-4 h-4 mr-2" />
-            {t('contributions.settings')}
           </Button>
         </div>
       </div>
@@ -179,7 +180,9 @@ export default function ContributionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.totalApartments')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t('contributions.totalApartments')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{filteredData.length}</div>
@@ -187,31 +190,37 @@ export default function ContributionsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.fullyPaid')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t('contributions.fullyPaid')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {filteredData.filter((row) => row.outstandingMonths === 0).length}
+              {filteredData.filter((row) => row.outstanding_months === 0).length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.withOutstanding')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t('contributions.withOutstanding')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {filteredData.filter((row) => row.outstandingMonths > 0).length}
+              {filteredData.filter((row) => row.outstanding_months > 0).length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{t('contributions.totalOutstanding')}</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t('contributions.totalOutstanding')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {filteredData.reduce((sum, row) => sum + row.outstandingMonths, 0)} {t('contributions.months')}
+              {filteredData.reduce((sum, row) => sum + row.outstanding_months, 0)} {t('contributions.months')}
             </div>
           </CardContent>
         </Card>
@@ -243,13 +252,13 @@ export default function ContributionsPage() {
                 {filteredData.map((row, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border px-4 py-3 font-medium sticky left-0 bg-white z-10">
-                      {row.apartmentNumber}
+                      {row.apartment_number}
                     </td>
-                    <td className="border px-4 py-3">{row.residentName}</td>
+                    <td className="border px-4 py-3">{row.resident_name}</td>
                     <td className="border px-4 py-3 text-center">
-                      {row.outstandingMonths > 0 && (
+                      {row.outstanding_months > 0 && (
                         <span className="text-red-600 font-medium">
-                          {row.outstandingMonths.toString().padStart(2, '0')} Mois
+                          {row.outstanding_months.toString().padStart(2, '0')} Mois
                         </span>
                       )}
                     </td>
@@ -260,26 +269,38 @@ export default function ContributionsPage() {
                         <td
                           key={monthKey}
                           className={`border px-2 py-3 text-center cursor-pointer hover:bg-gray-100 ${
-                            status === 'unpaid' ? 'bg-red-100' : status === 'paid' ? '' : 'bg-gray-50'
+                            status === 'pending' || status === 'overdue' 
+                              ? 'bg-red-100' 
+                              : status === 'paid' 
+                              ? 'bg-green-50' 
+                              : status === 'partial'
+                              ? 'bg-yellow-50'
+                              : 'bg-gray-50'
                           }`}
                           title={
                             status === 'paid'
                               ? 'Paid'
-                              : status === 'unpaid'
+                              : status === 'pending'
                               ? 'Unpaid - Click to record payment'
-                              : 'No fee for this month'
+                              : status === 'partial'
+                              ? 'Partially paid'
+                              : status === 'overdue'
+                              ? 'Overdue'
+                              : 'No contribution for this month'
                           }
+                          onClick={() => {
+                            if (status === 'pending' || status === 'partial' || status === 'overdue') {
+                              router.push(`/app/payments/submit?apartment=${row.apartment_number}&month=${monthKey}`);
+                            }
+                          }}
                         >
-                          {status === 'paid' && <span className="font-bold">X</span>}
-                          {status === 'unpaid' && (
+                          {status === 'paid' && <span className="font-bold text-green-700">✓</span>}
+                          {status === 'partial' && <span className="font-bold text-yellow-700">½</span>}
+                          {(status === 'pending' || status === 'overdue') && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => {
-                                // TODO: Open payment dialog
-                                toast('Payment recording coming soon!');
-                              }}
                             >
                               <Plus className="w-4 h-4" />
                             </Button>
@@ -300,16 +321,6 @@ export default function ContributionsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Add Contribution Dialog */}
-      <AddContributionDialog
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSuccess={handleContributionAdded}
-        residenceId={1} // TODO: Get from session
-        apartments={allApartments}
-      />
     </div>
   );
 }
-
