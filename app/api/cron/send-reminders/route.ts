@@ -14,84 +14,93 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseAdminClient();
   
   try {
-    // Get all active recurring fee settings with reminders enabled
-    const { data: settings } = await supabase
-      .from('recurring_fee_settings')
+    // Get all active contribution plans with reminders enabled
+    const { data: plans } = await supabase
+      .from('contribution_plans')
       .select('*')
       .eq('is_active', true)
       .eq('reminder_enabled', true);
 
-    if (!settings || settings.length === 0) {
-      return NextResponse.json({ message: 'No active rules with reminders' });
+    if (!plans || plans.length === 0) {
+      return NextResponse.json({ message: 'No active contribution plans with reminders' });
     }
 
     let remindersSent = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    for (const setting of settings) {
-      // Get unpaid fees for this setting
-      const { data: fees } = await supabase
-        .from('fees')
+    for (const plan of plans) {
+      // Get unpaid contributions for this plan
+      const { data: contributions } = await supabase
+        .from('contributions')
         .select(`
           *,
-          profiles:user_id (full_name, email),
-          profile_residences!inner(apartment_number)
+          profile_residences!inner(
+            apartment_number,
+            profiles(full_name, email)
+          )
         `)
-        .eq('recurring_setting_id', setting.id)
-        .eq('status', 'unpaid');
+        .eq('contribution_plan_id', plan.id)
+        .in('status', ['pending', 'partial', 'overdue']);
 
-      if (!fees || fees.length === 0) continue;
+      if (!contributions || contributions.length === 0) continue;
 
       // Get residence RIB
       const { data: residence } = await supabase
         .from('residences')
         .select('name, bank_rib')
-        .eq('id', setting.residence_id)
+        .eq('id', plan.residence_id)
         .single();
 
-      for (const fee of fees) {
-        const dueDate = new Date(fee.due_date);
+      for (const contribution of contributions) {
+        const dueDate = new Date(contribution.due_date);
         dueDate.setHours(0, 0, 0, 0);
         
         const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
         // Check if we should send reminder
         const shouldSendReminder = 
-          daysUntilDue === setting.reminder_days_before || // X days before
+          daysUntilDue === plan.reminder_days_before || // X days before
           daysUntilDue === 0 || // On due date
           (daysUntilDue < 0 && daysUntilDue % 3 === 0); // Every 3 days after due
 
         if (!shouldSendReminder) continue;
 
-        // Check if reminder already sent today
+        // Check if reminder already sent today (using contribution_id if available, otherwise fee_id)
         const { data: existingReminder } = await supabase
           .from('email_reminders')
           .select('id')
-          .eq('fee_id', fee.id)
+          .eq('fee_id', contribution.id) // Note: email_reminders still uses fee_id column
           .gte('sent_at', today.toISOString())
           .single();
 
         if (existingReminder) continue; // Already sent today
 
+        // Get resident email from profile_residences join
+        const profileResidence = contribution.profile_residences;
+        const residentEmail = (profileResidence as any)?.profiles?.email;
+        const residentName = (profileResidence as any)?.profiles?.full_name;
+        const profileId = (profileResidence as any)?.profile_id;
+
         // Send reminder email
-        if (fee.profiles?.email) {
+        if (residentEmail) {
+          const outstandingAmount = contribution.amount_due - (contribution.amount_paid || 0);
           const result = await sendPaymentReminderEmail(
-            fee.profiles.email,
-            fee.profiles.full_name,
+            residentEmail,
+            residentName || 'Resident',
             residence?.name || 'Votre résidence',
-            Number(fee.amount),
+            outstandingAmount,
             dueDate,
-            fee.title,
-            fee.profile_residences?.apartment_number || 'N/A',
+            `${plan.plan_name} - ${contribution.period_start} to ${contribution.period_end}`,
+            (profileResidence as any)?.apartment_number || 'N/A',
             residence?.bank_rib
           );
 
           if (result.success) {
-            // Log reminder
+            // Log reminder (using contribution id as fee_id for now - email_reminders table may need update)
             await supabase.from('email_reminders').insert({
-              fee_id: fee.id,
-              user_id: fee.user_id,
+              fee_id: contribution.id, // Note: This column name is misleading but kept for compatibility
+              user_id: profileId || '',
               reminder_type: daysUntilDue > 0 ? 'before_due' : (daysUntilDue === 0 ? 'on_due' : 'overdue'),
               days_before: daysUntilDue,
             });

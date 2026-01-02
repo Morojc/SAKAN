@@ -24,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, FileText, Loader2 } from 'lucide-react';
 import { getResidents, createCashPayment } from '@/app/actions/payments';
-import { getUnpaidFeesForResident, markMultipleFeesPaid } from '@/app/actions/recurring-fees';
+// Removed recurring fees import - using API endpoints instead
 import toast from 'react-hot-toast';
 
 interface AddPaymentDialogProps {
@@ -100,19 +100,46 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 	async function fetchUnpaidFees(residentId: string) {
 		setLoadingFees(true);
 		try {
-			const result = await getUnpaidFeesForResident(residentId);
-			if (result.data) {
-				setUnpaidFees(result.data);
-				// Auto-switch to fees mode if fees exist
-				if (result.data.length > 0) {
+			// Get residence ID first
+			const resResponse = await fetch('/api/user/residence');
+			const resResult = await resResponse.json();
+			const residenceId = resResult.success ? resResult.data?.residence_id : null;
+
+			if (!residenceId) {
+				console.warn('[AddPaymentDialog] No residence ID found');
+				setUnpaidFees([]);
+				setLoadingFees(false);
+				return;
+			}
+
+			// Fetch outstanding payments (fees and contributions)
+			const response = await fetch(`/api/payments/outstanding?residenceId=${residenceId}&userId=${residentId}`);
+			const result = await response.json();
+
+			if (result.success && result.data) {
+				// Combine fees and contributions into a single list
+				const allOutstanding = [
+					...result.data.fees.map((f: any) => ({ ...f, type: 'fee' })),
+					...result.data.contributions.map((c: any) => ({ 
+						...c, 
+						type: 'contribution',
+						title: `Contribution - ${c.period}`,
+						amount: c.outstanding,
+					})),
+				];
+				setUnpaidFees(allOutstanding);
+				// Auto-switch to fees mode if outstanding items exist
+				if (allOutstanding.length > 0) {
 					setPaymentMode('fees');
 				}
-			} else if (result.error) {
-				toast.error(result.error);
+			} else {
+				console.error('[AddPaymentDialog] Error fetching outstanding:', result.error);
+				setUnpaidFees([]);
 			}
 		} catch (error) {
-			console.error(error);
+			console.error('[AddPaymentDialog] Error fetching unpaid fees:', error);
 			toast.error('Failed to load unpaid fees');
+			setUnpaidFees([]);
 		} finally {
 			setLoadingFees(false);
 		}
@@ -163,25 +190,51 @@ export default function AddPaymentDialog({ open, onOpenChange, onSuccess }: AddP
 			}
 
 			// Check if we're paying fees or custom amount
-			if (paymentMode === 'fees') {
-				// Mark selected fees as paid
-				if (selectedFeeIds.length === 0) {
-					toast.error('Please select at least one fee to pay');
-					setSubmitting(false);
-					return;
+			if (paymentMode === 'fees' && selectedFeeIds.length > 0) {
+				// Create payments for selected fees/contributions
+				const selectedItems = unpaidFees.filter((item) => selectedFeeIds.includes(item.id));
+				let successCount = 0;
+				let errorCount = 0;
+
+				for (const item of selectedItems) {
+					try {
+						const paymentResponse = await fetch('/api/payments', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({
+								user_id: userId,
+								apartment_number: apartmentNumber,
+								amount: item.amount || item.outstanding,
+								method: method,
+								payment_type: item.type === 'fee' ? 'fee' : 'contribution',
+								fee_id: item.type === 'fee' ? item.id : null,
+								contribution_id: item.type === 'contribution' ? item.id : null,
+								status: 'verified', // Syndic marking as paid is verified
+							}),
+						});
+
+						const paymentResult = await paymentResponse.json();
+						if (paymentResult.success) {
+							successCount++;
+						} else {
+							errorCount++;
+							console.error(`Failed to create payment for ${item.id}:`, paymentResult.error);
+						}
+					} catch (error: any) {
+						errorCount++;
+						console.error(`Error creating payment for ${item.id}:`, error);
+					}
 				}
 
-				const result = await markMultipleFeesPaid({
-					feeIds: selectedFeeIds,
-					paymentMethod: method as 'cash' | 'check' | 'transfer',
-				});
-
-				if (result.error) {
-					toast.error(result.error);
-				} else {
-					toast.success(`Successfully marked ${selectedFeeIds.length} fee(s) as paid`);
+				if (successCount > 0) {
+					toast.success(`Successfully recorded ${successCount} payment(s)`);
+					if (errorCount > 0) {
+						toast.error(`${errorCount} payment(s) failed`);
+					}
 					resetForm();
 					onSuccess();
+				} else {
+					toast.error('Failed to record payments');
 				}
 			} else {
 				// Create custom payment (not linked to fees)

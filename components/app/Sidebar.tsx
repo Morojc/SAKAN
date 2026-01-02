@@ -59,7 +59,6 @@ export function Sidebar() {
         { href: "/app/contributions", label: t('sidebar.contributions'), icon: TrendingUp },
         { href: "/app/fees", label: t('sidebar.fees'), icon: FileText },
         { href: "/app/payments", label: t('sidebar.payments'), icon: CreditCard },
-        { href: "/app/recurring-rules", label: t('sidebar.recurringRules'), icon: RefreshCw },
         { href: "/app/expenses", label: t('sidebar.expenses'), icon: Receipt },
         { href: "/app/incidents", label: t('sidebar.incidents'), icon: AlertCircle },
         { href: "/app/complaints", label: t('sidebar.complaints'), icon: MessageSquare },

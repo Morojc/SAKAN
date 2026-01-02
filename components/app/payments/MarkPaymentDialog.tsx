@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { getUnpaidFeesForResident, markMultipleFeesPaid } from '@/app/actions/recurring-fees';
+// Removed recurring fees import - using API endpoints instead
 import toast from 'react-hot-toast';
 
 interface MarkPaymentDialogProps {
@@ -62,15 +62,42 @@ export default function MarkPaymentDialog({
   const fetchUnpaidFees = async (residentId: string) => {
     setLoadingFees(true);
     try {
-      const result = await getUnpaidFeesForResident(residentId);
-      if (result.data) {
-        setUnpaidFees(result.data);
-      } else if (result.error) {
-        toast.error(result.error);
+      // Get residence ID first
+      const resResponse = await fetch('/api/user/residence');
+      const resResult = await resResponse.json();
+      const residenceId = resResult.success ? resResult.data?.residence_id : null;
+
+      if (!residenceId) {
+        console.warn('[MarkPaymentDialog] No residence ID found');
+        setUnpaidFees([]);
+        setLoadingFees(false);
+        return;
+      }
+
+      // Fetch outstanding payments (fees and contributions)
+      const response = await fetch(`/api/payments/outstanding?residenceId=${residenceId}&userId=${residentId}`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Combine fees and contributions into a single list
+        const allOutstanding = [
+          ...result.data.fees.map((f: any) => ({ ...f, type: 'fee' })),
+          ...result.data.contributions.map((c: any) => ({ 
+            ...c, 
+            type: 'contribution',
+            title: `Contribution - ${c.period}`,
+            amount: c.outstanding,
+          })),
+        ];
+        setUnpaidFees(allOutstanding);
+      } else {
+        console.error('[MarkPaymentDialog] Error fetching outstanding:', result.error);
+        setUnpaidFees([]);
       }
     } catch (error) {
-      console.error(error);
+      console.error('[MarkPaymentDialog] Error fetching unpaid fees:', error);
       toast.error('Failed to load unpaid fees');
+      setUnpaidFees([]);
     } finally {
       setLoadingFees(false);
     }
@@ -100,30 +127,67 @@ export default function MarkPaymentDialog({
 
   const handleSubmit = async () => {
     if (selectedFeeIds.length === 0) {
-      toast.error('Please select at least one fee to mark as paid');
+      toast.error('Please select at least one fee/contribution to mark as paid');
+      return;
+    }
+
+    if (!selectedResident) {
+      toast.error('Please select a resident');
       return;
     }
 
     setLoading(true);
     try {
-      const result = await markMultipleFeesPaid({
-        feeIds: selectedFeeIds,
-        paymentMethod,
-      });
+      const selectedItems = unpaidFees.filter((item) => selectedFeeIds.includes(item.id));
+      let successCount = 0;
+      let errorCount = 0;
 
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success(`Successfully marked ${selectedFeeIds.length} fee(s) as paid`);
+      for (const item of selectedItems) {
+        try {
+          const paymentResponse = await fetch('/api/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: selectedResident.id,
+              apartment_number: selectedResident.apartment_number || '',
+              amount: item.amount || item.outstanding,
+              method: paymentMethod,
+              payment_type: item.type === 'fee' ? 'fee' : 'contribution',
+              fee_id: item.type === 'fee' ? item.id : null,
+              contribution_id: item.type === 'contribution' ? item.id : null,
+              status: 'verified', // Syndic marking as paid is verified
+            }),
+          });
+
+          const paymentResult = await paymentResponse.json();
+          if (paymentResult.success) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`Failed to create payment for ${item.id}:`, paymentResult.error);
+          }
+        } catch (error: any) {
+          errorCount++;
+          console.error(`Error creating payment for ${item.id}:`, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully recorded ${successCount} payment(s)`);
+        if (errorCount > 0) {
+          toast.error(`${errorCount} payment(s) failed`);
+        }
         onSuccess();
         onOpenChange(false);
         // Reset state
         setSelectedResidentId('');
         setSelectedFeeIds([]);
         setUnpaidFees([]);
+      } else {
+        toast.error('Failed to record payments');
       }
     } catch (error) {
-      console.error(error);
+      console.error('[MarkPaymentDialog] Error processing payment:', error);
       toast.error('Failed to process payment');
     } finally {
       setLoading(false);

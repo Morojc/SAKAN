@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, CheckCircle2, Loader2, Calendar } from 'lucide-react';
-import { createRecurringFee } from '@/app/actions/recurring-fees';
+// Using contribution plans API instead of recurring fees
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 
@@ -21,6 +21,30 @@ export default function FreshStartSetupPage() {
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [reminderDays, setReminderDays] = useState(7);
   const [creating, setCreating] = useState(false);
+  const [residenceId, setResidenceId] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Load user's residence ID
+    const loadResidence = async () => {
+      try {
+        const response = await fetch('/api/user/residence');
+        const result = await response.json();
+        if (result.success && result.data?.residence_id) {
+          setResidenceId(result.data.residence_id);
+        } else {
+          // Fallback: Try to get residence from residences table
+          const fallbackResponse = await fetch('/api/residences');
+          const fallbackResult = await fallbackResponse.json();
+          if (fallbackResult.success && fallbackResult.data?.length > 0) {
+            setResidenceId(fallbackResult.data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading residence:', error);
+      }
+    };
+    loadResidence();
+  }, []);
 
   const handleSetup = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -28,31 +52,50 @@ export default function FreshStartSetupPage() {
       return;
     }
 
-    setCreating(true);
+    if (!residenceId) {
+      toast.error('Residence ID not found. Please refresh the page.');
+      return;
+    }
 
-    // TODO: Get residence ID from session
-    const residenceId = 1;
+    setCreating(true);
 
     const startDate = new Date(startYear, startMonth - 1, 1);
 
-    const result = await createRecurringFee({
-      title: 'Monthly Contribution',
-      amount: parseFloat(amount),
-      startDate,
-      residenceId,
-      coveragePeriodValue: 1,
-      coveragePeriodType: 'month',
-      isActive: true,
-      reminderDaysBefore: reminderDays,
-      reminderEnabled,
-    });
+    // Create contribution plan using API
+    try {
+      const response = await fetch('/api/contributions/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          residence_id: residenceId,
+          plan_name: 'Monthly Contribution',
+          amount_per_period: parseFloat(amount),
+          period_type: 'monthly',
+          start_date: startDate.toISOString().split('T')[0],
+          is_active: true,
+          auto_generate: true,
+          generation_day: 1,
+          due_day: 5,
+          reminder_enabled: reminderEnabled,
+          reminder_days_before: reminderDays,
+        }),
+      });
 
-    setCreating(false);
+      const result = await response.json();
 
-    if (result.error) {
-      toast.error(result.error);
+      if (!result.success) {
+        toast.error(result.error || 'Failed to create contribution plan');
+        setCreating(false);
+        return;
+      }
+    } catch (error: any) {
+      console.error('Error creating contribution plan:', error);
+      toast.error(error.message || 'Failed to create contribution plan');
+      setCreating(false);
       return;
     }
+
+    setCreating(false);
 
     toast.success('Monthly contributions configured successfully!');
     router.push('/app/contributions');
