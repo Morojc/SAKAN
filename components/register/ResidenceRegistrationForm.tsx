@@ -34,9 +34,7 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [apartmentNumber, setApartmentNumber] = useState('');
-  const [idNumber, setIdNumber] = useState('');
-  const [idDocument, setIdDocument] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     if (code) {
@@ -71,80 +69,58 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size must be less than 5MB');
-        return;
-      }
-
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-      if (!validTypes.includes(file.type)) {
-        toast.error('File must be JPG, PNG, or PDF');
-        return;
-      }
-
-      setIdDocument(file);
+  const validateBeforeSubmit = async (): Promise<boolean> => {
+    if (!residence || !email || !phoneNumber || !apartmentNumber) {
+      return false;
     }
-  };
 
-  const uploadDocument = async (): Promise<string | null> => {
-    if (!idDocument || !residence) return null;
+    setValidating(true);
+    setValidationErrors([]);
 
-    setUploading(true);
     try {
-      const timestamp = Date.now();
-      const fileName = `${residence.id}/${timestamp}_${idDocument.name}`;
+      const response = await fetch('/api/register/validate-duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          residenceId: residence.id,
+          email,
+          phoneNumber,
+          apartmentNumber,
+        }),
+      });
 
-      const { data, error } = await supabase.storage
-        .from('resident-id-documents')
-        .upload(fileName, idDocument, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const data = await response.json();
 
-      if (error) {
-        console.error('Upload error:', error);
-        toast.error('Failed to upload document');
-        return null;
+      if (!response.ok) {
+        if (data.errors && Array.isArray(data.errors)) {
+          setValidationErrors(data.errors);
+        } else {
+          setValidationErrors([data.error || 'Validation failed']);
+        }
+        return false;
       }
 
-      // Get public URL (or use signed URL for private bucket)
-      const { data: { publicUrl } } = supabase.storage
-        .from('resident-id-documents')
-        .getPublicUrl(data.path);
-
-      return publicUrl;
+      return true;
     } catch (err) {
-      console.error('Upload exception:', err);
-      toast.error('Failed to upload document');
-      return null;
+      setValidationErrors(['Failed to validate. Please try again.']);
+      return false;
     } finally {
-      setUploading(false);
+      setValidating(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!idDocument) {
-      toast.error('Please upload your ID document');
+    // Validate for duplicates before submitting
+    const isValid = await validateBeforeSubmit();
+    if (!isValid) {
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // Upload document first
-      const documentUrl = await uploadDocument();
-      if (!documentUrl) {
-        setSubmitting(false);
-        return;
-      }
-
       // Submit registration
       const response = await fetch('/api/register/submit', {
         method: 'POST',
@@ -155,8 +131,6 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
           email,
           phoneNumber,
           apartmentNumber,
-          idNumber,
-          idDocumentUrl: documentUrl,
         }),
       });
 
@@ -182,8 +156,6 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
         setEmail('');
         setPhoneNumber('');
         setApartmentNumber('');
-        setIdNumber('');
-        setIdDocument(null);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit registration');
@@ -328,38 +300,6 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="idNumber">ID Card / Passport Number *</Label>
-                <Input
-                  id="idNumber"
-                  value={idNumber}
-                  onChange={(e) => setIdNumber(e.target.value)}
-                  required
-                  placeholder="AB123456"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="idDocument">ID Document (PDF, JPG, or PNG) *</Label>
-                <div className="mt-1 flex items-center gap-2">
-                  <Input
-                    id="idDocument"
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleFileChange}
-                    required
-                  />
-                  {idDocument && (
-                    <span className="text-sm text-green-600 flex items-center gap-1">
-                      <CheckCircle className="w-4 h-4" />
-                      {idDocument.name}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Maximum file size: 5MB
-                </p>
-              </div>
 
               {/* Validation Errors Summary */}
               {validationErrors.length > 0 && (
@@ -383,13 +323,18 @@ export default function ResidenceRegistrationForm({ code }: ResidenceRegistratio
 
               <Button
                 type="submit"
-                disabled={submitting || uploading}
+                disabled={submitting || validating || validationErrors.length > 0}
                 className="w-full bg-blue-600 hover:bg-blue-700"
               >
-                {submitting || uploading ? (
+                {validating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {uploading ? 'Uploading...' : 'Submitting...'}
+                    Validating...
+                  </>
+                ) : submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Submitting...
                   </>
                 ) : (
                   'Submit Registration'

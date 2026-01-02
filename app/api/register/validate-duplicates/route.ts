@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server';
-import { sendRegistrationConfirmationEmail, sendSyndicNewRequestNotification } from '@/lib/email/registration';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
       residenceId,
-      fullName,
       email,
       phoneNumber,
       apartmentNumber,
     } = body;
 
     // Validate required fields
-    if (!residenceId || !fullName || !email || !phoneNumber || !apartmentNumber) {
+    if (!residenceId || !email || !phoneNumber || !apartmentNumber) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'All fields are required for validation' },
         { status: 400 }
       );
     }
@@ -26,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Collect all validation errors
     const errors: string[] = [];
 
-    // Check for duplicate email in same residence (verified residents)
+    // Check for duplicate email in same residence (verified and unverified residents)
     const { data: existingEmail } = await supabase
       .from('profile_residences')
       .select('profile_id, profiles:profile_id(email)')
@@ -34,7 +32,7 @@ export async function POST(request: NextRequest) {
       .or('verified.eq.true,verified.eq.false');
 
     if (existingEmail && existingEmail.some((pr: any) => pr.profiles?.email?.toLowerCase() === email.toLowerCase())) {
-      errors.push('This email address is already registered as a verified resident in this residence');
+      errors.push('This email address is already registered in this residence');
     }
 
     // Check for duplicate phone number in same residence (verified and unverified residents)
@@ -96,86 +94,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Return all errors at once
+    // Return validation result
     if (errors.length > 0) {
       return NextResponse.json(
         { 
-          error: errors.length === 1 ? errors[0] : 'Multiple issues found with your registration:',
+          error: errors.length === 1 ? errors[0] : 'Multiple issues found:',
           errors: errors.length > 1 ? errors : undefined
         },
         { status: 400 }
       );
     }
 
-    // Get client IP and user agent
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const userAgent = request.headers.get('user-agent') || 'unknown';
-
-    // Create registration request
-    const { data: newRequest, error } = await supabase
-      .from('resident_registration_requests')
-      .insert({
-        residence_id: residenceId,
-        full_name: fullName,
-        email,
-        phone_number: phoneNumber,
-        apartment_number: apartmentNumber,
-        status: 'pending',
-        ip_address: ip,
-        user_agent: userAgent,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating registration request:', error);
-      return NextResponse.json(
-        { error: 'Failed to submit registration' },
-        { status: 500 }
-      );
-    }
-
-    // Get residence and syndic info for notifications
-    const { data: residence } = await supabase
-      .from('residences')
-      .select('name, syndic_user_id, profiles:syndic_user_id(email, full_name)')
-      .eq('id', residenceId)
-      .single();
-
-    // Send confirmation email to applicant
-    try {
-      await sendRegistrationConfirmationEmail(
-        email,
-        fullName,
-        residence?.name || 'the residence',
-        apartmentNumber
-      );
-    } catch (emailError) {
-      console.error('Error sending confirmation email:', emailError);
-    }
-
-    // Send notification to syndic
-    if (residence && (residence.profiles as any)?.email) {
-      try {
-        await sendSyndicNewRequestNotification(
-          (residence.profiles as any).email,
-          (residence.profiles as any).full_name || 'Syndic',
-          residence.name,
-          fullName,
-          apartmentNumber
-        );
-      } catch (emailError) {
-        console.error('Error sending syndic notification:', emailError);
-      }
-    }
-
     return NextResponse.json({
       success: true,
-      requestId: newRequest.id,
-      message: 'Registration submitted successfully',
+      message: 'Validation passed',
     });
   } catch (error: any) {
-    console.error('Error in registration submission:', error);
+    console.error('Error in validation:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
