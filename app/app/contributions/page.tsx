@@ -113,7 +113,7 @@ export default function ContributionsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowAddDialog(true)}>
-            <PlusCircle className="w-4 h-4 mr-2" />
+            <PlusCircle className="w-4 h-4 mr-2 text-white bg-blue-600" />
             Add Manually
           </Button>
           <Button variant="outline" onClick={() => router.push('/app/contributions/import')}>
