@@ -137,13 +137,25 @@ export default function ContributionsPage() {
       row.resident_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper function to format date as YYYY-MM-DD without timezone issues
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Helper function to calculate current period based on plan's start_date
   const calculatePeriodFromPlan = (plan: { start_date: string; period_type: string }, referenceDate: Date = new Date()) => {
-    const planStartDate = new Date(plan.start_date);
-    planStartDate.setHours(0, 0, 0, 0); // Normalize to start of day
-    const planYear = planStartDate.getFullYear();
-    const planMonth = planStartDate.getMonth(); // 0-11
-    const planDay = planStartDate.getDate();
+    // Parse plan start date - use local date parsing to avoid timezone issues
+    const [planYearStr, planMonthStr, planDayStr] = plan.start_date.split('-');
+    const planYear = parseInt(planYearStr, 10);
+    const planMonth = parseInt(planMonthStr, 10) - 1; // Convert to 0-based month
+    const planDay = parseInt(planDayStr, 10);
+    
+    // Create plan start date in local timezone
+    const planStartDate = new Date(planYear, planMonth, planDay);
+    planStartDate.setHours(0, 0, 0, 0);
     
     const currentDate = new Date(referenceDate);
     currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
@@ -154,27 +166,27 @@ export default function ContributionsPage() {
     if (currentDate < planStartDate) {
       if (plan.period_type === 'monthly') {
         return {
-          start: new Date(planYear, planMonth, 1).toISOString().split('T')[0],
-          end: new Date(planYear, planMonth + 1, 0).toISOString().split('T')[0],
+          start: formatDateLocal(new Date(planYear, planMonth, 1)),
+          end: formatDateLocal(new Date(planYear, planMonth + 1, 0)),
         };
       } else if (plan.period_type === 'quarterly') {
         const planQuarter = Math.floor(planMonth / 3);
         return {
-          start: new Date(planYear, planQuarter * 3, 1).toISOString().split('T')[0],
-          end: new Date(planYear, (planQuarter + 1) * 3, 0).toISOString().split('T')[0],
+          start: formatDateLocal(new Date(planYear, planQuarter * 3, 1)),
+          end: formatDateLocal(new Date(planYear, (planQuarter + 1) * 3, 0)),
         };
       } else if (plan.period_type === 'semi_annual') {
         const planHalfYear = Math.floor(planMonth / 6);
         return {
-          start: new Date(planYear, planHalfYear * 6, 1).toISOString().split('T')[0],
-          end: new Date(planYear, (planHalfYear + 1) * 6, 0).toISOString().split('T')[0],
+          start: formatDateLocal(new Date(planYear, planHalfYear * 6, 1)),
+          end: formatDateLocal(new Date(planYear, (planHalfYear + 1) * 6, 0)),
         };
       } else if (plan.period_type === 'annual') {
         const periodEnd = new Date(planYear + 1, planMonth, planDay);
         periodEnd.setDate(periodEnd.getDate() - 1);
         return {
-          start: planStartDate.toISOString().split('T')[0],
-          end: periodEnd.toISOString().split('T')[0],
+          start: formatDateLocal(planStartDate),
+          end: formatDateLocal(periodEnd),
         };
       }
     }
@@ -285,12 +297,17 @@ export default function ContributionsPage() {
       periodEnd.setHours(0, 0, 0, 0);
     }
     
-    // Final safety check: ensure period start is never before plan start date
+    // Final validation: ensure period start is not before plan start
+    // This is a critical safety check to prevent timezone-related date shifts
     if (periodStart.getTime() < planStartDate.getTime()) {
-      console.warn('[calculatePeriodFromPlan] Period start was before plan start, using first period:', {
-        calculated_period_start: periodStart.toISOString().split('T')[0],
-        plan_start_date: planStartDate.toISOString().split('T')[0],
+      console.warn('[calculatePeriodFromPlan] Period start was before plan start, correcting:', {
+        calculated_period_start: formatDateLocal(periodStart),
+        plan_start_date: formatDateLocal(planStartDate),
         period_type: plan.period_type,
+        plan_year: planYear,
+        plan_month: planMonth,
+        current_year: currentYear,
+        current_month: currentMonth,
       });
       
       // Use first period based on plan start
@@ -316,8 +333,8 @@ export default function ContributionsPage() {
     }
     
     return {
-      start: periodStart.toISOString().split('T')[0],
-      end: periodEnd.toISOString().split('T')[0],
+      start: formatDateLocal(periodStart),
+      end: formatDateLocal(periodEnd),
     };
   };
 
