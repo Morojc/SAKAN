@@ -48,17 +48,30 @@ export default function AddFeeDialog({
       const response = await fetch(`/api/contributions/apartments?residenceId=${residenceId}`);
       if (response.ok) {
         const data = await response.json();
-        setResidents(
-          data.apartments.map((apt: any) => ({
-            id: apt.id,
-            name: apt.resident_name,
-            apartment: apt.apartment_number,
-          }))
-        );
+        console.log('[AddFeeDialog] Fetched apartments data:', data);
+        
+        if (data.apartments && data.apartments.length > 0) {
+          const mappedResidents = data.apartments.map((apt: any) => ({
+            id: apt.residentId, // This is the profile_id which is used as user_id in fees table
+            name: apt.residentName || 'Unknown',
+            apartment: apt.number || 'N/A',
+          }));
+          setResidents(mappedResidents);
+          console.log('[AddFeeDialog] Mapped residents:', mappedResidents);
+        } else {
+          console.warn('[AddFeeDialog] No apartments returned from API');
+          setResidents([]);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[AddFeeDialog] Failed to fetch residents:', response.status, errorData);
+        toast.error('Failed to load residents');
+        setResidents([]);
       }
     } catch (error) {
-      console.error('Error fetching residents:', error);
+      console.error('[AddFeeDialog] Error fetching residents:', error);
       toast.error('Failed to load residents');
+      setResidents([]);
     } finally {
       setLoading(false);
     }
@@ -130,13 +143,24 @@ export default function AddFeeDialog({
                 <SelectValue placeholder={loading ? 'Loading residents...' : 'Select a resident'} />
               </SelectTrigger>
               <SelectContent>
-                {residents.map((resident) => (
-                  <SelectItem key={resident.id} value={resident.id}>
-                    Apt {resident.apartment} - {resident.name}
+                {residents.length === 0 ? (
+                  <SelectItem value="" disabled>
+                    {loading ? 'Loading residents...' : 'No residents available'}
                   </SelectItem>
-                ))}
+                ) : (
+                  residents.map((resident) => (
+                    <SelectItem key={resident.id} value={resident.id}>
+                      Apt {resident.apartment} - {resident.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
+            {residents.length === 0 && !loading && (
+              <p className="text-xs text-red-600 mt-1">
+                ⚠️ No residents found. Please add residents to your residence first.
+              </p>
+            )}
           </div>
 
           {/* Fee Title */}

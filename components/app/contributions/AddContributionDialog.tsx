@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,13 +37,6 @@ export default function AddContributionDialog({
   const [totalApartments, setTotalApartments] = useState<number | null>(null);
   const [loadingTotal, setLoadingTotal] = useState(false);
 
-  // Fetch total_apartments when dialog opens
-  useEffect(() => {
-    if (open && residenceId) {
-      fetchTotalApartments();
-    }
-  }, [open, residenceId]);
-
   const fetchTotalApartments = async () => {
     setLoadingTotal(true);
     try {
@@ -51,8 +44,9 @@ export default function AddContributionDialog({
       if (response.ok) {
         const data = await response.json();
         setTotalApartments(data.total_apartments);
+        console.log('[AddContributionDialog] Total apartments fetched:', data.total_apartments);
       } else {
-        console.error('Failed to fetch total apartments');
+        console.error('Failed to fetch total apartments:', response.status);
       }
     } catch (error) {
       console.error('Error fetching total apartments:', error);
@@ -61,30 +55,57 @@ export default function AddContributionDialog({
     }
   };
 
-  // Generate all apartment numbers from 1 to total_apartments
-  const getAllApartmentNumbers = (): Array<{ number: string; residentName: string; residentId: string | null }> => {
-    if (!totalApartments || totalApartments <= 0) {
-      // Fallback to occupied apartments if total_apartments is not set
-      return apartments;
-    }
-
-    const allApartments: Array<{ number: string; residentName: string; residentId: string | null }> = [];
-    
-    for (let i = 1; i <= totalApartments; i++) {
-      const aptNumber = i.toString();
-      const occupiedApartment = apartments.find(apt => apt.number === aptNumber);
+  // Generate all apartment numbers from 1 to total_apartments using useMemo
+  const allApartmentOptions = useMemo(() => {
+    // If total_apartments is set, generate all apartment numbers
+    if (totalApartments && totalApartments > 0) {
+      const allApartments: Array<{ number: string; residentName: string; residentId: string | null }> = [];
       
-      allApartments.push({
-        number: aptNumber,
-        residentName: occupiedApartment?.residentName || 'Vacant',
-        residentId: occupiedApartment?.residentId || null,
-      });
+      for (let i = 1; i <= totalApartments; i++) {
+        const aptNumber = i.toString();
+        const occupiedApartment = apartments.find(apt => apt.number === aptNumber);
+        
+        allApartments.push({
+          number: aptNumber,
+          residentName: occupiedApartment?.residentName || 'Vacant',
+          residentId: occupiedApartment?.residentId || null,
+        });
+      }
+      
+      console.log('[AddContributionDialog] Generated apartments from total_apartments:', allApartments.length);
+      return allApartments;
     }
     
-    return allApartments;
-  };
+    // Fallback: Use apartments from prop (occupied apartments)
+    if (apartments && apartments.length > 0) {
+      console.log('[AddContributionDialog] Using apartments from prop:', apartments.length);
+      return apartments.map(apt => ({
+        number: apt.number,
+        residentName: apt.residentName,
+        residentId: apt.residentId,
+      }));
+    }
+    
+    // If nothing is available, return empty array
+    console.warn('[AddContributionDialog] No apartments available. totalApartments:', totalApartments, 'apartments prop:', apartments);
+    return [];
+  }, [totalApartments, apartments]);
 
-  const allApartmentOptions = getAllApartmentNumbers();
+  // Fetch total_apartments when dialog opens
+  useEffect(() => {
+    if (open && residenceId) {
+      fetchTotalApartments();
+    }
+  }, [open, residenceId]);
+
+  // Log apartments when they change (for debugging)
+  useEffect(() => {
+    if (open) {
+      console.log('[AddContributionDialog] Apartments prop:', apartments);
+      console.log('[AddContributionDialog] Total apartments:', totalApartments);
+      console.log('[AddContributionDialog] All apartment options:', allApartmentOptions);
+    }
+  }, [open, apartments, totalApartments, allApartmentOptions]);
 
   const monthNames = [
     t('contributions.january'), t('contributions.february'), t('contributions.march'),
@@ -175,21 +196,43 @@ export default function AddContributionDialog({
           {/* Apartment Selection */}
           <div>
             <Label htmlFor="apartment">{t('contributions.apartment')} *</Label>
-            <Select value={selectedApartment} onValueChange={setSelectedApartment} disabled={loadingTotal}>
+            <Select value={selectedApartment} onValueChange={setSelectedApartment} disabled={loadingTotal || allApartmentOptions.length === 0}>
               <SelectTrigger className="mt-2">
-                <SelectValue placeholder={loadingTotal ? 'Loading...' : t('contributions.selectApartment')} />
+                <SelectValue placeholder={
+                  loadingTotal 
+                    ? 'Loading...' 
+                    : allApartmentOptions.length === 0 
+                      ? 'No apartments available' 
+                      : t('contributions.selectApartment')
+                } />
               </SelectTrigger>
               <SelectContent>
-                {allApartmentOptions.map((apt) => (
-                  <SelectItem key={apt.number} value={apt.number}>
-                    Apt {apt.number} {apt.residentId ? `- ${apt.residentName}` : `(${apt.residentName})`}
+                {allApartmentOptions.length === 0 ? (
+                  <SelectItem value="" disabled>
+                    {loadingTotal ? 'Loading apartments...' : 'No apartments available. Please ensure apartments are set up.'}
                   </SelectItem>
-                ))}
+                ) : (
+                  allApartmentOptions.map((apt) => (
+                    <SelectItem key={apt.number} value={apt.number}>
+                      Apt {apt.number} {apt.residentId ? `- ${apt.residentName}` : `(${apt.residentName})`}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {totalApartments && (
               <p className="text-xs text-muted-foreground mt-1">
-                Total apartments: {totalApartments}
+                Total apartments: {totalApartments} | Showing: {allApartmentOptions.length}
+              </p>
+            )}
+            {!totalApartments && allApartmentOptions.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Showing {allApartmentOptions.length} occupied apartment(s). Set total_apartments in residence settings to see all apartments.
+              </p>
+            )}
+            {allApartmentOptions.length === 0 && !loadingTotal && (
+              <p className="text-xs text-red-600 mt-1">
+                ⚠️ No apartments found. Please check that residents are assigned to apartments or set total_apartments in residence settings.
               </p>
             )}
           </div>

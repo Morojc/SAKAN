@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { getAllFees } from '@/app/app/residents/fee-actions';
 import AddFeeDialog from '@/components/app/fees/AddFeeDialog';
+import ViewFeeDialog from '@/components/app/fees/ViewFeeDialog';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useI18n } from '@/lib/i18n/client';
@@ -59,6 +60,8 @@ export default function FeesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [selectedFee, setSelectedFee] = useState<Fee | null>(null);
   const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
 
   useEffect(() => {
@@ -295,7 +298,14 @@ export default function FeesPage() {
                         {format(new Date(fee.created_at), 'MMM d, yyyy')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedFee(fee);
+                            setShowViewDialog(true);
+                          }}
+                        >
                           {t('fees.view')}
                         </Button>
                       </TableCell>
@@ -314,6 +324,13 @@ export default function FeesPage() {
         onOpenChange={setShowAddDialog}
         onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
         residenceId={residenceId}
+      />
+
+      {/* View Fee Dialog */}
+      <ViewFeeDialog
+        open={showViewDialog}
+        onOpenChange={setShowViewDialog}
+        fee={selectedFee}
       />
     </div>
   );
