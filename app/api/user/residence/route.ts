@@ -14,46 +14,78 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createSupabaseAdminClient();
+    const userId = session.user.id;
 
-    // Use maybeSingle() to handle cases where no residence link exists
-    const { data: profileResidence, error } = await supabase
+    // 1. Try to find link in profile_residences (for residents)
+    let { data: profileResidence, error } = await supabase
       .from('profile_residences')
       .select('residence_id, apartment_number, verified')
-      .eq('profile_id', session.user.id)
+      .eq('profile_id', userId)
       .maybeSingle();
 
-    // Log for debugging
-    console.log('[GET /api/user/residence] User ID:', session.user.id);
-    console.log('[GET /api/user/residence] Query error:', error);
-    console.log('[GET /api/user/residence] Profile residence data:', profileResidence);
-
-    // Check for actual database errors
     if (error) {
-      console.error('[GET /api/user/residence] Database error:', error);
+      console.error('[GET /api/user/residence] Database error (profile_residences):', error);
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Database error while fetching residence',
-          details: {
-            user_id: session.user.id,
-            error_code: error.code,
-            error_message: error.message
-          }
-        },
+        { success: false, error: 'Database error' },
         { status: 500 }
       );
     }
 
-    // No residence link found (this is expected if user isn't linked yet)
-    // Return 200 with success: false instead of 404 to avoid browser error display
+    let role = 'resident';
+    let residenceId = profileResidence?.residence_id;
+    let apartmentNumber = profileResidence?.apartment_number;
+    let verified = profileResidence?.verified || false;
+
+    // 2. If not found in profile_residences, check if user is a syndic or guard in residences table
     if (!profileResidence) {
-      console.warn('[GET /api/user/residence] No residence link found for user:', session.user.id);
+      // Check if user is a syndic
+      const { data: syndicResidence, error: syndicError } = await supabase
+        .from('residences')
+        .select('id')
+        .eq('syndic_user_id', userId)
+        .maybeSingle();
+
+      if (syndicResidence) {
+        residenceId = syndicResidence.id;
+        role = 'syndic';
+        verified = true; // Syndics are implicitly verified
+        // Syndics might not have an apartment number if not linked in profile_residences
+      } else {
+        // Check if user is a guard
+        const { data: guardResidence, error: guardError } = await supabase
+          .from('residences')
+          .select('id')
+          .eq('guard_user_id', userId)
+          .maybeSingle();
+
+        if (guardResidence) {
+          residenceId = guardResidence.id;
+          role = 'guard';
+          verified = true; // Guards are implicitly verified
+        }
+      }
+    } else {
+      // If found in profile_residences, we still need the role from profiles table
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (profile) {
+        role = profile.role;
+      }
+    }
+
+    // 3. If still no residence found
+    if (!residenceId) {
+      console.warn('[GET /api/user/residence] No residence link found for user:', userId);
       return NextResponse.json(
         { 
           success: false, 
           error: 'No residence found for this user. Please link your profile to a residence.',
           details: {
-            user_id: session.user.id,
+            user_id: userId,
             suggestion: 'Run the SQL script in supabase/helpers/link_user_to_residence.sql'
           }
         },
@@ -61,27 +93,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch residence details separately (matching the working pattern)
-    const { data: residence } = await supabase
+    // 4. Fetch residence details
+    const { data: residence, error: residenceFetchError } = await supabase
       .from('residences')
       .select('id, name, address, city')
-      .eq('id', profileResidence.residence_id)
-      .maybeSingle();
+      .eq('id', residenceId)
+      .single();
 
-    // Get user's role from profiles table
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .maybeSingle();
+    if (residenceFetchError) {
+       console.error('[GET /api/user/residence] Error fetching residence details:', residenceFetchError);
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        residence_id: profileResidence.residence_id,
-        apartment_number: profileResidence.apartment_number,
-        verified: profileResidence.verified,
-        role: profile?.role || 'resident',
+        residence_id: residenceId,
+        apartment_number: apartmentNumber,
+        verified: verified,
+        role: role,
         residence: residence || null,
       },
     });
@@ -93,4 +122,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

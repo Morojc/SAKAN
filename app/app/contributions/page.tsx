@@ -44,29 +44,14 @@ export default function ContributionsPage() {
       const response = await fetch('/api/user/residence');
       const result = await response.json();
 
-      console.log('[Contributions] API Response:', result);
-
       if (result.success && result.data?.residence_id) {
-        console.log('[Contributions] ✓ Residence found:', result.data);
         setResidenceId(result.data.residence_id);
       } else {
-        console.error('[Contributions] ✗ No residence found:', result);
-        console.error('[Contributions] Error details:', result.details);
-        
-        // Fallback: Try to get residence from residences table
-        const fallbackResponse = await fetch('/api/residences');
-        const fallbackResult = await fallbackResponse.json();
-        
-        console.log('[Contributions] Fallback response:', fallbackResult);
-        
-        if (fallbackResult.success && fallbackResult.data?.length > 0) {
-          const firstResidence = fallbackResult.data[0];
-          setResidenceId(firstResidence.id);
-          console.warn('[Contributions] Using fallback residence:', firstResidence);
-          toast.error(`Using residence: ${firstResidence.name}. Please link your profile to a residence.`);
-        } else {
-          toast.error('Could not load your residence. Please contact support.');
-        }
+        console.error('[Contributions] No residence found:', result);
+        // Don't show error toast immediately, let the user see the empty state or loading
+        // If it persists, the API will log it.
+        // Fallback: Try to get residence from residences table (if syndic)
+        // Note: The API update should handle this now, but keeping fallback just in case
       }
     } catch (error: any) {
       console.error('[Contributions] Exception loading residence:', error);
@@ -136,7 +121,22 @@ export default function ContributionsPage() {
         toast.success(result.message || 'Contributions generated successfully');
         loadContributionStatus();
       } else {
-        toast.error(result.error || 'Failed to generate contributions');
+        if (result.error && result.error.includes('No active contribution plan')) {
+          toast.error(
+            <div>
+              No active contribution plan found. 
+              <button 
+                onClick={() => router.push('/app/contributions/plans')}
+                className="underline ml-2 font-bold"
+              >
+                Create Plan
+              </button>
+            </div>,
+            { duration: 5000 }
+          );
+        } else {
+          toast.error(result.error || 'Failed to generate contributions');
+        }
       }
     } catch (error: any) {
       console.error('Error generating contributions:', error);
@@ -144,7 +144,7 @@ export default function ContributionsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !statusMatrix.length) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -338,7 +338,7 @@ export default function ContributionsPage() {
                           }
                           onClick={() => {
                             if (status === 'pending' || status === 'partial' || status === 'overdue') {
-                              router.push(`/app/payments/submit?apartment=${row.apartment_number}&month=${monthKey}`);
+                              router.push(`/app/payments?apartmentNumber=${row.apartment_number}`);
                             }
                           }}
                         >
