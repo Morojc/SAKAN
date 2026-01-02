@@ -158,12 +158,19 @@ export default function ContributionsPage() {
       
       // Current period is the period containing today
       // Period 0 is the month containing plan start, period 1 is the next month, etc.
-      const periodIndex = monthsSincePlanStart;
+      // Ensure periodIndex is never negative (can't generate periods before plan starts)
+      const periodIndex = Math.max(0, monthsSincePlanStart);
       
       // Calculate period start: first day of the month containing plan start + periodIndex months
       periodStart = new Date(planYear, planMonth + periodIndex, 1);
       // Period end: last day of the same month
       periodEnd = new Date(planYear, planMonth + periodIndex + 1, 0);
+      
+      // Ensure period start is not before plan start date (use first period if before plan start)
+      if (periodStart < planStartDate) {
+        periodStart = new Date(planYear, planMonth, 1); // First day of plan start month
+        periodEnd = new Date(planYear, planMonth + 1, 0); // Last day of plan start month
+      }
     } else if (plan.period_type === 'quarterly') {
       // Find which quarter the plan starts in (0-3)
       const planQuarter = Math.floor(planMonth / 3);
@@ -173,11 +180,18 @@ export default function ContributionsPage() {
       // Calculate quarters since plan start
       const quartersSincePlanStart = (currentYear - planYear) * 4 + (currentQuarter - planQuarter);
       
-      const periodIndex = quartersSincePlanStart;
-      // Calculate period start: first month of the quarter containing plan start + periodIndex quarters
-      periodStart = new Date(planYear, planQuarter * 3 + periodIndex * 3, planDay);
+      // Ensure periodIndex is never negative
+      const periodIndex = Math.max(0, quartersSincePlanStart);
+      // Calculate period start: first day of the first month of the quarter containing plan start + periodIndex quarters
+      periodStart = new Date(planYear, planQuarter * 3 + periodIndex * 3, 1);
       // Period end: last day of the quarter
       periodEnd = new Date(planYear, (planQuarter + 1) * 3 + periodIndex * 3, 0);
+      
+      // Ensure period start is not before plan start date (use first period if before plan start)
+      if (periodStart < planStartDate) {
+        periodStart = new Date(planYear, planQuarter * 3, 1); // First day of plan start quarter
+        periodEnd = new Date(planYear, (planQuarter + 1) * 3, 0); // Last day of plan start quarter
+      }
     } else if (plan.period_type === 'semi_annual') {
       // Find which half-year the plan starts in (0 or 1)
       const planHalfYear = Math.floor(planMonth / 6);
@@ -187,19 +201,34 @@ export default function ContributionsPage() {
       // Calculate half-years since plan start
       const halfYearsSincePlanStart = (currentYear - planYear) * 2 + (currentHalfYear - planHalfYear);
       
-      const periodIndex = halfYearsSincePlanStart;
+      // Ensure periodIndex is never negative
+      const periodIndex = Math.max(0, halfYearsSincePlanStart);
       // Calculate period start: first day of the first month of the half-year containing plan start + periodIndex half-years
       periodStart = new Date(planYear, planHalfYear * 6 + periodIndex * 6, 1);
       // Period end: last day of the half-year
       periodEnd = new Date(planYear, (planHalfYear + 1) * 6 + periodIndex * 6, 0);
+      
+      // Ensure period start is not before plan start date (use first period if before plan start)
+      if (periodStart < planStartDate) {
+        periodStart = new Date(planYear, planHalfYear * 6, 1); // First day of plan start half-year
+        periodEnd = new Date(planYear, (planHalfYear + 1) * 6, 0); // Last day of plan start half-year
+      }
     } else if (plan.period_type === 'annual') {
       // Annual periods: each period is one year from plan start
       const yearsSincePlanStart = currentYear - planYear;
-      const periodIndex = yearsSincePlanStart;
+      // Ensure periodIndex is never negative
+      const periodIndex = Math.max(0, yearsSincePlanStart);
       
       periodStart = new Date(planYear + periodIndex, planMonth, planDay);
       periodEnd = new Date(planYear + periodIndex + 1, planMonth, planDay);
       periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period starts
+      
+      // Ensure period start is not before plan start date (use first period if before plan start)
+      if (periodStart < planStartDate) {
+        periodStart = new Date(planStartDate); // Plan start date
+        periodEnd = new Date(planYear + 1, planMonth, planDay);
+        periodEnd.setDate(periodEnd.getDate() - 1); // Last day before next period
+      }
     } else {
       // Default to monthly (fallback)
       const month = currentMonth + 1;
