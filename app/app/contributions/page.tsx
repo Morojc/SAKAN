@@ -367,7 +367,7 @@ export default function ContributionsPage() {
     }
 
     if (!activePlan) {
-      toast.error('No active contribution plan found. Please create and activate a plan first.');
+      toast.error(t('contributions.noActivePlanFound'));
       return;
     }
 
@@ -413,7 +413,7 @@ export default function ContributionsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success(result.message || 'Contributions generated successfully');
+        toast.success(result.message || t('contributions.contributionGeneratedSuccess'));
         loadContributionStatus();
         setShowPlanDialog(false);
         setAvailablePlans([]);
@@ -431,28 +431,28 @@ export default function ContributionsPage() {
             setPendingPeriod({ start: periodStart, end: periodEnd });
             setShowPlanDialog(true);
           } else {
-            toast.error('Contributions already exist for this period and no other plans are available.');
+            toast.error(t('contributions.contributionsAlreadyExist'));
           }
         } else if (result.error && result.error.includes('No active contribution plan')) {
           toast.error(
             <div>
-              No active contribution plan found. 
+              {t('contributions.noActivePlanFound')} 
               <button 
                 onClick={() => router.push('/app/contributions/plans')}
                 className="underline ml-2 font-bold"
               >
-                Create Plan
+                {t('contributions.plans.createPlan')}
               </button>
             </div>,
             { duration: 5000 }
           );
         } else {
-          toast.error(result.error || 'Failed to generate contributions');
+          toast.error(result.error || t('contributions.failedToGenerateContributions'));
         }
       }
     } catch (error: any) {
       console.error('Error generating contributions:', error);
-      toast.error('Failed to generate contributions');
+      toast.error(t('contributions.failedToGenerateContributions'));
     }
   };
 
@@ -463,7 +463,7 @@ export default function ContributionsPage() {
   const handleDeleteContribution = async (contributionId: number, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent navigation to payments page
     
-    if (!confirm('Are you sure you want to delete this contribution? This action cannot be undone if the contribution has no related payments.')) {
+    if (!confirm(t('contributions.deleteContributionConfirm'))) {
       return;
     }
 
@@ -475,14 +475,14 @@ export default function ContributionsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Contribution deleted successfully');
+        toast.success(t('contributions.contributionDeletedSuccess'));
         loadContributionStatus();
       } else {
-        toast.error(result.error || 'Failed to delete contribution');
+        toast.error(result.error || t('contributions.failedToDeleteContribution'));
       }
     } catch (error: any) {
       console.error('Error deleting contribution:', error);
-      toast.error('Failed to delete contribution');
+      toast.error(t('contributions.failedToDeleteContribution'));
     }
   };
 
@@ -541,10 +541,10 @@ export default function ContributionsPage() {
             disabled={!activePlan}
           >
             <PlusCircle className="w-4 h-4 mr-2" />
-            {activePlan?.period_type === 'quarterly' ? 'Generate This Quarter' :
-             activePlan?.period_type === 'semi_annual' ? 'Generate This Half-Year' :
-             activePlan?.period_type === 'annual' ? 'Generate This Year' :
-             'Generate This Month'}
+            {activePlan?.period_type === 'quarterly' ? t('contributions.generateThisQuarter') :
+             activePlan?.period_type === 'semi_annual' ? t('contributions.generateThisHalfYear') :
+             activePlan?.period_type === 'annual' ? t('contributions.generateThisYear') :
+             t('contributions.generateThisMonth')}
           </Button>
           <Button 
             variant="outline" 
@@ -579,12 +579,12 @@ export default function ContributionsPage() {
               </div>
             </div>
             <div className="w-full md:w-40">
-              <Label htmlFor="apartment">Apartment Number</Label>
+              <Label htmlFor="apartment">{t('contributions.apartmentNumber')}</Label>
               <div className="relative mt-2">
                 <Input
                   id="apartment"
                   type="text"
-                  placeholder="e.g., A1, B2"
+                  placeholder={t('contributions.apartmentNumberPlaceholder')}
                   value={apartmentFilter}
                   onChange={(e) => setApartmentFilter(e.target.value)}
                   className="pr-8"
@@ -673,7 +673,7 @@ export default function ContributionsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>SITUATION DES COTISATIONS - {selectedYear}</CardTitle>
+            <CardTitle>{t('contributions.contributionStatus')} - {selectedYear}</CardTitle>
             <div className="flex items-center gap-2">
               <Button
                 variant={viewMode === 'card' ? 'default' : 'outline'}
@@ -681,7 +681,7 @@ export default function ContributionsPage() {
                 onClick={() => setViewMode('card')}
               >
                 <LayoutGrid className="w-4 h-4 mr-2" />
-                Card View
+                {t('contributions.cardView')}
               </Button>
               <Button
                 variant={viewMode === 'table' ? 'default' : 'outline'}
@@ -689,7 +689,7 @@ export default function ContributionsPage() {
                 onClick={() => setViewMode('table')}
               >
                 <Table2 className="w-4 h-4 mr-2" />
-                Table View
+                {t('contributions.tableView')}
               </Button>
             </div>
           </div>
@@ -700,7 +700,7 @@ export default function ContributionsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredData.length === 0 ? (
                 <div className="col-span-full text-center py-12 text-muted-foreground">
-                  No data found. Try adjusting your search or filters.
+                  {t('contributions.noDataFound')}
                 </div>
               ) : (
                 filteredData.map((apartment) => (
@@ -748,7 +748,7 @@ export default function ContributionsPage() {
                       <td className="border px-4 py-3 text-center">
                         {row.outstanding_months > 0 && (
                           <span className="text-red-600 font-medium">
-                            {row.outstanding_months.toString().padStart(2, '0')} Mois
+                            {row.outstanding_months.toString().padStart(2, '0')} {t('contributions.months')}
                           </span>
                         )}
                       </td>
@@ -775,14 +775,14 @@ export default function ContributionsPage() {
                             }`}
                             title={
                               status === 'paid'
-                                ? 'Paid'
+                                ? t('contributions.paidStatus')
                                 : status === 'pending'
-                                ? 'Unpaid - Click to record payment'
+                                ? t('contributions.unpaidStatus')
                                 : status === 'partial'
-                                ? 'Partially paid'
+                                ? t('contributions.partialStatus')
                                 : status === 'overdue'
-                                ? 'Overdue'
-                                : `No contribution for this ${activePlan?.period_type === 'quarterly' ? 'quarter' : activePlan?.period_type === 'semi_annual' ? 'half-year' : activePlan?.period_type === 'annual' ? 'year' : 'month'}`
+                                ? t('contributions.overdueStatus')
+                                : t('contributions.noContributionForPeriod')
                             }
                             onClick={() => {
                               if (status === 'pending' || status === 'partial' || status === 'overdue') {
@@ -807,7 +807,7 @@ export default function ContributionsPage() {
                                 size="sm"
                                 className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-700"
                                 onClick={(e) => handleDeleteContribution(contributionId, e)}
-                                title="Delete contribution (only if no payments)"
+                                title={t('contributions.deleteContribution')}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>
@@ -824,7 +824,7 @@ export default function ContributionsPage() {
 
           {viewMode === 'table' && filteredData.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
-              No data found. Try adjusting your search or filters.
+              {t('contributions.noDataFound')}
             </div>
           )}
         </CardContent>
@@ -834,16 +834,16 @@ export default function ContributionsPage() {
       <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Select Plan to Apply</DialogTitle>
+            <DialogTitle>{t('contributions.selectPlanToApply')}</DialogTitle>
             <DialogDescription>
-              Contributions already exist for the active plan. Select another plan to apply for this period.
+              {t('contributions.selectPlanDescription')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {availablePlans.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No available plans found for this period.
+                {t('contributions.noAvailablePlans')}
               </p>
             ) : (
               availablePlans.map((plan) => (
@@ -860,7 +860,7 @@ export default function ContributionsPage() {
                         )}
                       </div>
                       <Button size="sm" onClick={(e) => { e.stopPropagation(); handleSelectPlan(plan.id); }}>
-                        Apply
+                        {t('contributions.apply')}
                       </Button>
                     </div>
                   </CardContent>
@@ -871,7 +871,7 @@ export default function ContributionsPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPlanDialog(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>

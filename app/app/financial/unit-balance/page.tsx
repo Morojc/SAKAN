@@ -24,6 +24,7 @@ import {
 import { Loader2, Search, DollarSign, Calendar, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { useI18n } from '@/lib/i18n/client';
 
 interface UnitBalanceData {
   apartment_number: string;
@@ -65,6 +66,7 @@ interface UnitBalanceData {
 }
 
 export default function UnitBalancePage() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [residenceId, setResidenceId] = useState(1); // TODO: Get from session
   const [apartmentNumber, setApartmentNumber] = useState('');
@@ -110,11 +112,11 @@ export default function UnitBalancePage() {
       if (result.success) {
         setBalanceData(result.data);
       } else {
-        toast.error(result.error || 'Failed to load balance');
+        toast.error(result.error || t('financial.unitBalance.failedToLoadBalance'));
       }
     } catch (error: any) {
       console.error('Error loading balance:', error);
-      toast.error('Failed to load balance');
+      toast.error(t('financial.unitBalance.failedToLoadBalance'));
     } finally {
       setLoading(false);
     }
@@ -134,9 +136,9 @@ export default function UnitBalancePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Unit Financial Balance</h1>
+          <h1 className="text-3xl font-bold">{t('financial.unitBalance.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            View complete financial status for a unit (US-15)
+            {t('financial.unitBalance.description')}
           </p>
         </div>
       </div>
@@ -146,15 +148,15 @@ export default function UnitBalancePage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="apartment">Select Apartment</Label>
+              <Label htmlFor="apartment">{t('financial.unitBalance.selectApartment')}</Label>
               <Select value={apartmentNumber} onValueChange={setApartmentNumber}>
                 <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select an apartment" />
+                  <SelectValue placeholder={t('financial.unitBalance.selectApartmentPlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {apartments.map((apt) => (
                     <SelectItem key={apt.apartment_number} value={apt.apartment_number}>
-                      Apartment {apt.apartment_number}
+                      {t('common.apartment')} {apt.apartment_number}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -165,12 +167,12 @@ export default function UnitBalancePage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Loading...
+                    {t('financial.unitBalance.loading')}
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4 mr-2" />
-                    Load Balance
+                    {t('financial.unitBalance.loadBalance')}
                   </>
                 )}
               </Button>
@@ -190,7 +192,7 @@ export default function UnitBalancePage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Due
+                  {t('financial.unitBalance.totalDue')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -202,7 +204,7 @@ export default function UnitBalancePage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Paid
+                  {t('financial.unitBalance.totalPaid')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -214,7 +216,7 @@ export default function UnitBalancePage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Outstanding
+                  {t('financial.unitBalance.outstanding')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -226,7 +228,7 @@ export default function UnitBalancePage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Credit
+                  {t('financial.unitBalance.credit')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -241,23 +243,23 @@ export default function UnitBalancePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Contributions</CardTitle>
+                <CardTitle>{t('financial.unitBalance.contributions')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
-                  <span>Total Due</span>
+                  <span>{t('financial.unitBalance.totalDue')}</span>
                   <span className="font-medium">
                     {formatCurrency(balanceData.summary.contributions.total_due)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Total Paid</span>
+                  <span>{t('financial.unitBalance.totalPaid')}</span>
                   <span className="font-medium text-green-600">
                     {formatCurrency(balanceData.summary.contributions.total_paid)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Outstanding</span>
+                  <span className="font-medium">{t('financial.unitBalance.outstanding')}</span>
                   <span className="font-bold text-yellow-600">
                     {formatCurrency(balanceData.summary.contributions.outstanding)}
                   </span>
@@ -267,23 +269,23 @@ export default function UnitBalancePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Fees</CardTitle>
+                <CardTitle>{t('financial.unitBalance.fees')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
-                  <span>Total Due</span>
+                  <span>{t('financial.unitBalance.totalDue')}</span>
                   <span className="font-medium">
                     {formatCurrency(balanceData.summary.fees.total_due)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Total Paid</span>
+                  <span>{t('financial.unitBalance.totalPaid')}</span>
                   <span className="font-medium text-green-600">
                     {formatCurrency(balanceData.summary.fees.total_paid)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Outstanding</span>
+                  <span className="font-medium">{t('financial.unitBalance.outstanding')}</span>
                   <span className="font-bold text-yellow-600">
                     {formatCurrency(balanceData.summary.fees.outstanding)}
                   </span>
@@ -296,20 +298,20 @@ export default function UnitBalancePage() {
           {balanceData.outstanding_items.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Outstanding Items</CardTitle>
+                <CardTitle>{t('financial.unitBalance.outstandingItems')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Due Date</TableHead>
-                        <TableHead>Amount Due</TableHead>
-                        <TableHead>Amount Paid</TableHead>
-                        <TableHead>Outstanding</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>{t('financial.unitBalance.type')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.description')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.dueDate')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.amountDue')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.amountPaid')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.outstanding')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.status')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -359,18 +361,18 @@ export default function UnitBalancePage() {
           {balanceData.recent_payments.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Recent Payments</CardTitle>
+                <CardTitle>{t('financial.unitBalance.recentPayments')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Reference</TableHead>
+                        <TableHead>{t('financial.unitBalance.date')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.type')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.method')}</TableHead>
+                        <TableHead>{t('payments.amount')}</TableHead>
+                        <TableHead>{t('financial.unitBalance.reference')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -401,7 +403,7 @@ export default function UnitBalancePage() {
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Select an apartment to view its financial balance
+            {t('financial.unitBalance.selectApartmentToView')}
           </CardContent>
         </Card>
       )}

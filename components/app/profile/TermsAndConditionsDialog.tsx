@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/client';
 
 interface TermsAndConditionsDialogProps {
   onAccept: () => void;
@@ -13,6 +14,7 @@ interface TermsAndConditionsDialogProps {
 }
 
 export default function TermsAndConditionsDialog({ onAccept, onCancel }: TermsAndConditionsDialogProps) {
+  const { t } = useI18n();
   const [accepted, setAccepted] = useState(false);
 
   return (
@@ -20,29 +22,29 @@ export default function TermsAndConditionsDialog({ onAccept, onCancel }: TermsAn
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-red-600">
           <AlertTriangle className="h-5 w-5" />
-          Important Information
+          {t('profile.importantInformation')}
         </DialogTitle>
         <DialogDescription>
-          Please read the following conditions carefully before proceeding.
+          {t('profile.readConditionsCarefully')}
         </DialogDescription>
       </DialogHeader>
 
       <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-3 border border-muted">
         <p>
-          You are about to permanently delete your account.
+          {t('profile.aboutToPermanentlyDelete')}
         </p>
         <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
           <li>
-            <strong>All your active payments and subscriptions will be canceled immediately.</strong>
+            <strong>{t('profile.allPaymentsSubscriptionsCancelled')}</strong>
           </li>
           <li>
-            Your account and all associated data will be permanently deleted.
+            {t('profile.accountAndDataPermanentlyDeleted')}
           </li>
           <li>
-            All data including residence information, fees, payments, incidents, announcements, and all related records will be removed and cannot be recovered.
+            {t('profile.allDataIncludingResidence')}
           </li>
           <li>
-            <strong>This action cannot be undone.</strong>
+            <strong>{t('profile.actionCannotBeUndone')}</strong>
           </li>
         </ul>
       </div>
@@ -55,20 +57,20 @@ export default function TermsAndConditionsDialog({ onAccept, onCancel }: TermsAn
           className="border-red-600 data-[state=checked]:bg-red-600 data-[state=checked]:text-white"
         />
         <Label htmlFor="terms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-          I have read and accept these conditions
+          {t('profile.readAndAcceptConditions')}
         </Label>
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
         <Button variant="outline" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button 
           onClick={onAccept} 
           disabled={!accepted}
           className="bg-red-600 hover:bg-red-700 text-white"
         >
-          Continue
+          {t('profile.continue')}
         </Button>
       </DialogFooter>
     </div>

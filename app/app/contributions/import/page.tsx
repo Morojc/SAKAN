@@ -82,7 +82,7 @@ export default function HistoricalImportPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Contributions');
     XLSX.writeFile(wb, `contribution_template_${year}.xlsx`);
-    toast.success('Template downloaded!');
+    toast.success(t('contributions.templateDownloaded'));
   };
 
   // Handle file upload
@@ -91,18 +91,18 @@ export default function HistoricalImportPage() {
     if (!uploadedFile) return;
 
     if (!uploadedFile.name.match(/\.(xlsx|xls|csv)$/)) {
-      toast.error('Please upload an Excel or CSV file');
+      toast.error(t('contributions.invalidFileType'));
       return;
     }
 
     setFile(uploadedFile);
-    toast.success('File uploaded successfully');
+    toast.success(t('contributions.fileUploadedSuccess'));
   };
 
   // Parse Excel file
   const parseFile = () => {
     if (!file) {
-      toast.error('Please upload a file first');
+      toast.error(t('contributions.pleaseUploadFile'));
       return;
     }
 
@@ -142,7 +142,7 @@ export default function HistoricalImportPage() {
         setStep(2);
       } catch (error) {
         console.error('Parse error:', error);
-        toast.error('Failed to parse file. Please check the format.');
+        toast.error(t('contributions.failedToParseFile'));
       }
     };
 
@@ -152,7 +152,7 @@ export default function HistoricalImportPage() {
   // Validate and preview
   const handleValidate = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid contribution amount');
+      toast.error(t('contributions.validAmountRequired'));
       return;
     }
 
@@ -202,7 +202,7 @@ export default function HistoricalImportPage() {
 
     setImportResult(result);
     setStep(4);
-    toast.success('Import completed successfully!');
+    toast.success(t('contributions.importCompletedSuccess'));
   };
 
   return (
@@ -255,7 +255,7 @@ export default function HistoricalImportPage() {
                     className="mt-3"
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Download Template
+                    {t('contributions.downloadTemplate')}
                   </Button>
                 </div>
               </div>
@@ -339,7 +339,7 @@ export default function HistoricalImportPage() {
                 <li>• {file?.name}</li>
                 <li>• {parsedData.length} {t('contributions.totalApartments')}</li>
                 <li>• {t('contributions.year')}: {year}</li>
-                <li>• {amount ? `${amount} MAD` : 'Not set'}</li>
+                <li>• {amount ? `${amount} MAD` : t('contributions.notSet')}</li>
               </ul>
             </div>
 
@@ -406,7 +406,7 @@ export default function HistoricalImportPage() {
                     <th className="px-4 py-3 text-center">{t('contributions.status')}</th>
                     <th className="px-4 py-3 text-right">{t('contributions.paid')}</th>
                     <th className="px-4 py-3 text-right">{t('contributions.unpaid')}</th>
-                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-right">{t('contributions.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -438,9 +438,9 @@ export default function HistoricalImportPage() {
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
                   <div>
-                    <p className="font-medium text-yellow-900">Warning: Unmatched Apartments</p>
+                    <p className="font-medium text-yellow-900">{t('contributions.unmatchedApartmentsWarning')}</p>
                     <p className="text-sm text-yellow-700 mt-1">
-                      Some apartments could not be matched to residents. These will be skipped during import.
+                      {t('contributions.unmatchedApartmentsDesc')}
                     </p>
                   </div>
                 </div>

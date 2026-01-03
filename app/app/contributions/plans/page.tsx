@@ -56,14 +56,14 @@ export default function ContributionPlansPage() {
         if (fallbackResult.success && fallbackResult.data?.length > 0) {
           const firstResidence = fallbackResult.data[0];
           setResidenceId(firstResidence.id);
-          toast.error(`Using residence: ${firstResidence.name}. Please link your profile to a residence.`);
+          toast.error(t('contributions.plans.usingResidence', { name: firstResidence.name }));
         } else {
-          toast.error('Could not load your residence. Please contact support.');
+          toast.error(t('contributions.plans.couldNotLoadResidence'));
         }
       }
     } catch (error: any) {
       console.error('Error loading residence:', error);
-      toast.error('Failed to load residence information');
+      toast.error(t('contributions.plans.failedToLoadResidence'));
     }
   };
 
@@ -78,11 +78,11 @@ export default function ContributionPlansPage() {
       if (result.success) {
         setPlans(result.data || []);
       } else {
-        toast.error(result.error || 'Failed to load plans');
+        toast.error(result.error || t('contributions.plans.failedToLoadPlans'));
       }
     } catch (error: any) {
       console.error('Error loading plans:', error);
-      toast.error('Failed to load plans');
+      toast.error(t('contributions.plans.failedToLoadPlans'));
     } finally {
       setLoading(false);
     }
@@ -99,14 +99,14 @@ export default function ContributionPlansPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Plan activated successfully');
+        toast.success(t('contributions.plans.planActivatedSuccess'));
         loadPlans();
       } else {
-        toast.error(result.error || 'Failed to activate plan');
+        toast.error(result.error || t('contributions.plans.failedToActivatePlan'));
       }
     } catch (error: any) {
       console.error('Error activating plan:', error);
-      toast.error('Failed to activate plan');
+      toast.error(t('contributions.plans.failedToActivatePlan'));
     }
   };
 
@@ -121,19 +121,19 @@ export default function ContributionPlansPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Plan deactivated successfully');
+        toast.success(t('contributions.plans.planDeactivatedSuccess'));
         loadPlans();
       } else {
-        toast.error(result.error || 'Failed to deactivate plan');
+        toast.error(result.error || t('contributions.plans.failedToDeactivatePlan'));
       }
     } catch (error: any) {
       console.error('Error deactivating plan:', error);
-      toast.error('Failed to deactivate plan');
+      toast.error(t('contributions.plans.failedToDeactivatePlan'));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this plan? This action cannot be undone.\n\nNote: Plans with related contributions cannot be deleted.')) {
+    if (!confirm(t('contributions.plans.deletePlanConfirm'))) {
       return;
     }
 
@@ -145,14 +145,14 @@ export default function ContributionPlansPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Plan deleted successfully');
+        toast.success(t('contributions.plans.planDeletedSuccess'));
         loadPlans();
       } else {
-        toast.error(result.error || 'Failed to delete plan');
+        toast.error(result.error || t('contributions.plans.failedToDeletePlan'));
       }
     } catch (error: any) {
       console.error('Error deleting plan:', error);
-      toast.error('Failed to delete plan');
+      toast.error(t('contributions.plans.failedToDeletePlan'));
     }
   };
 
@@ -167,10 +167,10 @@ export default function ContributionPlansPage() {
 
   const getPeriodLabel = (type: string) => {
     const labels: Record<string, string> = {
-      monthly: 'Monthly',
-      quarterly: 'Quarterly',
-      semi_annual: 'Semi-Annual',
-      annual: 'Annual',
+      monthly: t('contributions.plans.monthly'),
+      quarterly: t('contributions.plans.quarterly'),
+      semi_annual: t('contributions.plans.semiAnnual'),
+      annual: t('contributions.plans.annual'),
     };
     return labels[type] || type;
   };
@@ -194,12 +194,12 @@ export default function ContributionPlansPage() {
             className="flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Contributions
+            {t('contributions.plans.backToContributions')}
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Contribution Plans</h1>
+            <h1 className="text-3xl font-bold">{t('contributions.plans.title')}</h1>
             <p className="text-muted-foreground mt-1">
-              Manage recurring contribution rules for your residence
+              {t('contributions.plans.managePlans')}
             </p>
           </div>
         </div>
@@ -208,32 +208,32 @@ export default function ContributionPlansPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Create Plan
+          {t('contributions.plans.createPlan')}
         </Button>
       </div>
 
       {/* Plans List */}
       <Card>
         <CardHeader>
-          <CardTitle>All Plans ({plans.length})</CardTitle>
+          <CardTitle>{t('contributions.plans.allPlans')} ({plans.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {plans.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <p>No contribution plans yet.</p>
-              <p className="text-sm mt-2">Create your first plan to start managing contributions.</p>
+              <p>{t('contributions.plans.noPlansYet')}</p>
+              <p className="text-sm mt-2">{t('contributions.plans.createFirstPlan')}</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Plan Name</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Auto Generate</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('contributions.plans.planName')}</TableHead>
+                  <TableHead>{t('contributions.plans.amount')}</TableHead>
+                  <TableHead>{t('contributions.plans.period')}</TableHead>
+                  <TableHead>{t('contributions.plans.startDate')}</TableHead>
+                  <TableHead>{t('contributions.plans.status')}</TableHead>
+                  <TableHead>{t('contributions.plans.autoGenerate')}</TableHead>
+                  <TableHead className="text-right">{t('contributions.plans.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -258,22 +258,22 @@ export default function ContributionPlansPage() {
                       {plan.is_active ? (
                         <Badge className="bg-green-100 text-green-800">
                           <CheckCircle className="w-3 h-3 mr-1" />
-                          Active
+                          {t('contributions.plans.active')}
                         </Badge>
                       ) : (
                         <Badge variant="secondary">
                           <XCircle className="w-3 h-3 mr-1" />
-                          Inactive
+                          {t('contributions.plans.inactive')}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell>
                       {plan.auto_generate ? (
                         <Badge variant="outline" className="text-blue-600">
-                          Yes
+                          {t('contributions.plans.yes')}
                         </Badge>
                       ) : (
-                        <Badge variant="outline">No</Badge>
+                        <Badge variant="outline">{t('contributions.plans.no')}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -295,7 +295,7 @@ export default function ContributionPlansPage() {
                             size="sm"
                             onClick={() => handleDeactivate(plan.id)}
                           >
-                            Deactivate
+                            {t('contributions.plans.deactivate')}
                           </Button>
                         ) : (
                           <Button
@@ -304,7 +304,7 @@ export default function ContributionPlansPage() {
                             onClick={() => handleActivate(plan.id)}
                             className="text-green-600 hover:text-green-700"
                           >
-                            Activate
+                            {t('contributions.plans.activate')}
                           </Button>
                         )}
                         <Button

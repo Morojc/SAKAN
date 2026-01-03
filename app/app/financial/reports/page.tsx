@@ -17,8 +17,10 @@ import { Loader2, Download, FileText, TrendingUp, TrendingDown } from 'lucide-re
 import toast from 'react-hot-toast';
 import type { MonthlyReport, AnnualReport } from '@/types/financial.types';
 import { format } from 'date-fns';
+import { useI18n } from '@/lib/i18n/client';
 
 export default function FinancialReportsPage() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState<'monthly' | 'annual'>('monthly');
   const [year, setYear] = useState(new Date().getFullYear());
@@ -55,7 +57,7 @@ export default function FinancialReportsPage() {
       }
     } catch (error: any) {
       console.error('Error loading report:', error);
-      toast.error('Failed to load report');
+      toast.error(t('financial.reports.failedToLoadReport'));
     } finally {
       setLoading(false);
     }
@@ -71,7 +73,7 @@ export default function FinancialReportsPage() {
   };
 
   const handleExport = () => {
-    toast.success('Export functionality coming soon');
+    toast.success(t('financial.reports.exportComingSoon'));
   };
 
   if (loading && !report) {
@@ -87,15 +89,15 @@ export default function FinancialReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Financial Reports</h1>
+          <h1 className="text-3xl font-bold">{t('financial.reports.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Generate monthly and annual financial reports
+            {t('financial.reports.description')}
           </p>
         </div>
         {report && (
           <Button onClick={handleExport} variant="outline">
             <Download className="w-4 h-4 mr-2" />
-            Export
+            {t('financial.reports.export')}
           </Button>
         )}
       </div>
@@ -105,19 +107,19 @@ export default function FinancialReportsPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <Label htmlFor="reportType">Report Type</Label>
+              <Label htmlFor="reportType">{t('financial.reports.reportType')}</Label>
               <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="annual">Annual</SelectItem>
+                  <SelectItem value="monthly">{t('financial.reports.monthly')}</SelectItem>
+                  <SelectItem value="annual">{t('financial.reports.annual')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="year">Year</Label>
+              <Label htmlFor="year">{t('financial.reports.year')}</Label>
               <Input
                 id="year"
                 type="number"
@@ -130,7 +132,7 @@ export default function FinancialReportsPage() {
             </div>
             {reportType === 'monthly' && (
               <div>
-                <Label htmlFor="month">Month</Label>
+                <Label htmlFor="month">{t('financial.reports.month')}</Label>
                 <Select value={month.toString()} onValueChange={(value) => setMonth(parseInt(value))}>
                   <SelectTrigger className="mt-2">
                     <SelectValue />
@@ -148,7 +150,7 @@ export default function FinancialReportsPage() {
             <div className="flex items-end">
               <Button onClick={loadReport} className="w-full">
                 <FileText className="w-4 h-4 mr-2" />
-                Generate Report
+                {t('financial.reports.generateReport')}
               </Button>
             </div>
           </div>
@@ -224,19 +226,19 @@ export default function FinancialReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Income Breakdown</CardTitle>
+                <CardTitle>{t('financial.reports.incomeBreakdown')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
-                  <span>Contributions Collected</span>
+                  <span>{t('financial.reports.contributionsCollected')}</span>
                   <span className="font-medium">{formatCurrency(report.contributions_collected)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Fees Collected</span>
+                  <span>{t('financial.reports.feesCollected')}</span>
                   <span className="font-medium">{formatCurrency(report.fees_collected)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Total Income</span>
+                  <span className="font-medium">{t('financial.reports.totalIncome')}</span>
                   <span className="font-bold">{formatCurrency(report.total_income)}</span>
                 </div>
               </CardContent>
@@ -244,23 +246,23 @@ export default function FinancialReportsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Outstanding</CardTitle>
+                <CardTitle>{t('financial.reports.outstanding')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
-                  <span>Outstanding Contributions</span>
+                  <span>{t('financial.reports.outstandingContributions')}</span>
                   <span className="font-medium text-yellow-600">
                     {formatCurrency(report.outstanding_contributions)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Outstanding Fees</span>
+                  <span>{t('financial.reports.outstandingFees')}</span>
                   <span className="font-medium text-yellow-600">
                     {formatCurrency(report.outstanding_fees)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
-                  <span className="font-medium">Total Outstanding</span>
+                  <span className="font-medium">{t('financial.reports.totalOutstanding')}</span>
                   <span className="font-bold text-yellow-600">
                     {formatCurrency(report.outstanding_contributions + report.outstanding_fees)}
                   </span>
@@ -273,7 +275,7 @@ export default function FinancialReportsPage() {
           {report.expense_breakdown && report.expense_breakdown.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Expense Breakdown by Category</CardTitle>
+                <CardTitle>{t('financial.reports.expenseBreakdown')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -369,18 +371,18 @@ export default function FinancialReportsPage() {
           {/* Monthly Breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Breakdown</CardTitle>
+              <CardTitle>{t('financial.reports.monthlyBreakdown')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-2">Month</th>
-                      <th className="text-right p-2">Income</th>
-                      <th className="text-right p-2">Expenses</th>
-                      <th className="text-right p-2">Net Change</th>
-                      <th className="text-right p-2">Balance</th>
+                      <th className="text-left p-2">{t('financial.reports.month')}</th>
+                      <th className="text-right p-2">{t('financial.reports.totalIncome')}</th>
+                      <th className="text-right p-2">{t('financial.reports.totalExpenses')}</th>
+                      <th className="text-right p-2">{t('financial.reports.netChange')}</th>
+                      <th className="text-right p-2">{t('financial.reports.balance')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -415,7 +417,7 @@ export default function FinancialReportsPage() {
           {report.expense_by_category && report.expense_by_category.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Annual Expense Breakdown by Category</CardTitle>
+                <CardTitle>{t('financial.reports.annualExpenseBreakdown')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">

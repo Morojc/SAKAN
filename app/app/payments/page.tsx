@@ -100,7 +100,7 @@ export default function PaymentsPage() {
       }
     } catch (error: any) {
       console.error('[Payments] Error loading residence:', error);
-      toast.error('Failed to load residence information');
+      toast.error(t('payments.failedToLoadResidence'));
     } finally {
       setLoading(false);
     }
@@ -119,11 +119,11 @@ export default function PaymentsPage() {
       if (result.success) {
         setPayments(result.data || []);
       } else {
-        toast.error(result.error || 'Failed to load payments');
+        toast.error(result.error || t('payments.failedToLoadPayments'));
       }
     } catch (error: any) {
       console.error('Error loading payments:', error);
-      toast.error('Failed to load payments');
+      toast.error(t('payments.failedToLoadPayments'));
     } finally {
       setLoading(false);
     }
@@ -138,19 +138,19 @@ export default function PaymentsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Payment verified successfully!');
+        toast.success(t('payments.paymentVerifiedSuccess'));
         loadPayments();
       } else {
-        toast.error(result.error || 'Failed to verify payment');
+        toast.error(result.error || t('payments.failedToVerifyPayment'));
       }
     } catch (error: any) {
       console.error('Error verifying payment:', error);
-      toast.error('Failed to verify payment');
+      toast.error(t('payments.failedToVerifyPayment'));
     }
   };
 
   const handleReject = async (id: number) => {
-    const reason = prompt('Please enter rejection reason:');
+    const reason = prompt(t('payments.rejectionReasonPrompt'));
     if (!reason) return;
 
     try {
@@ -163,19 +163,19 @@ export default function PaymentsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Payment rejected');
+        toast.success(t('payments.paymentRejected'));
         loadPayments();
       } else {
-        toast.error(result.error || 'Failed to reject payment');
+        toast.error(result.error || t('payments.failedToRejectPayment'));
       }
     } catch (error: any) {
       console.error('Error rejecting payment:', error);
-      toast.error('Failed to reject payment');
+      toast.error(t('payments.failedToRejectPayment'));
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
+    if (!confirm(t('payments.deletePaymentConfirm'))) {
       return;
     }
 
@@ -187,14 +187,14 @@ export default function PaymentsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Payment deleted successfully');
+        toast.success(t('payments.paymentDeletedSuccess'));
         loadPayments();
       } else {
-        toast.error(result.error || 'Failed to delete payment');
+        toast.error(result.error || t('payments.failedToDeletePayment'));
       }
     } catch (error: any) {
       console.error('Error deleting payment:', error);
-      toast.error('Failed to delete payment');
+      toast.error(t('payments.failedToDeletePayment'));
     }
   };
 
@@ -222,18 +222,18 @@ export default function PaymentsPage() {
         return (
           <Badge className="bg-green-100 text-green-800">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Verified
+            {t('payments.verified')}
           </Badge>
         );
       case 'pending':
         return (
-          <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+          <Badge className="bg-yellow-100 text-yellow-800">{t('payments.pending')}</Badge>
         );
       case 'rejected':
         return (
           <Badge className="bg-red-100 text-red-800">
             <XCircle className="w-3 h-3 mr-1" />
-            Rejected
+            {t('payments.rejected')}
           </Badge>
         );
       default:
@@ -266,8 +266,8 @@ export default function PaymentsPage() {
   if (!residenceId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
-        <p className="text-lg text-muted-foreground">No residence found</p>
-        <p className="text-sm text-muted-foreground">Please contact support to link your account to a residence.</p>
+        <p className="text-lg text-muted-foreground">{t('payments.noResidenceFound')}</p>
+        <p className="text-sm text-muted-foreground">{t('payments.contactSupport')}</p>
       </div>
     );
   }
@@ -277,9 +277,9 @@ export default function PaymentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Payment Verification</h1>
+          <h1 className="text-3xl font-bold">{t('payments.verificationTitle')}</h1>
           <p className="text-muted-foreground mt-1">
-            Review and verify resident payments
+            {t('payments.verificationDescription')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -289,7 +289,7 @@ export default function PaymentsPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Payment
+              {t('payments.addPayment')}
             </Button>
           )}
         </div>
@@ -300,7 +300,7 @@ export default function PaymentsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Payments
+              {t('payments.totalPayments')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -310,7 +310,7 @@ export default function PaymentsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending
+              {t('payments.pending')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -322,7 +322,7 @@ export default function PaymentsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Verified
+              {t('payments.verified')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -334,7 +334,7 @@ export default function PaymentsPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Amount
+              {t('payments.totalAmount')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -352,13 +352,13 @@ export default function PaymentsPage() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t('common.search')}</Label>
               <div className="relative mt-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="search"
                   type="text"
-                  placeholder="Search by resident, apartment, or reference..."
+                  placeholder={t('payments.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -366,15 +366,15 @@ export default function PaymentsPage() {
               </div>
             </div>
             <div className="w-48">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t('payments.status')}</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="verified">Verified</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="pending">{t('payments.pending')}</SelectItem>
+                  <SelectItem value="verified">{t('payments.verified')}</SelectItem>
+                  <SelectItem value="rejected">{t('payments.rejected')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -385,22 +385,22 @@ export default function PaymentsPage() {
       {/* Payments Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Payments ({filteredPayments.length})</CardTitle>
+          <CardTitle>{t('payments.title')} ({filteredPayments.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Resident</TableHead>
-                  <TableHead>Apartment</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Proof</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('payments.date')}</TableHead>
+                  <TableHead>{t('payments.resident')}</TableHead>
+                  <TableHead>{t('payments.apartment')}</TableHead>
+                  <TableHead>{t('payments.type')}</TableHead>
+                  <TableHead>{t('payments.amount')}</TableHead>
+                  <TableHead>{t('payments.method')}</TableHead>
+                  <TableHead>{t('payments.status')}</TableHead>
+                  <TableHead>{t('payments.proof')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -410,7 +410,7 @@ export default function PaymentsPage() {
                       colSpan={9}
                       className="text-center py-12 text-muted-foreground"
                     >
-                      No payments found
+                      {t('payments.noPaymentsFound')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -420,9 +420,9 @@ export default function PaymentsPage() {
                         {format(new Date(payment.paid_at), 'MMM d, yyyy')}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {payment.resident_name || 'Unknown'}
+                        {payment.resident_name || t('common.unknown')}
                       </TableCell>
-                      <TableCell>{payment.apartment_number || 'N/A'}</TableCell>
+                      <TableCell>{payment.apartment_number || t('common.na')}</TableCell>
                       <TableCell>{getPaymentTypeBadge(payment.payment_type)}</TableCell>
                       <TableCell className="font-semibold">
                         {formatCurrency(payment.amount)}
@@ -442,7 +442,7 @@ export default function PaymentsPage() {
                           </Button>
                         ) : (
                           <span className="text-muted-foreground text-sm">
-                            No proof
+                            {t('payments.noProof')}
                           </span>
                         )}
                       </TableCell>
@@ -456,7 +456,7 @@ export default function PaymentsPage() {
                                 className="bg-green-600 hover:bg-green-700 text-white"
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
-                                Verify
+                                {t('payments.verify')}
                               </Button>
                               <Button
                                 size="sm"
@@ -465,7 +465,7 @@ export default function PaymentsPage() {
                                 className="text-red-600 hover:text-red-700"
                               >
                                 <XCircle className="w-4 h-4 mr-1" />
-                                Reject
+                                {t('payments.reject')}
                               </Button>
                             </>
                           )}
@@ -480,7 +480,7 @@ export default function PaymentsPage() {
                               className="text-blue-600 hover:text-blue-700"
                             >
                               <Link2 className="w-4 h-4 mr-1" />
-                              Allocate
+                              {t('payments.allocate')}
                             </Button>
                           )}
                           {payment.status === 'rejected' && payment.rejection_reason && (

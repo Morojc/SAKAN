@@ -73,7 +73,7 @@ export default function ExpensesPage() {
       }
     } catch (error: any) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load expenses');
+      toast.error(t('expenses.failedToLoadExpenses'));
     } finally {
       setLoading(false);
     }
@@ -88,19 +88,19 @@ export default function ExpensesPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Expense approved successfully!');
+        toast.success(t('expenses.expenseApprovedSuccess'));
         loadData();
       } else {
-        toast.error(result.error || 'Failed to approve expense');
+        toast.error(result.error || t('expenses.failedToApproveExpense'));
       }
     } catch (error: any) {
       console.error('Error approving expense:', error);
-      toast.error('Failed to approve expense');
+      toast.error(t('expenses.failedToApproveExpense'));
     }
   };
 
   const handleMarkAsPaid = async (id: number) => {
-    const paymentMethod = prompt('Payment method (cash/bank_transfer/check):');
+    const paymentMethod = prompt(t('expenses.paymentMethodPrompt'));
     if (!paymentMethod) return;
 
     try {
@@ -113,14 +113,14 @@ export default function ExpensesPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Expense marked as paid!');
+        toast.success(t('expenses.expenseMarkedAsPaid'));
         loadData();
       } else {
-        toast.error(result.error || 'Failed to mark as paid');
+        toast.error(result.error || t('expenses.failedToMarkAsPaid'));
       }
     } catch (error: any) {
       console.error('Error marking as paid:', error);
-      toast.error('Failed to mark as paid');
+      toast.error(t('expenses.failedToMarkAsPaid'));
     }
   };
 
@@ -148,18 +148,18 @@ export default function ExpensesPage() {
         return (
           <Badge className="bg-green-100 text-green-800">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Paid
+            {t('expenses.paid')}
           </Badge>
         );
       case 'approved':
-        return <Badge className="bg-blue-100 text-blue-800">Approved</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800">{t('expenses.approved')}</Badge>;
       case 'draft':
-        return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800">{t('expenses.draft')}</Badge>;
       case 'cancelled':
         return (
           <Badge className="bg-red-100 text-red-800">
             <XCircle className="w-3 h-3 mr-1" />
-            Cancelled
+            {t('expenses.cancelled')}
           </Badge>
         );
       default:
@@ -180,9 +180,9 @@ export default function ExpensesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Expenses</h1>
+          <h1 className="text-3xl font-bold">{t('expenses.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage residence expenses and track spending
+            {t('expenses.manageDescription')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -191,14 +191,14 @@ export default function ExpensesPage() {
             onClick={() => router.push('/app/expenses/categories')}
           >
             <Settings className="w-4 h-4 mr-2" />
-            Categories
+            {t('expenses.categories')}
           </Button>
           <Button
             onClick={() => setShowCreateDialog(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Expense
+            {t('expenses.addExpense')}
           </Button>
         </div>
       </div>
@@ -208,7 +208,7 @@ export default function ExpensesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Expenses
+              {t('expenses.totalExpenses')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -218,7 +218,7 @@ export default function ExpensesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending Approval
+              {t('expenses.pendingApproval')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -230,7 +230,7 @@ export default function ExpensesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Paid This Month
+              {t('expenses.paidThisMonth')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -248,7 +248,7 @@ export default function ExpensesPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Amount
+              {t('expenses.totalAmount')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -264,13 +264,13 @@ export default function ExpensesPage() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <Label htmlFor="search">Search</Label>
+              <Label htmlFor="search">{t('common.search')}</Label>
               <div className="relative mt-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="search"
                   type="text"
-                  placeholder="Search by title, description, or vendor..."
+                  placeholder={t('expenses.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -278,13 +278,13 @@ export default function ExpensesPage() {
               </div>
             </div>
             <div className="w-48">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">{t('expenses.expenseCategory')}</Label>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="all">{t('expenses.allCategories')}</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>
                       {cat.name}
@@ -294,17 +294,17 @@ export default function ExpensesPage() {
               </Select>
             </div>
             <div className="w-48">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{t('expenses.status')}</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="all">{t('expenses.allStatuses')}</SelectItem>
+                  <SelectItem value="draft">{t('expenses.draft')}</SelectItem>
+                  <SelectItem value="approved">{t('expenses.approved')}</SelectItem>
+                  <SelectItem value="paid">{t('expenses.paid')}</SelectItem>
+                  <SelectItem value="cancelled">{t('expenses.cancelled')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -315,21 +315,21 @@ export default function ExpensesPage() {
       {/* Expenses Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Expenses ({filteredExpenses.length})</CardTitle>
+          <CardTitle>{t('expenses.title')} ({filteredExpenses.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Attachment</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('expenses.date')}</TableHead>
+                  <TableHead>{t('expenses.title')}</TableHead>
+                  <TableHead>{t('expenses.expenseCategory')}</TableHead>
+                  <TableHead>{t('expenses.vendor')}</TableHead>
+                  <TableHead>{t('expenses.expenseAmount')}</TableHead>
+                  <TableHead>{t('expenses.status')}</TableHead>
+                  <TableHead>{t('expenses.attachment')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -339,7 +339,7 @@ export default function ExpensesPage() {
                       colSpan={8}
                       className="text-center py-12 text-muted-foreground"
                     >
-                      No expenses found
+                      {t('expenses.noExpensesFound')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -393,7 +393,7 @@ export default function ExpensesPage() {
                             onClick={() => handleApprove(expense.id)}
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
-                            Approve
+                            {t('expenses.approve')}
                           </Button>
                         )}
                         {expense.status === 'approved' && (
@@ -402,7 +402,7 @@ export default function ExpensesPage() {
                             onClick={() => handleMarkAsPaid(expense.id)}
                             className="bg-green-600 hover:bg-green-700 text-white"
                           >
-                            Mark as Paid
+                            {t('expenses.markAsPaid')}
                           </Button>
                         )}
                       </TableCell>

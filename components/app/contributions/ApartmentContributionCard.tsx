@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Eye, DollarSign } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/client';
 import type { ContributionStatusMatrix } from '@/types/financial.types';
 import type { ContributionStatus } from '@/types/financial.types';
 
@@ -24,6 +25,7 @@ export default function ApartmentContributionCard({
   onRecordPayment,
   onDeleteContribution,
 }: ApartmentContributionCardProps) {
+  const { t } = useI18n();
   const getStatusColor = (status: ContributionStatus | null) => {
     if (status === 'paid') return 'bg-green-500 text-white';
     if (status === 'partial') return 'bg-yellow-500 text-white';
@@ -60,12 +62,12 @@ export default function ApartmentContributionCard({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <CardTitle className="text-lg">Apartment {apartment.apartment_number}</CardTitle>
+            <CardTitle className="text-lg">{t('residents.apartmentNumber')}: {apartment.apartment_number}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{apartment.resident_name}</p>
           </div>
           {apartment.outstanding_months > 0 && (
             <Badge variant="destructive" className="ml-2">
-              {apartment.outstanding_months.toString().padStart(2, '0')} Mois
+              {apartment.outstanding_months.toString().padStart(2, '0')} {t('contributions.months')}
             </Badge>
           )}
         </div>
@@ -100,7 +102,7 @@ export default function ApartmentContributionCard({
                       <button
                         onClick={(e) => onDeleteContribution?.(contributionId, e)}
                         className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-opacity"
-                        title="Delete contribution"
+                        title={t('contributions.deleteContribution')}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -114,11 +116,11 @@ export default function ApartmentContributionCard({
           {/* Summary Statistics */}
           <div className="grid grid-cols-2 gap-4 pt-4 border-t">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Total Due</p>
+              <p className="text-xs text-muted-foreground mb-1">{t('contributions.totalDue')}</p>
               <p className="text-lg font-semibold">{formatCurrency(apartment.total_due)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Total Paid</p>
+              <p className="text-xs text-muted-foreground mb-1">{t('contributions.totalPaid')}</p>
               <p className="text-lg font-semibold text-green-600">{formatCurrency(apartment.total_paid)}</p>
             </div>
           </div>
@@ -127,7 +129,7 @@ export default function ApartmentContributionCard({
           {apartment.total_due > 0 && (
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Payment Progress</span>
+                <span>{t('contributions.paymentProgress')}</span>
                 <span>{Math.round((apartment.total_paid / apartment.total_due) * 100)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -144,13 +146,13 @@ export default function ApartmentContributionCard({
             {onViewDetails && (
               <Button variant="outline" size="sm" className="flex-1" onClick={onViewDetails}>
                 <Eye className="w-4 h-4 mr-2" />
-                Details
+                {t('contributions.details')}
               </Button>
             )}
             {apartment.outstanding_months > 0 && onRecordPayment && (
               <Button size="sm" className="flex-1" onClick={onRecordPayment}>
                 <DollarSign className="w-4 h-4 mr-2" />
-                Record Payment
+                {t('contributions.recordPayment')}
               </Button>
             )}
           </div>

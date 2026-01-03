@@ -8,6 +8,7 @@ import DeleteAccountButton from '@/components/app/profile/DeleteAccountButton';
 import { motion } from 'framer-motion';
 import { CanceledSubscriptionAlert } from '@/components/stripe/CanceledSubscriptionAlert';
 import { RefreshCw } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/client';
 
 // Helper function to get plan badge style
 function getPlanBadgeStyle(planName: string): { bgColor: string; textColor: string; borderColor: string } {
@@ -86,6 +87,7 @@ const staggerContainer = {
 };
 
 export default function ProfileAndBillingContent() {
+	const { t } = useI18n();
 	const [isYearly, setIsYearly] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export default function ProfileAndBillingContent() {
 				
 				if (!response.ok) {
 					const errorData = await response.json().catch(() => ({}));
-					throw new Error(errorData.error || 'Failed to fetch profile data');
+					throw new Error(errorData.error || t('profile.failedToFetchData'));
 				}
 				
 				const data = await response.json();
@@ -115,7 +117,7 @@ export default function ProfileAndBillingContent() {
 				// Don't show error for network issues during redirect
 				if (err instanceof Error && err.message !== 'Failed to fetch') {
 					console.error('Error fetching profile data:', err);
-					setError('Failed to load profile data. Please try again later.');
+					setError(t('profile.failedToLoadData'));
 				}
 			} finally {
 				setLoading(false);
@@ -178,7 +180,7 @@ export default function ProfileAndBillingContent() {
 						<svg className="h-6 w-6 text-red-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
-						<p className="font-medium text-red-800">Error</p>
+						<p className="font-medium text-red-800">{t('common.error')}</p>
 					</div>
 					<p className="mt-2 text-red-700">{error}</p>
 				</motion.div>
@@ -213,7 +215,7 @@ export default function ProfileAndBillingContent() {
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 						</svg>
 					</div>
-					<h2 className="text-2xl font-bold text-gray-900">User Information</h2>
+					<h2 className="text-2xl font-bold text-gray-900">{t('profile.userInformation')}</h2>
 				</div>
 				
 				{loading ? (
@@ -230,13 +232,13 @@ export default function ProfileAndBillingContent() {
 				) : (
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-							<label className="text-sm font-medium text-gray-500 mb-2 block">Name</label>
-							<p className="font-semibold text-lg text-gray-900">{userData?.name || 'Not set'}</p>
+							<label className="text-sm font-medium text-gray-500 mb-2 block">{t('profile.name')}</label>
+							<p className="font-semibold text-lg text-gray-900">{userData?.name || t('profile.notSet')}</p>
 						</div>
 
 						<div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-							<label className="text-sm font-medium text-gray-500 mb-2 block">Email</label>
-							<p className="font-semibold text-lg text-gray-900 break-all">{userData?.email || 'Not set'}</p>
+							<label className="text-sm font-medium text-gray-500 mb-2 block">{t('profile.email')}</label>
+							<p className="font-semibold text-lg text-gray-900 break-all">{userData?.email || t('profile.notSet')}</p>
 						</div>
 
 						{userData?.image && (
@@ -244,13 +246,13 @@ export default function ProfileAndBillingContent() {
 								<div>
 									<img
 										src={userData.image}
-										alt="User avatar"
+										alt={t('profile.userAvatar')}
 										className="w-20 h-20 rounded-full border-4 border-gray-200 shadow-md"
 									/>
 								</div>
 								<div>
-									<label className="text-sm font-medium text-gray-500 block mb-1">Profile Image</label>
-									<p className="text-sm text-gray-600">Your profile picture is visible to other users</p>
+									<label className="text-sm font-medium text-gray-500 block mb-1">{t('profile.profileImage')}</label>
+									<p className="text-sm text-gray-600">{t('profile.profileImageDesc')}</p>
 								</div>
 							</div>
 						)}
@@ -269,7 +271,7 @@ export default function ProfileAndBillingContent() {
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
 						</svg>
 					</div>
-					<h2 className="text-2xl font-bold text-gray-900">Subscription Status</h2>
+					<h2 className="text-2xl font-bold text-gray-900">{t('profile.subscriptionStatus')}</h2>
 				</div>
 				
 				{loading ? (
@@ -285,7 +287,7 @@ export default function ProfileAndBillingContent() {
 				<div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
 					<div className="space-y-5">
 						<div>
-							<label className="text-sm font-medium text-gray-500 mb-2 block">Current Plan</label>
+							<label className="text-sm font-medium text-gray-500 mb-2 block">{t('profile.currentPlan')}</label>
 							{(() => {
 								const style = getPlanBadgeStyle(planName);
 								const intervalStyle = getIntervalBadgeStyle(planName);
@@ -300,14 +302,14 @@ export default function ProfileAndBillingContent() {
 											)}
 										</span>
 										<span className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold border ${intervalStyle.bgColor} ${intervalStyle.textColor} ${intervalStyle.borderColor}`}>
-											{planInterval === 'year' ? 'Yearly' : 'Monthly'} Plan
+											{planInterval === 'year' ? t('profile.yearly') : t('profile.monthly')} {t('profile.plan')}
 										</span>
 										{subscriptionData?.cancel_at_period_end && (
 											<span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border bg-amber-100 text-amber-800 border-amber-200">
 												<svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 													<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 												</svg>
-												Ending Soon
+												{t('profile.endingSoon')}
 											</span>
 										)}
 									</div>
@@ -317,7 +319,7 @@ export default function ProfileAndBillingContent() {
 						{subscriptionData ? (
 							<>
 								<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-									<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
+									<label className="text-sm font-medium text-gray-500 mb-2 block">{t('profile.subscriptionStatus')}</label>
 									<div className="mt-2">
 										{subscriptionData.plan_active ? (
 											<div className="flex items-center gap-2">
@@ -331,7 +333,7 @@ export default function ProfileAndBillingContent() {
 															<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 															</svg>
-															Active (Scheduled for Cancellation)
+															{t('profile.activeScheduledCancellation')}
 														</span>
 													</>
 												) : (
@@ -340,7 +342,7 @@ export default function ProfileAndBillingContent() {
 															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
 															<span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
 														</span>
-														<span className="font-medium text-green-700">Active</span>
+														<span className="font-medium text-green-700">{t('profile.active')}</span>
 													</>
 												)}
 											</div>
@@ -349,7 +351,7 @@ export default function ProfileAndBillingContent() {
 												<span className="relative flex h-3 w-3">
 													<span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
 												</span>
-												<span className="font-medium text-red-700">Inactive</span>
+												<span className="font-medium text-red-700">{t('profile.inactive')}</span>
 											</div>
 										)}
 									</div>
@@ -357,7 +359,7 @@ export default function ProfileAndBillingContent() {
 								{subscriptionData.plan_expires && (
 									<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
 										<label className="text-sm font-medium text-gray-500 mb-2 block">
-											{subscriptionData.cancel_at_period_end ? 'Access Until' : 'Next Billing Date'}
+											{subscriptionData.cancel_at_period_end ? t('profile.accessUntil') : t('profile.nextBillingDate')}
 										</label>
 										<div className="mt-2">
 											<div className="flex items-center gap-2">
@@ -379,7 +381,7 @@ export default function ProfileAndBillingContent() {
 											</div>
 											{subscriptionData.days_remaining !== null && subscriptionData.days_remaining !== undefined && !subscriptionData.cancel_at_period_end && (
 												<p className="text-xs text-gray-500 mt-1 ml-7">
-													{subscriptionData.days_remaining} {subscriptionData.days_remaining === 1 ? 'day' : 'days'} remaining
+													{subscriptionData.days_remaining} {subscriptionData.days_remaining === 1 ? t('profile.dayRemaining') : t('profile.daysRemaining')}
 												</p>
 											)}
 										</div>
@@ -391,8 +393,8 @@ export default function ProfileAndBillingContent() {
 							</>
 						) : (
 							<div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-								<label className="text-sm font-medium text-gray-500 mb-2 block">Subscription Status</label>
-								<p className="font-medium text-gray-600">Free Plan - No active subscription</p>
+								<label className="text-sm font-medium text-gray-500 mb-2 block">{t('profile.subscriptionStatus')}</label>
+								<p className="font-medium text-gray-600">{t('profile.freePlanNoSubscription')}</p>
 							</div>
 						)}
 					</div>
@@ -412,19 +414,19 @@ export default function ProfileAndBillingContent() {
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
 					</div>
-					<h2 className="text-xl font-bold">Choose Your Plan</h2>
+					<h2 className="text-xl font-bold">{t('profile.chooseYourPlan')}</h2>
 				</div>
 						
 						{/* Billing Toggle */}
 						<div className="flex justify-center items-center gap-4 mb-10 bg-[var(--background-subtle)] p-4 rounded-full max-w-xs mx-auto">
-							<span className={`text-sm font-medium transition-colors duration-200 ${!isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>Monthly</span>
+							<span className={`text-sm font-medium transition-colors duration-200 ${!isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>{t('profile.monthly')}</span>
 							<button
 								onClick={() => setIsYearly(!isYearly)}
 								className="relative inline-flex h-7 w-14 items-center rounded-full bg-gradient-to-r from-[#5059FE] to-[#7D65F6] transition-all duration-300"
 								aria-pressed={isYearly}
 								aria-labelledby="billing-period"
 							>
-								<span className="sr-only">Toggle billing period</span>
+								<span className="sr-only">{t('profile.toggleBillingPeriod')}</span>
 								<motion.span 
 									className="inline-block h-5 w-5 transform rounded-full bg-white shadow-md"
 									initial={false}
@@ -432,7 +434,7 @@ export default function ProfileAndBillingContent() {
 									transition={{ type: "spring", stiffness: 500, damping: 30 }}
 								/>
 							</button>
-							<span className={`text-sm font-medium transition-colors duration-200 ${isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>Yearly</span>
+							<span className={`text-sm font-medium transition-colors duration-200 ${isYearly ? 'text-[#5059FE]' : 'text-gray-500'}`}>{t('profile.yearly')}</span>
 						</div>
 
 						{/* Pricing Cards - Always visible, shows loading state when data is not available */}
@@ -464,9 +466,9 @@ export default function ProfileAndBillingContent() {
 									((planInterval === 'month' && !isYearly) || (planInterval === 'year' && isYearly));
 
 								const getPlanFeatures = () => {
-									if (isFree) return ['Up to 50 notes', 'Basic formatting'];
-									if (isBasic) return ['Unlimited notes', 'Advanced formatting', 'File attachments'];
-									return ['Everything in Basic', 'Priority support', 'API access'];
+									if (isFree) return [t('profile.planFeatures.free.1'), t('profile.planFeatures.free.2')];
+									if (isBasic) return [t('profile.planFeatures.basic.1'), t('profile.planFeatures.basic.2'), t('profile.planFeatures.basic.3')];
+									return [t('profile.planFeatures.pro.1'), t('profile.planFeatures.pro.2'), t('profile.planFeatures.pro.3')];
 								};
 
 								const getPlanPrice = () => {
@@ -518,7 +520,7 @@ export default function ProfileAndBillingContent() {
 										{isHighlighted && (
 											<div className="absolute -top-5 left-0 w-full flex justify-center">
 												<span className="bg-gradient-to-r from-[#5059FE] to-[#7D65F6] text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg">
-													Most Popular
+													{t('profile.mostPopular')}
 												</span>
 											</div>
 										)}
@@ -544,7 +546,7 @@ export default function ProfileAndBillingContent() {
 											{isYearly && yearlySavings > 0 && !isFree && (
 												<div className="mt-2">
 													<span className="inline-block bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-md">
-														Save {yearlySavings}% yearly
+														{t('profile.saveYearly', { percent: yearlySavings })}
 													</span>
 												</div>
 											)}
@@ -556,14 +558,14 @@ export default function ProfileAndBillingContent() {
 													className="w-full py-3 px-4 bg-green-100 hover:bg-green-200 text-green-800 font-medium rounded-lg transition-colors duration-200"
 													disabled
 												>
-													Current Plan
+													{t('profile.currentPlan')}
 												</button>
 											) : isFree ? (
 												<button 
 													className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors duration-200"
 													disabled
 												>
-													Free Plan
+													{t('profile.freePlan')}
 												</button>
 											) : subscriptionData ? (
 												// User has subscription - show upgrade/downgrade button
@@ -628,7 +630,7 @@ export default function ProfileAndBillingContent() {
 										</div>
 										
 										<div className="space-y-3">
-											<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Features</p>
+											<p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('profile.features')}</p>
 											<ul className="space-y-3">
 												{features.map((feature: string, index: number) => (
 													<li key={index} className="flex items-start">
@@ -652,10 +654,10 @@ export default function ProfileAndBillingContent() {
 										<RefreshCw className="h-8 w-8 text-gray-400 animate-spin" />
 									</div>
 									<p className="text-gray-600">
-										{loading ? 'Loading pricing plans...' : 'Pricing plans are not available at the moment.'}
+										{loading ? t('profile.loadingPricingPlans') : t('profile.pricingPlansNotAvailable')}
 									</p>
 									<p className="text-sm text-gray-500 mt-2">
-										{loading ? 'Please wait while we fetch your plans.' : 'Please refresh the page or contact support if this issue persists.'}
+										{loading ? t('profile.pleaseWaitFetchingPlans') : t('profile.refreshOrContactSupport')}
 									</p>
 								</div>
 							)}
@@ -674,8 +676,8 @@ export default function ProfileAndBillingContent() {
 						</svg>
 					</div>
 					<div>
-						<h2 className="text-xl font-bold text-red-900">Danger Zone</h2>
-						<p className="text-sm text-gray-600 mt-1">Permanently delete your account and all associated data</p>
+						<h2 className="text-xl font-bold text-red-900">{t('profile.dangerZone')}</h2>
+						<p className="text-sm text-gray-600 mt-1">{t('profile.dangerZoneDesc')}</p>
 					</div>
 				</div>
 				<DeleteAccountButton userRole={userRole} />

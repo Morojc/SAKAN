@@ -13,12 +13,14 @@ import { Trash2, AlertCircle, UserCheck, Search, X, CheckCircle, XCircle, Clock 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useI18n } from '@/lib/i18n/client';
 
 interface DeleteAccountButtonProps {
   userRole: string;
 }
 
 export default function DeleteAccountButton({ userRole }: DeleteAccountButtonProps) {
+  const { t } = useI18n();
   // Steps:
   // 0: Idle
   // 1: Terms
@@ -83,14 +85,14 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('Deletion request cancelled successfully');
+        toast.success(t('profile.deletionRequestCancelled'));
         setDeletionRequest(null);
       } else {
-        toast.error(data.error || 'Failed to cancel deletion request');
+        toast.error(data.error || t('profile.failedToCancelDeletionRequest'));
       }
     } catch (error: any) {
       console.error('Error cancelling deletion request:', error);
-      toast.error('Failed to cancel deletion request. Please try again.');
+      toast.error(t('profile.failedToCancelDeletionRequestTryAgain'));
     } finally {
       setIsCancelling(false);
     }
@@ -113,17 +115,17 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
   const handleSyndicDelete = async () => {
     // At step 4 (successor selection), we don't need to check confirmText
     if (step !== 4 && confirmText !== 'DELETE') {
-      toast.error('Please type "DELETE" to confirm');
+      toast.error(t('profile.typeDeleteToConfirm'));
       return;
     }
 
     if (step === 4 && !selectedSuccessorId) {
-      toast.error('Please select a successor');
+      toast.error(t('profile.pleaseSelectSuccessor'));
       return;
     }
 
     if (step === 4 && selectedSuccessorIsSyndic) {
-      toast.error('Cannot select a syndic as a successor. Please select a different resident.');
+      toast.error(t('profile.cannotSelectSyndicAsSuccessor'));
       return;
     }
 
@@ -155,7 +157,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
       if (!response.ok) {
         // Handle request already exists
         if (response.status === 409 && data.code === 'REQUEST_ALREADY_EXISTS') {
-          toast.error('A deletion request is already pending. Please wait for administrator approval.');
+          toast.error(t('profile.deletionRequestAlreadyPending'));
           setIsProcessing(false);
           handleReset();
           return;
@@ -173,17 +175,17 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
         
         // Handle error if successor is a syndic
         if (response.status === 400 && data.error?.includes('syndic')) {
-          toast.error(data.error || 'Cannot select a syndic as a successor');
+          toast.error(data.error || t('profile.cannotSelectSyndicAsSuccessor'));
           setSelectedSuccessorIsSyndic(true);
           setIsProcessing(false);
           return;
         }
-        throw new Error(data.error || 'Failed to delete account');
+        throw new Error(data.error || t('profile.failedToDeleteAccount'));
       }
       
       // Handle successful deletion request creation
       if (data.code === 'DELETION_REQUEST_CREATED') {
-        toast.success('Deletion request submitted successfully. An administrator will review your request.');
+        toast.success(t('profile.deletionRequestSubmittedSuccess'));
         setIsProcessing(false);
         handleReset();
         // Refresh deletion request status
@@ -192,12 +194,12 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
       }
       
       // Handle immediate deletion (no residence or no other residents)
-      toast.success('Account deleted successfully');
+      toast.success(t('profile.accountDeletedSuccess'));
       await signOut({ callbackUrl: '/', redirect: true });
       
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      toast.error(error.message || 'An error occurred');
+      toast.error(error.message || t('common.error'));
       setIsProcessing(false);
       if (step === 3) setStep(2); // Go back to confirmation if failed at initial step
       // If failed at step 4, stay at step 4
@@ -206,7 +208,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
 
   const handleSimpleDelete = async () => {
     if (confirmText !== 'DELETE') {
-      toast.error('Please type "DELETE" to confirm');
+      toast.error(t('profile.typeDeleteToConfirm'));
       return;
     }
 
@@ -220,15 +222,15 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('Account deleted successfully');
+        toast.success(t('profile.accountDeletedSuccess'));
         await signOut({ callbackUrl: '/', redirect: true });
       } else {
-        toast.error(data.error || 'Failed to delete account');
+        toast.error(data.error || t('profile.failedToDeleteAccount'));
         setIsSimpleDeleting(false);
       }
     } catch (error: any) {
       console.error('Error deleting account:', error);
-      toast.error('Failed to delete account. Please try again.');
+      toast.error(t('profile.failedToDeleteAccountTryAgain'));
       setIsSimpleDeleting(false);
     }
   };
@@ -245,7 +247,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           className="bg-red-600 hover:bg-red-700 text-white"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete Account
+          {t('profile.deleteAccount')}
         </Button>
 
         <Dialog open={showSimpleConfirm} onOpenChange={(open) => {
@@ -258,23 +260,23 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-red-600">
                   <AlertCircle className="h-5 w-5" />
-                  Confirm Account Deletion
+                  {t('profile.confirmAccountDeletion')}
                 </DialogTitle>
                 <DialogDescription>
-                  Your account will be permanently deleted. This action cannot be undone.
+                  {t('profile.accountWillBePermanentlyDeleted')}
                 </DialogDescription>
               </DialogHeader>
 
               <Alert className="bg-red-50 text-red-800 border-red-200">
                 <AlertCircle className="h-4 w-4 text-red-800" />
-                <AlertTitle>Warning</AlertTitle>
+                <AlertTitle>{t('profile.warning')}</AlertTitle>
                 <AlertDescription className="mt-2">
-                  This action cannot be undone. Your account and all associated data will be permanently deleted.
+                  {t('profile.warningCannotBeUndone')}
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="confirm-delete">Type DELETE to confirm:</Label>
+                <Label htmlFor="confirm-delete">{t('profile.typeDeleteToConfirm')}</Label>
                 <Input
                   id="confirm-delete"
                   value={confirmText}
@@ -286,14 +288,14 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
 
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={handleReset} disabled={isSimpleDeleting}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleSimpleDelete}
                   disabled={isSimpleDeleting || confirmText !== 'DELETE'}
                 >
-                  {isSimpleDeleting ? 'Deleting...' : 'Confirm Delete'}
+                  {isSimpleDeleting ? t('profile.deleting') : t('profile.confirmDelete')}
                 </Button>
               </DialogFooter>
             </div>
@@ -308,7 +310,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
     <div className="mt-8 space-y-4">
       {/* Display deletion request status if exists */}
       {isLoadingRequest ? (
-        <div className="text-sm text-gray-500">Loading deletion request status...</div>
+        <div className="text-sm text-gray-500">{t('profile.loadingDeletionRequestStatus')}</div>
       ) : deletionRequest ? (
         <Alert className={
           deletionRequest.status === 'pending' 
@@ -324,34 +326,34 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               {deletionRequest.status === 'rejected' && <XCircle className="h-4 w-4 mt-0.5" />}
               <div className="flex-1">
                 <AlertTitle className="font-semibold mb-1">
-                  Deletion Request {deletionRequest.status === 'pending' ? 'Pending' : 
-                                   deletionRequest.status === 'approved' || deletionRequest.status === 'completed' ? 'Approved' : 
-                                   'Rejected'}
+                  {t('profile.deletionRequest')} {deletionRequest.status === 'pending' ? t('profile.pending') : 
+                                   deletionRequest.status === 'approved' || deletionRequest.status === 'completed' ? t('profile.approved') : 
+                                   t('profile.rejected')}
                 </AlertTitle>
                 <AlertDescription className="text-sm">
                   {deletionRequest.status === 'pending' && (
                     <>
-                      Your deletion request was submitted on {new Date(deletionRequest.requested_at).toLocaleDateString()}. 
-                      An administrator will review your request and select a successor.
+                      {t('profile.deletionRequestSubmittedOn', { date: new Date(deletionRequest.requested_at).toLocaleDateString() })} 
+                      {t('profile.adminWillReviewAndSelectSuccessor')}
                     </>
                   )}
                   {deletionRequest.status === 'approved' && (
                     <>
-                      Your deletion request was approved on {new Date(deletionRequest.reviewed_at).toLocaleDateString()}. 
-                      Your account will be deleted soon.
+                      {t('profile.deletionRequestApprovedOn', { date: new Date(deletionRequest.reviewed_at).toLocaleDateString() })} 
+                      {t('profile.accountWillBeDeletedSoon')}
                     </>
                   )}
                   {deletionRequest.status === 'completed' && (
                     <>
-                      Your deletion request was completed on {new Date(deletionRequest.completed_at).toLocaleDateString()}. 
-                      Your account has been deleted.
+                      {t('profile.deletionRequestCompletedOn', { date: new Date(deletionRequest.completed_at).toLocaleDateString() })} 
+                      {t('profile.accountHasBeenDeleted')}
                     </>
                   )}
                   {deletionRequest.status === 'rejected' && (
                     <>
-                      Your deletion request was rejected on {new Date(deletionRequest.reviewed_at).toLocaleDateString()}.
+                      {t('profile.deletionRequestRejectedOn', { date: new Date(deletionRequest.reviewed_at).toLocaleDateString() })}
                       {deletionRequest.rejection_reason && (
-                        <span className="block mt-1">Reason: {deletionRequest.rejection_reason}</span>
+                        <span className="block mt-1">{t('profile.reason')}: {deletionRequest.rejection_reason}</span>
                       )}
                     </>
                   )}
@@ -366,10 +368,10 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                 disabled={isCancelling}
                 className="ml-4"
               >
-                {isCancelling ? 'Cancelling...' : (
+                {isCancelling ? t('profile.cancelling') : (
                   <>
                     <X className="h-4 w-4 mr-1" />
-                    Cancel Request
+                    {t('profile.cancelRequest')}
                   </>
                 )}
               </Button>
@@ -386,7 +388,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           className="bg-red-600 hover:bg-red-700 text-white"
         >
           <Trash2 className="mr-2 h-4 w-4" />
-          Delete Account
+          {t('profile.deleteAccount')}
         </Button>
       )}
 
@@ -408,24 +410,23 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-red-600">
                   <AlertCircle className="h-5 w-5" />
-                  Confirm Account Deletion
+                  {t('profile.confirmAccountDeletion')}
                 </DialogTitle>
                 <DialogDescription>
-                  Your account will be permanently deleted. This action cannot be undone.
+                  {t('profile.accountWillBePermanentlyDeleted')}
                 </DialogDescription>
               </DialogHeader>
 
               <Alert className="bg-red-50 text-red-800 border-red-200">
                 <AlertCircle className="h-4 w-4 text-red-800" />
-                <AlertTitle>Warning</AlertTitle>
+                <AlertTitle>{t('profile.warning')}</AlertTitle>
                 <AlertDescription className="mt-2">
-                  This action cannot be undone. Your account and all associated data will be permanently deleted. 
-                  All data including residence information, fees, payments, incidents, announcements, and all related records will be removed and cannot be recovered.
+                  {t('profile.warningCannotBeUndoneFull')}
                 </AlertDescription>
               </Alert>
 
               <div className="space-y-2">
-                <Label htmlFor="confirm-delete">Type DELETE to confirm:</Label>
+                <Label htmlFor="confirm-delete">{t('profile.typeDeleteToConfirm')}</Label>
                 <Input
                   id="confirm-delete"
                   value={confirmText}
@@ -437,14 +438,14 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
 
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={handleReset} disabled={isProcessing}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button 
                   variant="destructive"
                   onClick={handleSyndicDelete}
                   disabled={confirmText !== 'DELETE' || isProcessing}
                 >
-                  {isProcessing ? 'Deleting...' : 'Delete My Account'}
+                  {isProcessing ? t('profile.deleting') : t('profile.deleteMyAccount')}
                 </Button>
               </DialogFooter>
             </div>
@@ -455,16 +456,16 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-blue-600">
                   <UserCheck className="h-5 w-5" />
-                  Select a Successor
+                  {t('profile.selectSuccessor')}
                 </DialogTitle>
                 <DialogDescription>
-                  Since your residence has other residents, you must select a successor to take over the Syndic role before deleting your account.
+                  {t('profile.selectSuccessorDesc')}
                 </DialogDescription>
               </DialogHeader>
 
               {eligibleSuccessors.length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  No eligible residents found. Please contact an administrator.
+                  {t('profile.noEligibleResidentsFound')}
                 </div>
               ) : (
                 <>
@@ -473,7 +474,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
                       type="text"
-                      placeholder="Search by name, email, or phone..."
+                      placeholder={t('profile.searchSuccessorPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
@@ -491,7 +492,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                         setSelectedSuccessorIsSyndic(isSyndic);
                         setSelectedSuccessorId(value);
                         if (isSyndic) {
-                          toast.error('Cannot select a syndic as a successor. Syndics cannot be added as residents.');
+                          toast.error(t('profile.cannotSelectSyndicAsSuccessorFull'));
                         }
                       }}
                     >
@@ -510,7 +511,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                           })
                           .map((resident) => {
                             // Use full_name if available, otherwise fallback to email or generated name
-                            const displayName = resident.full_name || `Resident ${resident.id.substring(0, 8)}...`;
+                            const displayName = resident.full_name || `${t('profile.resident')} ${resident.id.substring(0, 8)}...`;
                             const initials = (resident.full_name || resident.email || 'UN').substring(0, 2).toUpperCase();
                             
                             return (
@@ -526,7 +527,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                                       {resident.email && <span>{resident.email}</span>}
                                       {resident.phone_number && resident.email && <span>•</span>}
                                       {resident.phone_number && <span>{resident.phone_number}</span>}
-                                      {!resident.email && !resident.phone_number && <span>Resident</span>}
+                                      {!resident.email && !resident.phone_number && <span>{t('profile.resident')}</span>}
                                     </div>
                                   </div>
                                 </Label>
@@ -544,7 +545,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                           return name.includes(query) || email.includes(query) || phone.includes(query);
                         }).length === 0 && eligibleSuccessors.filter((r: any) => r.role !== 'syndic').length > 0 && (
                           <div className="p-4 text-center text-gray-500">
-                            No residents match your search.
+                            {t('profile.noResidentsMatchSearch')}
                           </div>
                         )}
                       </div>
@@ -555,7 +556,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
                     <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
                       <AlertCircle className="h-4 w-4 text-red-800" />
                       <AlertDescription>
-                        Cannot select a syndic as a successor. Syndics cannot be added as residents. Please select a different resident.
+                        {t('profile.cannotSelectSyndicAsSuccessorFull')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -564,25 +565,25 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
 
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button variant="outline" onClick={handleReset} disabled={isProcessing}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button 
                   className="bg-blue-600 hover:bg-blue-700"
                   onClick={() => {
                     console.log('[DeleteAccount] Step 4 button clicked, selectedSuccessorId:', selectedSuccessorId);
                     if (!selectedSuccessorId) {
-                      toast.error('Please select a successor before submitting the deletion request');
+                      toast.error(t('profile.pleaseSelectSuccessorBeforeSubmit'));
                       return;
                     }
                     if (selectedSuccessorIsSyndic) {
-                      toast.error('Cannot select a syndic as a successor. Please select a different resident.');
+                      toast.error(t('profile.cannotSelectSyndicAsSuccessor'));
                       return;
                     }
                     handleSyndicDelete();
                   }}
                   disabled={!selectedSuccessorId || isProcessing || selectedSuccessorIsSyndic}
                 >
-                  {isProcessing ? 'Submitting Request...' : 'Submit Deletion Request'}
+                  {isProcessing ? t('profile.submittingRequest') : t('profile.submitDeletionRequest')}
                 </Button>
               </DialogFooter>
             </div>
@@ -591,7 +592,7 @@ export default function DeleteAccountButton({ userRole }: DeleteAccountButtonPro
           {step === 3 && (
             <div className="py-12 flex flex-col items-center justify-center space-y-4">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-              <p className="text-sm text-muted-foreground">Deleting your account...</p>
+              <p className="text-sm text-muted-foreground">{t('profile.deletingYourAccount')}</p>
             </div>
           )}
         </DialogContent>

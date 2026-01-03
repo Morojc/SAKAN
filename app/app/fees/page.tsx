@@ -98,12 +98,12 @@ export default function FeesPage() {
           setResidenceId(firstResidence.id);
           console.warn('Using fallback residence:', firstResidence);
         } else {
-          toast.error('Could not load your residence. Please contact support.');
+          toast.error(t('fees.couldNotLoadResidence'));
         }
       }
     } catch (error: any) {
       console.error('Error loading residence:', error);
-      toast.error('Failed to load residence information');
+      toast.error(t('fees.failedToLoadResidence'));
     }
   };
 
@@ -170,7 +170,7 @@ export default function FeesPage() {
   };
 
   const handleDeleteFee = async (feeId: number) => {
-    if (!confirm('Are you sure you want to delete this fee? This action cannot be undone.\n\nNote: Fees with related payments cannot be deleted.')) {
+    if (!confirm(t('fees.deleteFeeConfirm'))) {
       return;
     }
 
@@ -182,14 +182,14 @@ export default function FeesPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Fee deleted successfully!');
+        toast.success(t('fees.feeDeletedSuccess'));
         setRefreshTrigger((prev) => prev + 1);
       } else {
-        toast.error(result.error || 'Failed to delete fee');
+        toast.error(result.error || t('fees.failedToDeleteFee'));
       }
     } catch (error: any) {
       console.error('Error deleting fee:', error);
-      toast.error('Failed to delete fee');
+      toast.error(t('fees.failedToDeleteFee'));
     }
   };
 
@@ -220,7 +220,7 @@ export default function FeesPage() {
                 className="bg-purple-600 hover:bg-purple-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Bulk Fee (Exceptional)
+                {t('fees.bulkFee')}
               </Button>
               <Button 
                 onClick={() => setShowAddDialog(true)} 
@@ -332,21 +332,21 @@ export default function FeesPage() {
       {/* Fees Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Fees ({filteredFees.length})</CardTitle>
+          <CardTitle>{t('fees.allFees')} ({filteredFees.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Resident</TableHead>
-                  <TableHead>Apartment</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t('fees.feeTitle')}</TableHead>
+                  <TableHead>{t('fees.resident')}</TableHead>
+                  <TableHead>{t('fees.apartment')}</TableHead>
+                  <TableHead>{t('fees.amount')}</TableHead>
+                  <TableHead>{t('fees.dueDate')}</TableHead>
+                  <TableHead>{t('fees.status')}</TableHead>
+                  <TableHead>{t('fees.createdAt')}</TableHead>
+                  <TableHead className="text-right">{t('fees.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -355,7 +355,7 @@ export default function FeesPage() {
                     <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                       {searchTerm || statusFilter !== 'all'
                         ? t('fees.noFeesFound')
-                        : 'No fees yet. Click "Add Fee" to create one.'}
+                        : t('fees.noFeesYet')}
                     </TableCell>
                   </TableRow>
                 ) : (

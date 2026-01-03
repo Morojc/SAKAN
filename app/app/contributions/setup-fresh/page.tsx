@@ -48,12 +48,12 @@ export default function FreshStartSetupPage() {
 
   const handleSetup = async () => {
     if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid contribution amount');
+      toast.error(t('contributions.validAmountRequired'));
       return;
     }
 
     if (!residenceId) {
-      toast.error('Residence ID not found. Please refresh the page.');
+      toast.error(t('contributions.residenceIdNotFound'));
       return;
     }
 
@@ -84,20 +84,20 @@ export default function FreshStartSetupPage() {
       const result = await response.json();
 
       if (!result.success) {
-        toast.error(result.error || 'Failed to create contribution plan');
+        toast.error(result.error || t('contributions.plans.failedToCreatePlan'));
         setCreating(false);
         return;
       }
     } catch (error: any) {
       console.error('Error creating contribution plan:', error);
-      toast.error(error.message || 'Failed to create contribution plan');
+      toast.error(error.message || t('contributions.plans.failedToCreatePlan'));
       setCreating(false);
       return;
     }
 
     setCreating(false);
 
-    toast.success('Monthly contributions configured successfully!');
+    toast.success(t('contributions.monthlyContributionsConfigured'));
     router.push('/app/contributions');
   };
 
@@ -148,14 +148,14 @@ export default function FreshStartSetupPage() {
               className="mt-2"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              This amount will be charged to each resident every month
+              {t('contributions.amountDesc')}
             </p>
           </div>
 
           {/* Start Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="startMonth">Start Month</Label>
+              <Label htmlFor="startMonth">{t('contributions.startMonth')}</Label>
               <select
                 id="startMonth"
                 value={startMonth}
@@ -170,7 +170,7 @@ export default function FreshStartSetupPage() {
               </select>
             </div>
             <div>
-              <Label htmlFor="startYear">Start Year</Label>
+              <Label htmlFor="startYear">{t('contributions.startYear')}</Label>
               <Input
                 id="startYear"
                 type="number"
@@ -223,7 +223,7 @@ export default function FreshStartSetupPage() {
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• {t('contributions.amount')}: {amount ? `${amount} MAD` : 'Not set'}</li>
               <li>• {monthNames[startMonth - 1]} {startYear}</li>
-              <li>• {reminderEnabled ? `${reminderDays} {t('contributions.email Reminders')}` : t('contributions.emailRemindersDesc')}</li>
+              <li>• {reminderEnabled ? `${reminderDays} ${t('contributions.daysBefore')}` : t('contributions.remindersDisabled')}</li>
               <li>• {t('contributions.afterSetup1')}</li>
             </ul>
           </div>
@@ -254,15 +254,15 @@ export default function FreshStartSetupPage() {
       <Card className="bg-gray-50">
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            <strong>What happens next?</strong>
+            <strong>{t('contributions.whatHappensNext')}</strong>
             <br />
-            After completing this setup, the system will:
+            {t('contributions.afterSetup')}
           </p>
           <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-            <li>• Generate fees for all verified residents starting from {monthNames[startMonth - 1]} {startYear}</li>
-            <li>• Automatically create fees each month going forward</li>
-            <li>• Send payment reminders (if enabled)</li>
-            <li>• Track payment status for each resident</li>
+            <li>• {t('contributions.afterSetup1')}</li>
+            <li>• {t('contributions.afterSetup2')}</li>
+            <li>• {t('contributions.afterSetup3')}</li>
+            <li>• {t('contributions.afterSetup4')}</li>
           </ul>
         </CardContent>
       </Card>

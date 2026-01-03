@@ -35,7 +35,7 @@ export function Header() {
           {/* Mobile Menu Toggle */}
           <button 
               className="lg:hidden p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-all duration-200" 
-              aria-label="Toggle sidebar"
+              aria-label={t('header.toggleSidebar')}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -44,9 +44,9 @@ export function Header() {
           {/* Desktop Sidebar Toggle */}
           <button 
               className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 text-gray-600 transition-all duration-200" 
-              aria-label="Toggle sidebar"
+              aria-label={t('header.toggleSidebar')}
               onClick={toggleSidebar}
-              title={isCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              title={isCollapsed ? t('header.showSidebar') : t('header.hideSidebar')}
           >
               {isCollapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
           </button>
