@@ -15,6 +15,7 @@ import {
   Settings,
   Plus,
   PlusCircle,
+  Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
@@ -46,9 +47,18 @@ export default function ContributionsPage() {
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [pendingPeriod, setPendingPeriod] = useState<{ start: string; end: string } | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const loadUserResidence = async () => {
     try {
+      // Load user profile to get role
+      const profileResponse = await fetch('/api/current-user-profile');
+      const profileResult = await profileResponse.json();
+      
+      if (profileResult.success && profileResult.data?.role) {
+        setUserRole(profileResult.data.role);
+      }
+
       const response = await fetch('/api/user/residence');
       const result = await response.json();
 
@@ -438,6 +448,32 @@ export default function ContributionsPage() {
     handleGenerateContributions(planId);
   };
 
+  const handleDeleteContribution = async (contributionId: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation to payments page
+    
+    if (!confirm('Are you sure you want to delete this contribution? This action cannot be undone if the contribution has no related payments.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/contributions/${contributionId}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success('Contribution deleted successfully');
+        loadContributionStatus();
+      } else {
+        toast.error(result.error || 'Failed to delete contribution');
+      }
+    } catch (error: any) {
+      console.error('Error deleting contribution:', error);
+      toast.error('Failed to delete contribution');
+    }
+  };
+
   if (loading && !statusMatrix.length) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -642,17 +678,18 @@ export default function ContributionsPage() {
                       // For annual: "2025"
                       // For monthly: "janv-25", "févr-25", etc.
                       const status = row.months[col.key] || null;
+                      const contributionId = row.contribution_ids?.[col.key];
 
                       return (
                         <td
                           key={col.key}
-                          className={`border px-2 py-3 text-center cursor-pointer hover:bg-gray-100 ${
+                          className={`border px-2 py-3 text-center relative group ${
                             status === 'pending' || status === 'overdue' 
-                              ? 'bg-red-100' 
+                              ? 'bg-red-100 cursor-pointer hover:bg-red-200' 
                               : status === 'paid' 
                               ? 'bg-green-50' 
                               : status === 'partial'
-                              ? 'bg-yellow-50'
+                              ? 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
                               : 'bg-gray-50'
                           }`}
                           title={
@@ -681,6 +718,17 @@ export default function ContributionsPage() {
                               className="h-6 w-6 p-0"
                             >
                               <Plus className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {contributionId && userRole === 'syndic' && status !== null && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-700"
+                              onClick={(e) => handleDeleteContribution(contributionId, e)}
+                              title="Delete contribution (only if no payments)"
+                            >
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           )}
                         </td>

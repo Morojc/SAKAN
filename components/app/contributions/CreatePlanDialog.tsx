@@ -180,6 +180,7 @@ export default function CreatePlanDialog({
                 id="auto_generate"
                 checked={formData.auto_generate}
                 onCheckedChange={(checked) => setFormData({ ...formData, auto_generate: checked as boolean })}
+                className="border-2 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
               />
               <Label htmlFor="auto_generate" className="cursor-pointer">
                 Auto-generate contributions monthly

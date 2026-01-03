@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
           resident_name: residentName,
           resident_id: residentId,
           months: {},
+          contribution_ids: {},
           outstanding_months: 0,
           total_due: 0,
           total_paid: 0,
@@ -113,6 +114,10 @@ export async function GET(request: NextRequest) {
       }
       
       apt.months[periodKey] = contrib.status;
+      if (!apt.contribution_ids) {
+        apt.contribution_ids = {};
+      }
+      apt.contribution_ids[periodKey] = contrib.id;
       apt.total_due += parseFloat(contrib.amount_due);
       apt.total_paid += parseFloat(contrib.amount_paid);
       
