@@ -165,6 +165,31 @@ export async function DELETE(
       );
     }
 
+    // Check if plan has related contributions - prevent deletion if contributions exist
+    const { data: relatedContributions, error: contributionsError } = await supabase
+      .from('contributions')
+      .select('id')
+      .eq('contribution_plan_id', id)
+      .limit(1);
+
+    if (contributionsError) {
+      console.error('[DELETE /api/contributions/plans/[id]] Error checking contributions:', contributionsError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to check for related contributions' },
+        { status: 500 }
+      );
+    }
+
+    if (relatedContributions && relatedContributions.length > 0) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Cannot delete plan: This plan has related contributions. Plans with contributions cannot be deleted to maintain financial integrity.' 
+        },
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabase
       .from('contribution_plans')
       .delete()

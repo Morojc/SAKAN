@@ -12,17 +12,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Loader2, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Loader2, Edit, Trash2, CheckCircle, XCircle, ArrowLeft, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { ContributionPlan } from '@/types/financial.types';
 import CreatePlanDialog from '@/components/app/contributions/CreatePlanDialog';
+import ViewPlanDialog from '@/components/app/contributions/ViewPlanDialog';
 
 export default function ContributionPlansPage() {
   const { t } = useI18n();
+  const router = useRouter();
   const [plans, setPlans] = useState<ContributionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<ContributionPlan | null>(null);
   const [residenceId, setResidenceId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -128,7 +133,7 @@ export default function ContributionPlansPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this plan?')) {
+    if (!confirm('Are you sure you want to delete this plan? This action cannot be undone.\n\nNote: Plans with related contributions cannot be deleted.')) {
       return;
     }
 
@@ -182,11 +187,21 @@ export default function ContributionPlansPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Contribution Plans</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage recurring contribution rules for your residence
-          </p>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/app/contributions')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Contributions
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Contribution Plans</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage recurring contribution rules for your residence
+            </p>
+          </div>
         </div>
         <Button 
           onClick={() => setShowCreateDialog(true)}
@@ -263,6 +278,17 @@ export default function ContributionPlansPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedPlan(plan);
+                            setShowViewDialog(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                         {plan.is_active ? (
                           <Button
                             variant="ghost"
@@ -311,6 +337,13 @@ export default function ContributionPlansPage() {
           residenceId={residenceId}
         />
       )}
+
+      {/* View Plan Dialog */}
+      <ViewPlanDialog
+        open={showViewDialog}
+        onOpenChange={setShowViewDialog}
+        plan={selectedPlan}
+      />
     </div>
   );
 }
