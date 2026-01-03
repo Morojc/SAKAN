@@ -125,6 +125,7 @@ export interface ContributionStatusMatrix {
   resident_name: string;
   resident_id: string;
   months: Record<string, ContributionStatus | null>;
+  contribution_ids?: Record<string, number>; // Maps period key to contribution ID
   outstanding_months: number;
   total_due: number;
   total_paid: number;
