@@ -18,6 +18,7 @@ import {
   Trash2,
   LayoutGrid,
   Table2,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
@@ -39,6 +40,7 @@ export default function ContributionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
+  const [apartmentFilter, setApartmentFilter] = useState('');
   const [residenceId, setResidenceId] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<{ 
     id: number;
@@ -112,7 +114,13 @@ export default function ContributionsPage() {
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/contributions/status?residenceId=${residenceId}&year=${selectedYear}`);
+      // Build query with filters
+      let queryUrl = `/api/contributions/status?residenceId=${residenceId}&year=${selectedYear}`;
+      if (apartmentFilter.trim()) {
+        queryUrl += `&apartmentNumber=${encodeURIComponent(apartmentFilter.trim())}`;
+      }
+      
+      const response = await fetch(queryUrl);
       
       if (!response.ok) {
         throw new Error('Failed to load contribution status');
@@ -142,7 +150,7 @@ export default function ContributionsPage() {
       loadActivePlan();
       loadContributionStatus();
     }
-  }, [selectedYear, residenceId]);
+  }, [selectedYear, residenceId, apartmentFilter]);
 
   // Filter data by search term
   const filteredData = statusMatrix.filter(
@@ -555,7 +563,7 @@ export default function ContributionsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex-1">
               <Label htmlFor="search">{t('contributions.search')}</Label>
               <div className="relative mt-2">
@@ -570,7 +578,29 @@ export default function ContributionsPage() {
                 />
               </div>
             </div>
-            <div className="w-40">
+            <div className="w-full md:w-40">
+              <Label htmlFor="apartment">Apartment Number</Label>
+              <div className="relative mt-2">
+                <Input
+                  id="apartment"
+                  type="text"
+                  placeholder="e.g., A1, B2"
+                  value={apartmentFilter}
+                  onChange={(e) => setApartmentFilter(e.target.value)}
+                  className="pr-8"
+                />
+                {apartmentFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setApartmentFilter('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="w-full md:w-40">
               <Label htmlFor="year">{t('contributions.year')}</Label>
               <select
                 id="year"

@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const residenceId = searchParams.get('residenceId');
     const year = searchParams.get('year') || new Date().getFullYear().toString();
+    const apartmentNumber = searchParams.get('apartmentNumber'); // Optional filter
 
     if (!residenceId) {
       return NextResponse.json(
@@ -35,8 +36,8 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .maybeSingle();
 
-    // Get all contributions for the year
-    const { data: contributions, error } = await supabase
+    // Build query for contributions
+    let contributionsQuery = supabase
       .from('contributions')
       .select(`
         *,
@@ -52,7 +53,15 @@ export async function GET(request: NextRequest) {
       `)
       .eq('residence_id', residenceId)
       .gte('period_start', `${year}-01-01`)
-      .lte('period_start', `${year}-12-31`)
+      .lte('period_start', `${year}-12-31`);
+
+    // Apply apartment number filter if provided
+    if (apartmentNumber) {
+      contributionsQuery = contributionsQuery.eq('apartment_number', apartmentNumber);
+    }
+
+    // Get all contributions for the year (with optional apartment filter)
+    const { data: contributions, error } = await contributionsQuery
       .order('apartment_number', { ascending: true })
       .order('period_start', { ascending: true });
 

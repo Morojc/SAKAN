@@ -40,13 +40,14 @@ export default function CreatePlanDialog({
     period_type: 'monthly',
     start_date: defaultStartDate,
     applies_to_all_apartments: true,
-    auto_generate: true,
+    // Disabled features - set defaults but won't be used
+    auto_generate: false,
     generation_day: 1,
     due_day: 5,
     late_fee_enabled: false,
     late_fee_amount: 0,
     late_fee_days_after: 7,
-    reminder_enabled: true,
+    reminder_enabled: false,
     reminder_days_before: 3,
   });
 
@@ -171,122 +172,37 @@ export default function CreatePlanDialog({
             </p>
           </div>
 
-          {/* Generation Settings */}
-          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-semibold text-sm">Generation Settings</h4>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="auto_generate"
-                checked={formData.auto_generate}
-                onCheckedChange={(checked) => setFormData({ ...formData, auto_generate: checked as boolean })}
-                className="border-2 border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-              />
-              <Label htmlFor="auto_generate" className="cursor-pointer">
-                Auto-generate contributions monthly
-              </Label>
+          {/* Generation Settings - Coming Soon */}
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 opacity-60">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm">Generation Settings</h4>
+              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Coming Soon</span>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="generation_day">Generation Day (1-28)</Label>
-                <Input
-                  id="generation_day"
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={formData.generation_day}
-                  onChange={(e) => setFormData({ ...formData, generation_day: parseInt(e.target.value) || 1 })}
-                  className="mt-2"
-                />
-              </div>
-              <div>
-                <Label htmlFor="due_day">Due Day (1-28)</Label>
-                <Input
-                  id="due_day"
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={formData.due_day}
-                  onChange={(e) => setFormData({ ...formData, due_day: parseInt(e.target.value) || 5 })}
-                  className="mt-2"
-                />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Automatic contribution generation and scheduling will be available in a future update.
+            </p>
           </div>
 
-          {/* Late Fee Settings */}
-          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-semibold text-sm">Late Fee Settings</h4>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="late_fee_enabled"
-                checked={formData.late_fee_enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, late_fee_enabled: checked as boolean })}
-              />
-              <Label htmlFor="late_fee_enabled" className="cursor-pointer">
-                Enable late fees
-              </Label>
+          {/* Late Fee Settings - Coming Soon */}
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 opacity-60">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm">Late Fee Settings</h4>
+              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Coming Soon</span>
             </div>
-
-            {formData.late_fee_enabled && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="late_fee_amount">Late Fee Amount</Label>
-                  <Input
-                    id="late_fee_amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formData.late_fee_amount}
-                    onChange={(e) => setFormData({ ...formData, late_fee_amount: parseFloat(e.target.value) || 0 })}
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="late_fee_days_after">Days After Due</Label>
-                  <Input
-                    id="late_fee_days_after"
-                    type="number"
-                    min="1"
-                    value={formData.late_fee_days_after}
-                    onChange={(e) => setFormData({ ...formData, late_fee_days_after: parseInt(e.target.value) || 7 })}
-                    className="mt-2"
-                  />
-                </div>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Automatic late fee calculation and application will be available in a future update.
+            </p>
           </div>
 
-          {/* Reminder Settings */}
-          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-semibold text-sm">Reminder Settings</h4>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="reminder_enabled"
-                checked={formData.reminder_enabled}
-                onCheckedChange={(checked) => setFormData({ ...formData, reminder_enabled: checked as boolean })}
-              />
-              <Label htmlFor="reminder_enabled" className="cursor-pointer">
-                Send email reminders
-              </Label>
+          {/* Reminder Settings - Coming Soon */}
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 opacity-60">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm">Reminder Settings</h4>
+              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Coming Soon</span>
             </div>
-
-            {formData.reminder_enabled && (
-              <div>
-                <Label htmlFor="reminder_days_before">Days Before Due Date</Label>
-                <Input
-                  id="reminder_days_before"
-                  type="number"
-                  min="1"
-                  value={formData.reminder_days_before}
-                  onChange={(e) => setFormData({ ...formData, reminder_days_before: parseInt(e.target.value) || 3 })}
-                  className="mt-2"
-                />
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Automated email reminders will be available in a future update.
+            </p>
           </div>
         </div>
 
