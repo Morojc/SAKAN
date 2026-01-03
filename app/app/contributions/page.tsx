@@ -16,10 +16,13 @@ import {
   Plus,
   PlusCircle,
   Trash2,
+  LayoutGrid,
+  Table2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useI18n } from '@/lib/i18n/client';
 import type { ContributionStatusMatrix } from '@/types/financial.types';
+import ApartmentContributionCard from '@/components/app/contributions/ApartmentContributionCard';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +51,7 @@ export default function ContributionsPage() {
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [pendingPeriod, setPendingPeriod] = useState<{ start: string; end: string } | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
 
   const loadUserResidence = async () => {
     try {
@@ -635,112 +639,160 @@ export default function ContributionsPage() {
         </Card>
       </div>
 
-      {/* Contribution Status Table */}
+      {/* Contribution Status View */}
       <Card>
         <CardHeader>
-          <CardTitle>SITUATION DES COTISATIONS - {selectedYear}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>SITUATION DES COTISATIONS - {selectedYear}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'card' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('card')}
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                Card View
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+              >
+                <Table2 className="w-4 h-4 mr-2" />
+                Table View
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="border px-4 py-3 text-left font-semibold sticky left-0 bg-gray-50 z-10">
-                    {t('contributions.apartment')}
-                  </th>
-                  <th className="border px-4 py-3 text-left font-semibold">{t('contributions.resident')}</th>
-                  <th className="border px-4 py-3 text-center font-semibold">{t('contributions.report')}</th>
-                  {columnHeaders.map((col) => (
-                    <th key={col.key} className="border px-2 py-3 text-center font-semibold">
-                      {col.label}
+          {viewMode === 'card' ? (
+            // Card View
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredData.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  No data found. Try adjusting your search or filters.
+                </div>
+              ) : (
+                filteredData.map((apartment) => (
+                  <ApartmentContributionCard
+                    key={apartment.apartment_number}
+                    apartment={apartment}
+                    columnHeaders={columnHeaders}
+                    userRole={userRole}
+                    onViewDetails={() => {
+                      router.push(`/app/payments?apartmentNumber=${apartment.apartment_number}`);
+                    }}
+                    onRecordPayment={() => {
+                      router.push(`/app/payments?apartmentNumber=${apartment.apartment_number}`);
+                    }}
+                    onDeleteContribution={handleDeleteContribution}
+                  />
+                ))
+              )}
+            </div>
+          ) : (
+            // Table View (original)
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border px-4 py-3 text-left font-semibold sticky left-0 bg-gray-50 z-10">
+                      {t('contributions.apartment')}
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((row, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="border px-4 py-3 font-medium sticky left-0 bg-white z-10">
-                      {row.apartment_number}
-                    </td>
-                    <td className="border px-4 py-3">{row.resident_name}</td>
-                    <td className="border px-4 py-3 text-center">
-                      {row.outstanding_months > 0 && (
-                        <span className="text-red-600 font-medium">
-                          {row.outstanding_months.toString().padStart(2, '0')} Mois
-                        </span>
-                      )}
-                    </td>
-                    {columnHeaders.map((col) => {
-                      // The status API returns period keys that match the column keys
-                      // For quarterly: "Q1-25", "Q2-25", etc.
-                      // For semi-annual: "H1-25", "H2-25"
-                      // For annual: "2025"
-                      // For monthly: "janv-25", "févr-25", etc.
-                      const status = row.months[col.key] || null;
-                      const contributionId = row.contribution_ids?.[col.key];
-
-                      return (
-                        <td
-                          key={col.key}
-                          className={`border px-2 py-3 text-center relative group ${
-                            status === 'pending' || status === 'overdue' 
-                              ? 'bg-red-100 cursor-pointer hover:bg-red-200' 
-                              : status === 'paid' 
-                              ? 'bg-green-50' 
-                              : status === 'partial'
-                              ? 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
-                              : 'bg-gray-50'
-                          }`}
-                          title={
-                            status === 'paid'
-                              ? 'Paid'
-                              : status === 'pending'
-                              ? 'Unpaid - Click to record payment'
-                              : status === 'partial'
-                              ? 'Partially paid'
-                              : status === 'overdue'
-                              ? 'Overdue'
-                              : `No contribution for this ${activePlan?.period_type === 'quarterly' ? 'quarter' : activePlan?.period_type === 'semi_annual' ? 'half-year' : activePlan?.period_type === 'annual' ? 'year' : 'month'}`
-                          }
-                          onClick={() => {
-                            if (status === 'pending' || status === 'partial' || status === 'overdue') {
-                              router.push(`/app/payments?apartmentNumber=${row.apartment_number}`);
-                            }
-                          }}
-                        >
-                          {status === 'paid' && <span className="font-bold text-green-700">✓</span>}
-                          {status === 'partial' && <span className="font-bold text-yellow-700">½</span>}
-                          {(status === 'pending' || status === 'overdue') && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {contributionId && userRole === 'syndic' && status !== null && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-700"
-                              onClick={(e) => handleDeleteContribution(contributionId, e)}
-                              title="Delete contribution (only if no payments)"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </td>
-                      );
-                    })}
+                    <th className="border px-4 py-3 text-left font-semibold">{t('contributions.resident')}</th>
+                    <th className="border px-4 py-3 text-center font-semibold">{t('contributions.report')}</th>
+                    {columnHeaders.map((col) => (
+                      <th key={col.key} className="border px-2 py-3 text-center font-semibold">
+                        {col.label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredData.map((row, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="border px-4 py-3 font-medium sticky left-0 bg-white z-10">
+                        {row.apartment_number}
+                      </td>
+                      <td className="border px-4 py-3">{row.resident_name}</td>
+                      <td className="border px-4 py-3 text-center">
+                        {row.outstanding_months > 0 && (
+                          <span className="text-red-600 font-medium">
+                            {row.outstanding_months.toString().padStart(2, '0')} Mois
+                          </span>
+                        )}
+                      </td>
+                      {columnHeaders.map((col) => {
+                        // The status API returns period keys that match the column keys
+                        // For quarterly: "Q1-25", "Q2-25", etc.
+                        // For semi-annual: "H1-25", "H2-25"
+                        // For annual: "2025"
+                        // For monthly: "janv-25", "févr-25", etc.
+                        const status = row.months[col.key] || null;
+                        const contributionId = row.contribution_ids?.[col.key];
 
-          {filteredData.length === 0 && (
+                        return (
+                          <td
+                            key={col.key}
+                            className={`border px-2 py-3 text-center relative group ${
+                              status === 'pending' || status === 'overdue' 
+                                ? 'bg-red-100 cursor-pointer hover:bg-red-200' 
+                                : status === 'paid' 
+                                ? 'bg-green-50' 
+                                : status === 'partial'
+                                ? 'bg-yellow-50 cursor-pointer hover:bg-yellow-100'
+                                : 'bg-gray-50'
+                            }`}
+                            title={
+                              status === 'paid'
+                                ? 'Paid'
+                                : status === 'pending'
+                                ? 'Unpaid - Click to record payment'
+                                : status === 'partial'
+                                ? 'Partially paid'
+                                : status === 'overdue'
+                                ? 'Overdue'
+                                : `No contribution for this ${activePlan?.period_type === 'quarterly' ? 'quarter' : activePlan?.period_type === 'semi_annual' ? 'half-year' : activePlan?.period_type === 'annual' ? 'year' : 'month'}`
+                            }
+                            onClick={() => {
+                              if (status === 'pending' || status === 'partial' || status === 'overdue') {
+                                router.push(`/app/payments?apartmentNumber=${row.apartment_number}`);
+                              }
+                            }}
+                          >
+                            {status === 'paid' && <span className="font-bold text-green-700">✓</span>}
+                            {status === 'partial' && <span className="font-bold text-yellow-700">½</span>}
+                            {(status === 'pending' || status === 'overdue') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {contributionId && userRole === 'syndic' && status !== null && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-100 hover:text-red-700"
+                                onClick={(e) => handleDeleteContribution(contributionId, e)}
+                                title="Delete contribution (only if no payments)"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {viewMode === 'table' && filteredData.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               No data found. Try adjusting your search or filters.
             </div>
